@@ -181,8 +181,8 @@ module ramm_sui::math {
 
     public(friend) fun weights(
         balances: &VecMap<u8, u256>,
-        factor_balances: &VecMap<u8, u256>,
         prices: &VecMap<u8, u256>,
+        factor_balances: &VecMap<u8, u256>,
         factors_prices: &VecMap<u8, u256>,
         prec: u8,
         max_prec: u8,
@@ -212,6 +212,7 @@ module ramm_sui::math {
         while (k < _N) {
             let w_k = vec_map::get_mut(&mut _W, &k);
             *w_k = div(*w_k, _B, prec, max_prec);
+            k = k + 1;
         };
 
         _W

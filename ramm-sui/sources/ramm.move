@@ -713,8 +713,8 @@ module ramm_sui::ramm {
     ): VecMap<u8, u256> {
         ramm_math::weights(
             &self.balances,
-            &self.factor_balances,
             prices,
+            &self.factor_balances,
             factors_prices,
             PRECISION_DECIMAL_PLACES,
             MAX_PRECISION_DECIMAL_PLACES

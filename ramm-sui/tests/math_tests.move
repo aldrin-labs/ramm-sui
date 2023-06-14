@@ -136,6 +136,83 @@ module ramm_sui::math_tests {
     // Functions
     // ---------
 
+    /// Helper to check RAMM weight calculation using the whitepaper's example, with a
+    /// 3-asset RAMM with ETH, MATIC, USDT.
+    ///
+    /// The exact results do not matter, the tests below using this function are just checks
+    /// to alert developers of any change to the mathematical functions' behavior.
+    fun weights(
+        bal_0: u256,
+        bal_1: u256,
+        bal_2: u256,
+        prices_decimal_places: u8,
+        balances_decimal_places: u8
+    ): VecMap<u8, u256> {
+        let balances = vec_map::empty<u8, u256>();
+        let prices = vec_map::empty<u8, u256>();
+        let factors_prices = vec_map::empty<u8, u256>();
+        let factors_balances = vec_map::empty<u8, u256>();
+
+        vec_map::insert(&mut balances, 0, bal_0);
+        vec_map::insert(&mut prices, 0, 1_800_000_000_000);
+        vec_map::insert(&mut factors_prices, 0, ramm_math::pow(10u256, PRECISION_DECIMAL_PLACES - prices_decimal_places));
+        vec_map::insert(&mut factors_balances, 0, ramm_math::pow(10u256, PRECISION_DECIMAL_PLACES - balances_decimal_places));
+
+        vec_map::insert(&mut balances, 1, bal_1);
+        vec_map::insert(&mut prices, 1, 1_200_000_000);
+        vec_map::insert(&mut factors_prices, 1, ramm_math::pow(10u256, PRECISION_DECIMAL_PLACES - prices_decimal_places));
+        vec_map::insert(&mut factors_balances, 1, ramm_math::pow(10u256, PRECISION_DECIMAL_PLACES - balances_decimal_places));
+
+        vec_map::insert(&mut balances, 2, bal_2);
+        vec_map::insert(&mut prices, 2, 1_000_000_000);
+        vec_map::insert(&mut factors_prices, 2, ramm_math::pow(10u256, PRECISION_DECIMAL_PLACES - prices_decimal_places));
+        vec_map::insert(&mut factors_balances, 2, ramm_math::pow(10u256, PRECISION_DECIMAL_PLACES - balances_decimal_places));
+
+        ramm_math::weights(
+            &balances,
+            &prices,
+            &factors_prices,
+            &factors_balances,
+            PRECISION_DECIMAL_PLACES,
+            MAX_PRECISION_DECIMAL_PLACES,
+        )
+    }
+
+    #[test]
+    /// Weight calculation before any trade is done, after every asset has liquidity deposited in.
+    fun weights_1() {
+        let ws = weights(200 * ONE, 200_000 * ONE, 400_000 * ONE, 9, 8);
+
+        test_utils::assert_eq(*vec_map::get(&ws, &0), 36 * ONE / 100);
+        test_utils::assert_eq(*vec_map::get(&ws, &1), 24 * ONE / 100);
+        test_utils::assert_eq(*vec_map::get(&ws, &2), 40 * ONE / 100);
+    }
+
+    #[test]
+    /// Weight calculation after the first trade, ETH/USDT
+    fun weights_2() {
+        let ws = weights(209995 * ONE / 1000, 200_000 * ONE, 38_202_653 * ONE / 100, 9, 8);
+
+        test_utils::assert_eq(*vec_map::get(&ws, &0), 377984373933);
+        test_utils::assert_eq(*vec_map::get(&ws, &1), 239995792873);
+        test_utils::assert_eq(*vec_map::get(&ws, &2), 382019833192);
+    }
+
+    #[test]
+    /// Weight calculation after the second trade, ETH/MATIC
+    fun weights_3() {
+        let ws = weights(21499 * ONE / 100, 19251134 * ONE / 100, 38_202_653 * ONE / 100, 9, 8);
+
+        test_utils::assert_eq(*vec_map::get(&ws, &0), 386973433182);
+        test_utils::assert_eq(*vec_map::get(&ws, &1), 231008493933);
+        test_utils::assert_eq(*vec_map::get(&ws, &2), 382018072883);
+    }
+
+    /// Helper to check calculation of RAMM imbalance ratios using the whitepaper's example of
+    /// a 3-asset RAMM with ETH, MATIC, USDT.
+    ///
+    /// The exact results do not matter, the tests below using this function are just checks
+    /// to alert developers of any change to the mathematical functions' behavior.
     fun imbalance_ratios(
         bal_0: u256,
         bal_1: u256,
@@ -180,6 +257,7 @@ module ramm_sui::math_tests {
     }
 
     #[test]
+    /// Imbalance ratio calculation before any trade is done, after every asset has liquidity deposited in.
     fun imbalance_ratios_1() {
         let imbs = imbalance_ratios(200 * ONE, 200_000 * ONE, 400_000 * ONE, 9, 8);
 
@@ -190,6 +268,7 @@ module ramm_sui::math_tests {
     }
 
     #[test]
+    /// Imbalance ratio calculation after the first trade, ETH/USDT.
     fun imbalance_ratios_2() {
         let imbs = imbalance_ratios(209995 * ONE / 1000, 200_000 * ONE, 38_202_653 * ONE / 100, 9, 8);
 
@@ -199,6 +278,7 @@ module ramm_sui::math_tests {
     }
 
     #[test]
+    /// Imbalance ratio calculation after the second trade, ETH/MATIC.
     fun imbalance_ratios_3() {
         let imbs = imbalance_ratios(21499 * ONE / 100, 19251134 * ONE / 100, 38_202_653 * ONE / 100, 9, 8);
 
