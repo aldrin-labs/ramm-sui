@@ -20,6 +20,7 @@ module ramm_sui::ramm {
     // Because of the below declarations, use the `test` flag when building or
     // creating test coverage maps: `sui move test coverage --test`.
     friend ramm_sui::interface3_tests;
+    friend ramm_sui::math_tests;
     friend ramm_sui::ramm_tests;
     friend ramm_sui::test_utils;
 
@@ -32,6 +33,43 @@ module ramm_sui::ramm {
     const ERAMMNewAssetFailure: u64 = 4;
     const ENotInitialized: u64 = 5;
     const EWrongNewAssetCap: u64 = 6;
+
+    /// ------------------
+    /// Constants for math
+    /// ------------------
+
+
+    /// Number of decimal places of precision.
+    const PRECISION_DECIMAL_PLACES: u8 = 12;
+    const MAX_PRECISION_DECIMAL_PLACES: u8 = 25;
+    const LP_TOKENS_DECIMAL_PLACES: u8 = 9;
+
+    const ONE: u256 = 1_000_000_000_000;
+
+    /// Base fee in basis points:
+    ///
+    /// A value of 10 means 0.001 or 0.1%
+    const BASE_FEE: u256 = 10 * 1_000_000_000_000 / 10000; // _BASE_FEE * 10**(PRECISION_DECIMAL_PLACES-4)
+
+    // BASE_LEVERAGE = BASE_LEVERAGE = _BASE_LEVERAGE * ONE
+    const BASE_LEVERAGE: u256 = 100 * 1_000_000_000_000;
+
+    /// 50% of collected base fees go to the RAMM.
+    const PROTOCOL_FEE: u256 = 50 * 1_000_000_000_000 / 100; // PROTOCOL_FEE = _PROTOCOL_FEE*10**(PRECISION_DECIMAL_PLACES-2)
+
+    /// Miguel's note:
+    /// Maximum permitted deviation of the imbalance ratios from 1.0. 2 decimal places
+    /// are considered.
+    ///
+    /// Hence DELTA=25 is interpreted as 0.25
+    const DELTA: u256 = 25 * 1_000_000_000_000 / 100; // DELTA = _DELTA * 10**(PRECISION_DECIMAL_PLACES-2)
+
+    // FACTOR_LPT = 10**(PRECISION_DECIMAL_PLACES-LP_TOKENS_DECIMAL_PLACES)
+    const FACTOR_LPT: u256 = 1_000_000_000_000 / 1_000_000_000;
+
+    /// ---------------------
+    /// End of math constants
+    /// ---------------------
 
     /// A "Liquidity Pool" token that will be used to mark the pool share
     /// of a liquidity provider.
@@ -133,10 +171,45 @@ module ramm_sui::ramm {
         // Done for storage considerations: storing type names in every single
         // map/bag as keys is unwieldy.
         types_to_indexes: VecMap<TypeName, u8>,
+        // Decimal places of precision for each of the assets.
+        // Specified in the coin type's `CoinMetadata`.
+        factor_balances: VecMap<u8, u256>,
         // This would be `N`, in the whitepaper - the total number of assets
         // being held by a pool.
         asset_count: u8,
     }
+
+    /// --------------
+    /// Math functions
+    /// --------------
+
+    public(friend) fun mul(x: u256, y: u256): u256 {
+        ramm_math::mul(x, y, PRECISION_DECIMAL_PLACES, MAX_PRECISION_DECIMAL_PLACES)
+    }
+
+    public(friend) fun mul3(x: u256, y: u256, z: u256): u256 {
+        ramm_math::mul3(x, y, z, PRECISION_DECIMAL_PLACES, MAX_PRECISION_DECIMAL_PLACES)
+    }
+
+    public(friend) fun div(x: u256, y: u256): u256 {
+        ramm_math::div(x, y, PRECISION_DECIMAL_PLACES, MAX_PRECISION_DECIMAL_PLACES)
+    }
+
+    public(friend) fun pow_n(x: u256, n: u256): u256 {
+        ramm_math::pow_n(x, n, ONE, PRECISION_DECIMAL_PLACES, MAX_PRECISION_DECIMAL_PLACES)
+    }
+
+    public(friend) fun pow_d(x: u256, a: u256): u256 {
+        ramm_math::pow_d(x, a, ONE, PRECISION_DECIMAL_PLACES, MAX_PRECISION_DECIMAL_PLACES)
+    }
+
+    public(friend) fun power(x: u256, a: u256): u256 {
+        ramm_math::power(x, a, ONE, PRECISION_DECIMAL_PLACES, MAX_PRECISION_DECIMAL_PLACES)
+    }
+
+    /// ---------------------
+    /// End of math functions
+    /// ---------------------
 
     /// -----------
     /// `impl RAMM`
@@ -173,6 +246,7 @@ module ramm_sui::ramm {
                 collected_protocol_fees: bag::new(ctx),
 
                 types_to_indexes: vec_map::empty<TypeName, u8>(),
+                factor_balances: vec_map::empty<u8, u256>(),
                 asset_count: 0
             };
 
@@ -219,6 +293,7 @@ module ramm_sui::ramm {
         assert!(bag::is_empty(&ramm.collected_protocol_fees), ERAMMInvalidInitState);
 
         assert!(vec_map::is_empty<TypeName, u8>(&ramm.types_to_indexes), ERAMMInvalidInitState);
+        assert!(vec_map::is_empty<u8, u256>(&ramm.factor_balances), ERAMMInvalidInitState);
 
         assert!(ramm.asset_count == 0, ERAMMInvalidInitState);
 
@@ -248,6 +323,7 @@ module ramm_sui::ramm {
         self: &mut RAMM,
         feed: &Aggregator,
         min_trade_amnt: u64,
+        asset_decimal_places: u8,
         a: &RAMMAdminCap,
         na: &RAMMNewAssetCap,
     ) {
@@ -275,6 +351,8 @@ module ramm_sui::ramm {
         bag::add(&mut self.collected_protocol_fees, type_index, balance::zero<Asset>());
 
         vec_map::insert(&mut self.types_to_indexes, type_name, type_index);
+        let factor_balance: u256 = ramm_math::pow(10u256, PRECISION_DECIMAL_PLACES - asset_decimal_places);
+        vec_map::insert(&mut self.factor_balances, type_index, factor_balance);
 
         let n = (self.asset_count as u64);
         assert!(n == vec_map::size(&self.aggregator_addrs), ERAMMNewAssetFailure);
@@ -285,6 +363,7 @@ module ramm_sui::ramm {
         assert!(n == vec_map::size(&self.deposits_enabled), ERAMMNewAssetFailure);
         assert!(n == bag::length(&self.collected_protocol_fees), ERAMMNewAssetFailure);
         assert!(n == vec_map::size(&self.types_to_indexes), ERAMMNewAssetFailure);
+        assert!(n == vec_map::size(&self.factor_balances), ERAMMNewAssetFailure);
     }
 
     /// Initialize a RAMM pool.
@@ -321,7 +400,7 @@ module ramm_sui::ramm {
 
         let ix = 0;
         while (ix < self.asset_count) {
-            set_deposit_status(self, ix, true); 
+            set_deposit_status(self, ix, true);
             ix = ix + 1;
         };
 
@@ -516,6 +595,17 @@ module ramm_sui::ramm {
         *vec_map::get(&self.types_to_indexes, &type_name::get<Asset>())
     }
 
+    /// Asset decimal places
+
+    fun get_factor_bal(self: &RAMM, index: u8): u256 {
+        *vec_map::get(&self.factor_balances, &index)
+    }
+
+    public(friend) fun get_factor_balance<Asset>(self: &RAMM): u256{
+        let ix = get_asset_index<Asset>(self);
+        get_factor_bal(self, ix)
+    }
+
     /// Asset count
 
     /// Return the number of assets in the RAMM
@@ -611,6 +701,63 @@ module ramm_sui::ramm {
         assert!(check_feed_address(self, ix, feed), EInvalidAggregator);
         vec_map::insert(prices, ix, get_price_from_oracle(feed));
     }
+
+    /// ------------------------
+    /// Mathematics calculations
+    /// ------------------------
+
+    fun weights(
+        self: &RAMM,
+        prices: &VecMap<u8, u256>,
+        factors_prices: &VecMap<u8, u256>
+    ): VecMap<u8, u256> {
+        ramm_math::weights(
+            &self.balances,
+            &self.factor_balances,
+            prices,
+            factors_prices,
+            PRECISION_DECIMAL_PLACES,
+            MAX_PRECISION_DECIMAL_PLACES
+        )
+    }
+
+    fun compute_B_and_L(
+        self: &RAMM,
+        prices: &VecMap<u8, u256>,
+        factors_prices: &VecMap<u8, u256>,
+    ): (u256, u256) {
+        ramm_math::compute_B_and_L(
+            &self.balances,
+            &self.lp_tokens_issued,
+            prices,
+            factors_prices,
+            &self.factor_balances,
+            PRECISION_DECIMAL_PLACES,
+            MAX_PRECISION_DECIMAL_PLACES,
+            FACTOR_LPT
+        )
+    }
+
+    fun imbalance_ratios(
+        self: &RAMM,
+        prices: &VecMap<u8, u256>,
+        factors_prices: &VecMap<u8, u256>,
+    ): VecMap<u8, u256> {
+        ramm_math::imbalance_ratios(
+            &self.balances,
+            &self.lp_tokens_issued,
+            prices,
+            factors_prices,
+            &self.factor_balances,
+            PRECISION_DECIMAL_PLACES,
+            MAX_PRECISION_DECIMAL_PLACES,
+            FACTOR_LPT
+        )
+    }
+
+    /// ------------------
+    /// end of `impl RAMM`
+    /// ------------------
 
     /// --------------------------
     /// Internal trading functions

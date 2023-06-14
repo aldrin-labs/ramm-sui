@@ -16,6 +16,21 @@ module ramm_sui::test_utils {
     friend ramm_sui::ramm_tests;
     friend ramm_sui::interface3_tests;
 
+    /// Decimal places of this module's BTC coin type.
+    public(friend) fun btc_dec_places(): u8 {
+        8
+    }
+
+    /// Decimal places of this module's ETH coin type.
+    public(friend) fun eth_dec_places(): u8 {
+        8
+    }
+
+    /// Decimal places of this module's SOL coin type.
+    public(friend) fun sol_dec_places(): u8 {
+        8
+    }
+
     /// For testing use only - one time witness for aggregator creation.
     struct SecretKey has drop {}
 
@@ -141,8 +156,22 @@ module ramm_sui::test_utils {
 
             let minimum_trade_amount = 1000;
 
-            ramm::add_asset_to_ramm<BTC>(&mut ramm, &btc_aggr, minimum_trade_amount, &admin_cap, &new_asset_cap);
-            ramm::add_asset_to_ramm<ETH>(&mut ramm, &eth_aggr, minimum_trade_amount, &admin_cap, &new_asset_cap);
+            ramm::add_asset_to_ramm<BTC>(
+                &mut ramm,
+                &btc_aggr,
+                minimum_trade_amount,
+                btc_dec_places(),
+                &admin_cap,
+                &new_asset_cap
+            );
+            ramm::add_asset_to_ramm<ETH>(
+                &mut ramm,
+                &eth_aggr,
+                minimum_trade_amount,
+                eth_dec_places(),
+                &admin_cap,
+                &new_asset_cap
+            );
 
             ramm::initialize_ramm(&mut ramm, &admin_cap, new_asset_cap);
 
@@ -202,9 +231,27 @@ module ramm_sui::test_utils {
 
             let minimum_trade_amount = 1000;
 
-            ramm::add_asset_to_ramm<BTC>(&mut ramm, &btc_aggr, minimum_trade_amount, &admin_cap, &new_asset_cap);
-            ramm::add_asset_to_ramm<ETH>(&mut ramm, &eth_aggr, minimum_trade_amount, &admin_cap, &new_asset_cap);
-            ramm::add_asset_to_ramm<SOL>(&mut ramm, &sol_aggr, minimum_trade_amount, &admin_cap, &new_asset_cap);
+            ramm::add_asset_to_ramm<BTC>(
+                &mut ramm,
+                &btc_aggr,minimum_trade_amount,
+                btc_dec_places(),
+                &admin_cap,
+                &new_asset_cap
+            );
+            ramm::add_asset_to_ramm<ETH>(
+                &mut ramm,
+                &eth_aggr,minimum_trade_amount,
+                eth_dec_places(),
+                &admin_cap,
+                &new_asset_cap
+            );
+            ramm::add_asset_to_ramm<SOL>(
+                &mut ramm,
+                &sol_aggr,minimum_trade_amount,
+                sol_dec_places(),
+                &admin_cap,
+                &new_asset_cap
+            );
 
             ramm::initialize_ramm(&mut ramm, &admin_cap, new_asset_cap);
 
