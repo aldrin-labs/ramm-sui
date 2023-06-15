@@ -730,11 +730,11 @@ module ramm_sui::ramm {
             &self.balances,
             &self.lp_tokens_issued,
             prices,
-            factors_prices,
             &self.factor_balances,
+            FACTOR_LPT,
+            factors_prices,
             PRECISION_DECIMAL_PLACES,
             MAX_PRECISION_DECIMAL_PLACES,
-            FACTOR_LPT
         )
     }
 
@@ -747,11 +747,11 @@ module ramm_sui::ramm {
             &self.balances,
             &self.lp_tokens_issued,
             prices,
-            factors_prices,
             &self.factor_balances,
+            FACTOR_LPT,
+            factors_prices,
             PRECISION_DECIMAL_PLACES,
             MAX_PRECISION_DECIMAL_PLACES,
-            FACTOR_LPT
         )
     }
 

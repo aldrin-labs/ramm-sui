@@ -71,6 +71,12 @@ module ramm_sui::math {
         res
     }
 
+    /// Multiplies two `u256` that represent decimal numbers with `prec` decimal places,
+    /// and returns the result as another `u256` with the same amount of decimal places.
+    ///
+    /// # Aborts
+    ///
+    /// * If either operand or the result overflow past `pow(10, max_prec)`.
     public(friend) fun mul(x: u256, y: u256, prec: u8, max_prec: u8): u256 {
         let max = pow(10u256, max_prec);
         assert!(x <= max && y <= max, EMulOverflow);
@@ -84,6 +90,12 @@ module ramm_sui::math {
         mul(x, mul(y, z, prec, max_prec), prec, max_prec)
     }
 
+    /// Divides two `u256` that represent decimal numbers with `prec` decimal places,
+    /// and returns the result as another `u256` with the same amount of decimal places.
+    ///
+    /// # Aborts
+    ///
+    /// * If the dividend or the result overflow past `pow(10, max_prec)`.
     public(friend) fun div(x: u256, y: u256, prec: u8, max_prec: u8): u256 {
         let max = pow(10u256, max_prec);
         assert!(x <= max, EDividendTooLarge);
@@ -93,6 +105,14 @@ module ramm_sui::math {
         result
     }
 
+    /// Computes `x^n`, where `n` is a non-negative integer and `x` is a `u256` that represents a
+    /// decimal number with `prec` decimal places.
+    ///
+    /// # Aborts
+    ///
+    /// * If the exponent exceeds `127`
+    /// * If the base exceeds `10^max_prec`
+    /// * If during intermediate operations, any value exceeds `10^max_prec`
     public(friend) fun pow_n(x: u256, n: u256, one: u256, prec: u8, max_prec:u8): u256 {
         let max = pow(10u256, max_prec);
         assert!(n <= 127, EPowNExponentTooLarge);
@@ -113,6 +133,15 @@ module ramm_sui::math {
         result
     }
 
+    /// Computes `x^a`, where `a` is a real number between `0` and `1`. Both `a` and `x` have to
+    /// be given with `prec` decimal places.
+    ///
+    /// The result is given in the same format.
+    ///
+    /// # Aborts
+    ///
+    /// * If it is not the case that `0.67 <= x <= 1.5`.
+    /// * If the exponent is not in `[0, 1[` (with `prec` decimal places)
     public(friend) fun pow_d(x: u256, a: u256, one: u256, prec: u8, max_prec: u8): u256 {
         let pow = pow(10, prec - 2);
         assert!(67 * pow <= x && x <= 150 * pow, EPowDBaseOutOfBounds);
@@ -162,8 +191,8 @@ module ramm_sui::math {
 
     /// Miguel's notes:
     ///
-    /// Computes x^a, where a is a real number that belongs to the interval [0,128).
-    /// Both a and x have to be given with PRECISION_DECIMAL_PLACES decimal places.
+    /// Computes `x^a`, where `a` is a real number that belongs to the interval `[0,128)`.
+    /// Both `a` and `x` have to be given with `prec` decimal places.
     ///
     /// The result is given in the same format.
     public(friend) fun power(x: u256, a: u256, one: u256, prec: u8, max_prec: u8): u256 {
@@ -179,6 +208,9 @@ module ramm_sui::math {
     /// Functions
     /// ---------
 
+    /// Returns a list with the weights of the tokens with respect to the given prices.
+    ///
+    /// The result is given in `u256` with `prec` decimal places.
     public(friend) fun weights(
         balances: &VecMap<u8, u256>,
         prices: &VecMap<u8, u256>,
@@ -218,15 +250,18 @@ module ramm_sui::math {
         _W
     }
 
+    /// Returns a tuple with the values of `B` and `L` (see whitepaper, page 5).
+    ///
+    /// The result is given in `u256` with `prec` decimal places.
     public(friend) fun compute_B_and_L(
         balances: &VecMap<u8, u256>,
         lp_tokens_issued: &VecMap<u8, u256>,
         prices: &VecMap<u8, u256>,
-        factors_prices: &VecMap<u8, u256>,
         factors_balances: &VecMap<u8, u256>,
+        factor_lpt: u256,
+        factors_prices: &VecMap<u8, u256>,
         prec: u8,
         max_prec: u8,
-        factor_lpt: u256
     ): (u256, u256) {
         let _B: u256 = 0;
         let _L: u256 = 0;
@@ -244,25 +279,28 @@ module ramm_sui::math {
         (_B, _L)
     }
 
+    /// Returns a list with the imbalance ratios of the tokens.
+    ///
+    /// The result is given in `u256` with `prec` decimal places.
     public(friend) fun imbalance_ratios(
         balances: &VecMap<u8, u256>,
         lp_tokens_issued: &VecMap<u8, u256>,
         prices: &VecMap<u8, u256>,
-        factors_prices: &VecMap<u8, u256>,
         factors_balances: &VecMap<u8, u256>,
+        factor_lpt: u256,
+        factors_prices: &VecMap<u8, u256>,
         prec: u8,
         max_prec: u8,
-        factor_lpt: u256
     ): VecMap<u8, u256> {
         let (_B, _L): (u256, u256) = compute_B_and_L(
             balances,
             lp_tokens_issued,
             prices,
-            factors_prices,
             factors_balances,
+            factor_lpt,
+            factors_prices,
             prec,
             max_prec,
-            factor_lpt
         );
 
         let imbs = vec_map::empty();
@@ -285,6 +323,83 @@ module ramm_sui::math {
         };
 
         imbs
+    }
+
+    /// Checks if the imbalance ratios after a trade belong to the corresponding range, or if they
+    /// are closer to the range than before the trade.
+    ///
+    /// As is the case with other functions in this module, the parameters
+    /// `factor_lpt, prec, max_prec, one, delta`
+    /// will be constants defined in the `ramm.move` module, and passed to this function.
+    ///
+    /// Sui Move does not permit sharing of constants between modules.
+    public(friend) fun check_imbalance_ratios(
+        balances: &VecMap<u8, u256>,
+        lp_tokens_issued: &VecMap<u8, u256>,
+        prices: &VecMap<u8, u256>,
+        i: u8,
+        o: u8,
+        ai: u256,
+        ao: u256,
+        pr_fee: u256,
+        factors_balances: &VecMap<u8, u256>,
+        factor_lpt: u256,
+        factors_prices: &VecMap<u8, u256>,
+        prec: u8,
+        max_prec: u8,
+        one: u256,
+        delta: u256
+    ): bool {
+        let _N = (vec_map::size(balances) as u8);
+
+        let balances_before = vec_map::empty<u8, u256>();
+        let balances_after = vec_map::empty<u8, u256>();
+
+        let k = 0;
+        while (k < _N) {
+            let balance_current = *vec_map::get(balances, &k);
+            vec_map::insert(&mut balances_before, k, balance_current);
+            vec_map::insert(&mut balances_after, k, balance_current);
+            k = k + 1;
+        };
+
+        let balance_after_i: &mut u256 = vec_map::get_mut(&mut balances_after, &i);
+        *balance_after_i = *balance_after_i + ai - pr_fee;
+        let balance_after_o: &mut u256 = vec_map::get_mut(&mut balances_after, &o);
+        *balance_after_o = *balance_after_o - ao;
+
+        let imb_ratios_before_trade: VecMap<u8, u256> = imbalance_ratios(
+            &balances_before,
+            lp_tokens_issued,
+            prices,
+            factors_balances,
+            factor_lpt,
+            factors_prices,
+            prec,
+            max_prec
+        );
+
+        let imb_ratios_after_trade: VecMap<u8, u256> = imbalance_ratios(
+            &balances_after,
+            lp_tokens_issued,
+            prices,
+            factors_balances,
+            factor_lpt,
+            factors_prices,
+            prec,
+            max_prec
+        );
+
+        let condition1: bool = *vec_map::get(&imb_ratios_after_trade, &o) < one - delta &&
+            *vec_map::get(&imb_ratios_after_trade, &o) < *vec_map::get(&imb_ratios_before_trade, &o);
+        let condition2: bool = one + delta < *vec_map::get(&imb_ratios_after_trade, &i) &&
+            *vec_map::get(&imb_ratios_before_trade, &i) < *vec_map::get(&imb_ratios_after_trade, &i);
+
+        if (condition1 || condition2) {
+            false
+        } else {
+            true
+        }
     }
 
 }
