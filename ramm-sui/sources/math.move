@@ -204,6 +204,11 @@ module ramm_sui::math {
         )
     }
 
+    /// Base function that adjusts the leverage parameter and the base fee.
+    public(friend) fun adjust(x: u256, prec: u8, max_prec: u8): u256 {
+        mul3(x, x, x, prec, max_prec)
+    }
+
     /// ---------
     /// Functions
     /// ---------
@@ -215,7 +220,7 @@ module ramm_sui::math {
         balances: &VecMap<u8, u256>,
         prices: &VecMap<u8, u256>,
         factor_balances: &VecMap<u8, u256>,
-        factors_prices: &VecMap<u8, u256>,
+        factors_for_prices: &VecMap<u8, u256>,
         prec: u8,
         max_prec: u8,
     ): VecMap<u8, u256> {
@@ -232,7 +237,7 @@ module ramm_sui::math {
         while (j < _N) {
             let w_j = vec_map::get_mut(&mut _W, &j);
             *w_j = mul(
-                *vec_map::get(prices, &j) * *vec_map::get(factors_prices, &j),
+                *vec_map::get(prices, &j) * *vec_map::get(factors_for_prices, &j),
                 *vec_map::get(balances, &j) * *vec_map::get(factor_balances, &j),
                 prec, max_prec
             );
@@ -257,9 +262,9 @@ module ramm_sui::math {
         balances: &VecMap<u8, u256>,
         lp_tokens_issued: &VecMap<u8, u256>,
         prices: &VecMap<u8, u256>,
-        factors_balances: &VecMap<u8, u256>,
+        factors_for_balances: &VecMap<u8, u256>,
         factor_lpt: u256,
-        factors_prices: &VecMap<u8, u256>,
+        factors_for_prices: &VecMap<u8, u256>,
         prec: u8,
         max_prec: u8,
     ): (u256, u256) {
@@ -269,8 +274,8 @@ module ramm_sui::math {
         let _N = (vec_map::size(balances) as u8);
         let j: u8 = 0;
         while (j < _N) {
-            let price_j = *vec_map::get(prices, &j) * *vec_map::get(factors_prices, &j);
-            _B = _B + mul(price_j, *vec_map::get(balances, &j) * *vec_map::get(factors_balances, &j), prec, max_prec);
+            let price_j = *vec_map::get(prices, &j) * *vec_map::get(factors_for_prices, &j);
+            _B = _B + mul(price_j, *vec_map::get(balances, &j) * *vec_map::get(factors_for_balances, &j), prec, max_prec);
             _L = _L + mul(price_j, *vec_map::get(lp_tokens_issued, &j) * factor_lpt, prec, max_prec);
 
             j = j + 1;
@@ -286,9 +291,9 @@ module ramm_sui::math {
         balances: &VecMap<u8, u256>,
         lp_tokens_issued: &VecMap<u8, u256>,
         prices: &VecMap<u8, u256>,
-        factors_balances: &VecMap<u8, u256>,
+        factors_for_balances: &VecMap<u8, u256>,
         factor_lpt: u256,
-        factors_prices: &VecMap<u8, u256>,
+        factors_for_prices: &VecMap<u8, u256>,
         prec: u8,
         max_prec: u8,
     ): VecMap<u8, u256> {
@@ -296,9 +301,9 @@ module ramm_sui::math {
             balances,
             lp_tokens_issued,
             prices,
-            factors_balances,
+            factors_for_balances,
             factor_lpt,
-            factors_prices,
+            factors_for_prices,
             prec,
             max_prec,
         );
@@ -310,7 +315,7 @@ module ramm_sui::math {
         while (j < _N) {
             if (*vec_map::get(lp_tokens_issued, &j) != 0) {
                 let val = div(
-                    mul(*vec_map::get(balances, &j) * *vec_map::get(factors_balances, &j), _L, prec, max_prec),
+                    mul(*vec_map::get(balances, &j) * *vec_map::get(factors_for_balances, &j), _L, prec, max_prec),
                     mul(_B, *vec_map::get(lp_tokens_issued, &j) * factor_lpt, prec, max_prec),
                     prec, max_prec
                 );
@@ -325,8 +330,8 @@ module ramm_sui::math {
         imbs
     }
 
-    /// Checks if the imbalance ratios after a trade belong to the corresponding range, or if they
-    /// are closer to the range than before the trade.
+    /// For a given RAMM, checks if the imbalance ratios after a trade belong to the permissible range,
+    /// or if they would be closer to the range than before the trade.
     ///
     /// As is the case with other functions in this module, the parameters
     /// `factor_lpt, prec, max_prec, one, delta`
@@ -342,9 +347,9 @@ module ramm_sui::math {
         ai: u256,
         ao: u256,
         pr_fee: u256,
-        factors_balances: &VecMap<u8, u256>,
+        factors_for_balances: &VecMap<u8, u256>,
         factor_lpt: u256,
-        factors_prices: &VecMap<u8, u256>,
+        factors_for_prices: &VecMap<u8, u256>,
         prec: u8,
         max_prec: u8,
         one: u256,
@@ -372,9 +377,9 @@ module ramm_sui::math {
             &balances_before,
             lp_tokens_issued,
             prices,
-            factors_balances,
+            factors_for_balances,
             factor_lpt,
-            factors_prices,
+            factors_for_prices,
             prec,
             max_prec
         );
@@ -383,9 +388,9 @@ module ramm_sui::math {
             &balances_after,
             lp_tokens_issued,
             prices,
-            factors_balances,
+            factors_for_balances,
             factor_lpt,
-            factors_prices,
+            factors_for_prices,
             prec,
             max_prec
         );
@@ -402,4 +407,38 @@ module ramm_sui::math {
         }
     }
 
+    /// Returns the scaled base fee and leverage parameter for a trade where token `i` goes into the
+    /// pool and token `o` goes out of the pool.
+    public(friend) fun scaled_fee_and_leverage(
+        balances: &VecMap<u8, u256>,
+        lp_tokens_issued: &VecMap<u8, u256>,
+        prices: &VecMap<u8, u256>,
+        i: u8,
+        o: u8,
+        factors_for_balances: &VecMap<u8, u256>,
+        factor_lpt: u256,
+        factors_for_prices: &VecMap<u8, u256>,
+        base_fee: u256,
+        base_leverage: u256,
+        prec: u8,
+        max_prec: u8,
+    ): (u256, u256) {
+        let imbalances: VecMap<u8, u256> = imbalance_ratios(
+            balances,
+            lp_tokens_issued,
+            prices,
+            factors_for_balances,
+            factor_lpt,
+            factors_for_prices,
+            prec,
+            max_prec,
+        );
+
+        let adjust_i: u256 = adjust(*vec_map::get(&imbalances, &i), prec, max_prec);
+        let adjust_o: u256 = adjust(*vec_map::get(&imbalances, &o), prec, max_prec);
+        let scaled_fee: u256 = div(mul(adjust_i, base_fee, prec, max_prec), adjust_o, prec, max_prec);
+        let scaled_leverage: u256 = div(mul(adjust_o, base_leverage, prec, max_prec), adjust_i, prec, max_prec);
+
+        (scaled_fee, scaled_leverage)
+    }
 }

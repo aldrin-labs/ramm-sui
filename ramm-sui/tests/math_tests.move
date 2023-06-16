@@ -1,5 +1,7 @@
 #[test_only]
 module ramm_sui::math_tests {
+    //use std::debug;
+
     use sui::test_utils;
     use sui::vec_map::{Self, VecMap};
 
@@ -30,6 +32,9 @@ module ramm_sui::math_tests {
 
     const BASE_FEE: u256 = 10 * 1_000_000_000_000 / 10000; // _BASE_FEE * 10**(PRECISION_DECIMAL_PLACES-4)
     const PROTOCOL_FEE: u256 = 50 * 1_000_000_000_000 / 100;
+
+    // BASE_LEVERAGE = _BASE_LEVERAGE * ONE
+    const BASE_LEVERAGE: u256 = 100 * 1_000_000_000_000;
 
     #[test]
     fun test_switchboard_decimal() {
@@ -295,6 +300,9 @@ module ramm_sui::math_tests {
 
     #[test]
     /// Imbalance ratio calculation before any trade is done, after every asset has liquidity deposited in.
+    ///
+    /// This test also verifies the result of `check_imbalance_ratios` and `scaled_fee_and_leverage` before
+    /// any trade is done.
     fun imbalance_ratios_1() {
         let (balances, lp_tokens_issued, prices, factors_prices, factors_balances) =
             imbalance_ratios(200 * ONE, 200_000 * ONE, 400_000 * ONE, 9, 8);
@@ -313,12 +321,37 @@ module ramm_sui::math_tests {
         test_utils::assert_eq(*vec_map::get(&imbs, &0), ONE);
         test_utils::assert_eq(*vec_map::get(&imbs, &1), ONE);
         test_utils::assert_eq(*vec_map::get(&imbs, &2), ONE);
+
+        // These indices, and the scaled fee and leverage they are used to calculate,
+        // refer to the *next* trade that is going to happen;
+        // In the example, it's ETH/USDT
+        let i = 0;
+        let o = 2;
+        let (scaled_fee, scaled_leverage) = ramm_math::scaled_fee_and_leverage(
+            &balances,
+            &lp_tokens_issued,
+            &prices,
+            i,
+            o,
+            &factors_balances,
+            FACTOR_LPT,
+            &factors_prices,
+            BASE_FEE,
+            BASE_LEVERAGE,
+            PRECISION_DECIMAL_PLACES,
+            MAX_PRECISION_DECIMAL_PLACES,
+        );
+
+        test_utils::assert_eq(BASE_LEVERAGE, scaled_leverage);
+        test_utils::assert_eq(BASE_FEE, scaled_fee);
     }
 
     #[test]
     /// Imbalance ratio calculation after the first trade, ETH/USDT.
     ///
     /// Furthermore, verify that `check_imbalance_rations` would permit the trade.
+    /// This test also verifies the result of  `scaled_fee_and_leverage` after the first trade is
+    /// done, or equivalently, the leverage and fee values that'll be used for the second trade.
     fun imbalance_ratios_2() {
         let i: u8 = 0;
         let o: u8 = 2;
@@ -347,11 +380,31 @@ module ramm_sui::math_tests {
         test_utils::assert_eq(*vec_map::get(&imbs, &1), 999982470307);
         test_utils::assert_eq(*vec_map::get(&imbs, &2), 955049582980);
 
-        let factor_i: u256 = *vec_map::get(&factors_balances, &i);
-        // This fee calculation is incorrect for the situation the RAMM is in, although it does not
-        // affect the result.
-        // After `scaled_fee_and_leverage` is implemented, it can be fixed.
-        let pr_fee: u256 = ramm_math::mul3(PROTOCOL_FEE, BASE_FEE, ai * factor_i, PRECISION_DECIMAL_PLACES, MAX_PRECISION_DECIMAL_PLACES) / factor_i;
+        // These indices, and the scaled fee and leverage they are used to calculate,
+        // refer to the *next* trade that is going to happen;
+        // In the example, it's ETH/MATIC
+        let next_i = i;
+        let next_o = 1;
+        let (scaled_fee, scaled_leverage) = ramm_math::scaled_fee_and_leverage(
+            &balances,
+            &lp_tokens_issued,
+            &prices,
+            next_i,
+            next_o,
+            &factors_balances,
+            FACTOR_LPT,
+            &factors_prices,
+            BASE_FEE,
+            BASE_LEVERAGE,
+            PRECISION_DECIMAL_PLACES,
+            MAX_PRECISION_DECIMAL_PLACES,
+        );
+
+        // Leverage for the example's first trade should be about 86.384
+        test_utils::assert_eq(86389930415662, scaled_leverage);
+        // The fee for the example's first trade should be roughly 0.116%
+        test_utils::assert_eq(1157542314, scaled_fee);
+
         let imbalance_ratios_check = ramm_math::check_imbalance_ratios(
             &balances,
             &lp_tokens_issued,
@@ -360,7 +413,7 @@ module ramm_sui::math_tests {
             o,
             ai,
             ao,
-            pr_fee,
+            scaled_fee,
             &factors_balances,
             FACTOR_LPT,
             &factors_prices,
@@ -401,11 +454,27 @@ module ramm_sui::math_tests {
             MAX_PRECISION_DECIMAL_PLACES,
         );
 
-        let factor_i: u256 = *vec_map::get(&factors_balances, &i);
-        // This fee calculation is incorrect for the situation the RAMM is in, although it does not
-        // affect the result.
-        // After `scaled_fee_and_leverage` is implemented, it can be fixed.
-        let pr_fee: u256 = ramm_math::mul3(PROTOCOL_FEE, BASE_FEE, ai * factor_i, PRECISION_DECIMAL_PLACES, MAX_PRECISION_DECIMAL_PLACES) / factor_i;
+        let (scaled_fee, scaled_leverage) = ramm_math::scaled_fee_and_leverage(
+            &balances,
+            &lp_tokens_issued,
+            &prices,
+            i,
+            o,
+            &factors_balances,
+            FACTOR_LPT,
+            &factors_prices,
+            BASE_FEE,
+            BASE_LEVERAGE,
+            PRECISION_DECIMAL_PLACES,
+            MAX_PRECISION_DECIMAL_PLACES,
+        );
+
+
+        // Leverage for a hypothetical third trade should be roughly 71.798
+        test_utils::assert_eq(71798301729756, scaled_leverage);
+        // The corresponding fee would be roughly 0.139%
+        test_utils::assert_eq(1392790602, scaled_fee);
+
         let imbalance_ratios_check = ramm_math::check_imbalance_ratios(
             &balances,
             &lp_tokens_issued,
@@ -414,7 +483,7 @@ module ramm_sui::math_tests {
             o,
             ai,
             ao,
-            pr_fee,
+            scaled_fee,
             &factors_balances,
             FACTOR_LPT,
             &factors_prices,
@@ -428,6 +497,159 @@ module ramm_sui::math_tests {
         test_utils::assert_eq(*vec_map::get(&imbs, &1), 962535391391);
         test_utils::assert_eq(*vec_map::get(&imbs, &2), 955045182209);
 
+        assert!(imbalance_ratios_check, EInvalidImbalanceRatios);
+    }
+
+    #[test]
+    /// Imbalance ratio failure check.
+    ///
+    /// Uses the ETH/MATIC/USDT RAMM from the example, with its state modified so that
+    /// an excess of ETH has been sold to the pool for outgoing USDT.
+    ///
+    /// Since the imbalance ratios for ETH and USDT are outside of the permissible interval
+    /// `[ONE - DELTA, ONE + DELTA]`, any trades that will further distance the ratios from
+    /// the interval must be disallowed by `check_imbalance_ratios`.
+    fun imbalance_ratios_fail() {
+        let i: u8 = 0;
+        let o: u8 = 2;
+        let prev_eth = 260 * ONE;
+        let new_eth = 270 * ONE;
+        let ai: u256 = new_eth - prev_eth;
+        let old_usdt = 29_215_918 * ONE / 100;
+        let new_usdt = 27_418_571 * ONE / 100;
+        let ao: u256 = old_usdt - new_usdt;
+
+        let (balances, lp_tokens_issued, prices, factors_prices, factors_balances) =
+            imbalance_ratios(new_eth, 200_000 * ONE, new_usdt, 9, 8);
+
+        let imbs = ramm_math::imbalance_ratios(
+            &balances,
+            &lp_tokens_issued,
+            &prices,
+            &factors_balances,
+            FACTOR_LPT,
+            &factors_prices,
+            PRECISION_DECIMAL_PLACES,
+            MAX_PRECISION_DECIMAL_PLACES,
+        );
+
+        assert!(*vec_map::get(&imbs, &0) > ONE + DELTA, EInvalidImbalanceRatios);
+        let matic_imb_rat = *vec_map::get(&imbs, &1);
+        assert!(ONE - DELTA <= matic_imb_rat && matic_imb_rat <= ONE + DELTA, EInvalidImbalanceRatios);
+        assert!(*vec_map::get(&imbs, &2) < ONE - DELTA, EInvalidImbalanceRatios);
+
+        let (scaled_fee, _) = ramm_math::scaled_fee_and_leverage(
+            &balances,
+            &lp_tokens_issued,
+            &prices,
+            i,
+            o,
+            &factors_balances,
+            FACTOR_LPT,
+            &factors_prices,
+            BASE_FEE,
+            BASE_LEVERAGE,
+            PRECISION_DECIMAL_PLACES,
+            MAX_PRECISION_DECIMAL_PLACES,
+        );
+
+         let imbalance_ratios_check = ramm_math::check_imbalance_ratios(
+            &balances,
+            &lp_tokens_issued,
+            &prices,
+            i,
+            o,
+            ai,
+            ao,
+            scaled_fee,
+            &factors_balances,
+            FACTOR_LPT,
+            &factors_prices,
+            PRECISION_DECIMAL_PLACES,
+            MAX_PRECISION_DECIMAL_PLACES,
+            ONE,
+            DELTA,
+        );
+
+        // Assert that the imbalance ratio check 
+        assert!(!imbalance_ratios_check, EInvalidImbalanceRatios);
+    }
+
+    #[test]
+    /// Imbalance ratio check.
+    ///
+    /// Uses the ETH/MATIC/USDT RAMM from the example, with its state modified so that
+    /// an excess of ETH has been sold to the pool for outgoing USDT.
+    ///
+    /// Since the imbalance ratios for ETH and USDT are outside of the permissible interval
+    /// `[ONE - DELTA, ONE + DELTA]`, any trades that will further distance the ratios from
+    /// the interval must be disallowed by `check_imbalance_ratios`.
+    ///
+    /// However, a trade that will bring these ratios closer, even if not back inside the
+    /// interval, is permissible.
+    fun imbalance_ratios_pass() {
+        let i: u8 = 2;
+        let o: u8 = 0;
+        let old_eth = 260 * ONE;
+        let new_eth = 250 * ONE;
+        let ao: u256 = old_eth - new_eth;
+        let old_usdt = 27_418_571 * ONE / 100;
+        let new_usdt = 29_215_918 * ONE / 100;
+        let ai: u256 = new_usdt - old_usdt;
+
+        let (balances, lp_tokens_issued, prices, factors_prices, factors_balances) =
+            imbalance_ratios(new_eth, 200_000 * ONE, new_usdt, 9, 8);
+
+        let imbs = ramm_math::imbalance_ratios(
+            &balances,
+            &lp_tokens_issued,
+            &prices,
+            &factors_balances,
+            FACTOR_LPT,
+            &factors_prices,
+            PRECISION_DECIMAL_PLACES,
+            MAX_PRECISION_DECIMAL_PLACES,
+        );
+
+        assert!(*vec_map::get(&imbs, &0) > ONE + DELTA, EInvalidImbalanceRatios);
+        let matic_imb_rat = *vec_map::get(&imbs, &1);
+        assert!(ONE - DELTA <= matic_imb_rat && matic_imb_rat <= ONE + DELTA, EInvalidImbalanceRatios);
+        assert!(*vec_map::get(&imbs, &2) < ONE - DELTA, EInvalidImbalanceRatios);
+
+        let (scaled_fee, _) = ramm_math::scaled_fee_and_leverage(
+            &balances,
+            &lp_tokens_issued,
+            &prices,
+            i,
+            o,
+            &factors_balances,
+            FACTOR_LPT,
+            &factors_prices,
+            BASE_FEE,
+            BASE_LEVERAGE,
+            PRECISION_DECIMAL_PLACES,
+            MAX_PRECISION_DECIMAL_PLACES,
+        );
+
+         let imbalance_ratios_check = ramm_math::check_imbalance_ratios(
+            &balances,
+            &lp_tokens_issued,
+            &prices,
+            i,
+            o,
+            ai,
+            ao,
+            scaled_fee,
+            &factors_balances,
+            FACTOR_LPT,
+            &factors_prices,
+            PRECISION_DECIMAL_PLACES,
+            MAX_PRECISION_DECIMAL_PLACES,
+            ONE,
+            DELTA,
+        );
+
+        // Assert that the imbalance ratio check 
         assert!(imbalance_ratios_check, EInvalidImbalanceRatios);
     }
 }
