@@ -1,12 +1,15 @@
 #[test_only]
 module ramm_sui::interface3_tests {
+    //use std::debug;
+
     use sui::coin;
     use sui::test_scenario;
-    use sui::vec_map;
+    use sui::test_utils;
+    use sui::vec_map::{Self, VecMap};
 
     use ramm_sui::interface3;
-    use ramm_sui::ramm::{Self, LP, RAMM, RAMMAdminCap};
-    use ramm_sui::test_utils::{Self, BTC, ETH, SOL, USDC};
+    use ramm_sui::ramm::{Self, RAMM};
+    use ramm_sui::test_util::{Self, ETH, MATIC, USDT};
 
     use switchboard::aggregator::Aggregator;
 
@@ -14,379 +17,130 @@ module ramm_sui::interface3_tests {
     const ALICE: address = @0xACE;
     const BOB: address = @0xBACE;
 
-    // -----------------------
-    // RAMM asset count checks
-    // -----------------------
+    #[test] fun test_trade_i() {
+        let asset_prices: VecMap<u8, u128> = vec_map::empty();
+        vec_map::insert(&mut asset_prices, 0, 1800000000000);
+        vec_map::insert(&mut asset_prices, 1, 1200000000);
+        vec_map::insert(&mut asset_prices, 2, 1000000000);
+        let asset_price_scales: VecMap<u8, u8> = vec_map::empty();
+        vec_map::insert(&mut asset_price_scales, 0, 9);
+        vec_map::insert(&mut asset_price_scales, 1, 9);
+        vec_map::insert(&mut asset_price_scales, 2, 9);
+        let asset_minimum_trade_amounts: VecMap<u8, u64> = vec_map::empty();
+        vec_map::insert(&mut asset_minimum_trade_amounts, 0, 1 * (test_util::eth_factor() as u64) / 1000);
+        vec_map::insert(&mut asset_minimum_trade_amounts, 1, 1 * (test_util::matic_factor() as u64));
+        vec_map::insert(&mut asset_minimum_trade_amounts, 2, 1 * (test_util::usdt_factor() as u64));
+        let asset_decimal_places: VecMap<u8, u8> = vec_map::empty();
+        vec_map::insert(&mut asset_decimal_places, 0, test_util::eth_dec_places());
+        vec_map::insert(&mut asset_decimal_places, 1, test_util::matic_dec_places());
+        vec_map::insert(&mut asset_decimal_places, 2, test_util::usdt_dec_places());
+        let add_liquidity: VecMap<u8, bool> = vec_map::empty();
+        vec_map::insert(&mut add_liquidity, 0, true);
+        vec_map::insert(&mut add_liquidity, 1, true);
+        vec_map::insert(&mut add_liquidity, 2, true);
+        let initial_asset_liquidity: VecMap<u8, u64> = vec_map::empty();
+        vec_map::insert(&mut initial_asset_liquidity, 0, 200 * (test_util::eth_factor() as u64));
+        vec_map::insert(&mut initial_asset_liquidity, 1, 200_000 * (test_util::matic_factor() as u64));
+        vec_map::insert(&mut initial_asset_liquidity, 2, 400_000 * (test_util::usdt_factor() as u64));
 
-    #[test]
-    #[expected_failure(abort_code = interface3::ERAMMInvalidSize)]
-    /// Check that calling `trade_amount_in_3` on a RAMM without *exactly* 3 assets fails.
-    fun trade_amount_in_3_invalid_ramm_size() {
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) = test_utils::create_populate_initialize_ramm_2(ALICE);
+        let (ramm_id, eth_ag_id, matic_ag_id, usdt_ag_id, scenario_val) =
+            test_util::create_populate_initialize_ramm<ETH, MATIC, USDT>(
+                asset_prices,
+                asset_price_scales,
+                asset_minimum_trade_amounts,
+                asset_decimal_places,
+                add_liquidity,
+                initial_asset_liquidity,
+                ADMIN
+        );
         let scenario = &mut scenario_val;
 
         {
-            let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
-            let amount_in = coin::mint_for_testing<BTC>(1000, test_scenario::ctx(scenario));
-            let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
+            let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
+            let matic_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, matic_ag_id);
+            let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
 
-            interface3::trade_amount_in_3<BTC, ETH, SOL>(
-                &mut alice_ramm,
+            let amount_in = coin::mint_for_testing<ETH>(10 * (test_util::eth_factor() as u64), test_scenario::ctx(scenario));
+            interface3::trade_amount_in_3<ETH, USDT, MATIC>(
+                &mut ramm,
                 amount_in,
-                0,
-                &btc_aggr,
+                16_000 * (test_util::usdt_factor() as u64),
                 &eth_aggr,
-                &eth_aggr,
+                &usdt_aggr,
+                &matic_aggr,
                 test_scenario::ctx(scenario)
             );
 
-            test_scenario::return_shared<RAMM>(alice_ramm);
-            test_scenario::return_shared<Aggregator>(btc_aggr);
-            test_scenario::return_shared<Aggregator>(eth_aggr);
-        };
+            // First trade: ETH in, USDT out
 
-        test_scenario::end(scenario_val);
-    }
+            test_utils::assert_eq(ramm::get_balance<ETH>(&ramm), 209995 * test_util::eth_factor() / 1000);
+            test_utils::assert_eq(ramm::get_typed_balance<ETH>(&ramm), 209995 * test_util::eth_factor() / 1000);
 
-    #[test]
-    #[expected_failure(abort_code = interface3::ERAMMInvalidSize)]
-    /// Check that calling `trade_amount_out_3` on a RAMM without *exactly* 3 assets fails.
-    fun trade_amount_out_3_invalid_ramm_size() {
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) = test_utils::create_populate_initialize_ramm_2(ALICE);
-        let scenario = &mut scenario_val;
+            test_utils::assert_eq(ramm::get_balance<MATIC>(&ramm), 200_000 * test_util::matic_factor());
+            test_utils::assert_eq(ramm::get_typed_balance<MATIC>(&ramm), 200_000 * test_util::matic_factor());
 
-        {
-            let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
-            let max_amount_in = coin::mint_for_testing<BTC>(1000, test_scenario::ctx(scenario));
-            let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
-            let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
+            test_utils::assert_eq(ramm::get_balance<USDT>(&ramm), 382_026_5288 * test_util::usdt_factor() / 10000);
+            test_utils::assert_eq(ramm::get_typed_balance<USDT>(&ramm), 382_026_5288 * test_util::usdt_factor() / 10000);
 
-            interface3::trade_amount_out_3<BTC, ETH, SOL>(
-                &mut alice_ramm,
-                1000,
-                max_amount_in,
-                &btc_aggr,
-                &eth_aggr,
-                &eth_aggr,
-                test_scenario::ctx(scenario)
-            );
+            test_utils::assert_eq(ramm::get_collected_protocol_fees<ETH>(&ramm), 5 * (test_util::eth_factor() as u64) / 1000);
+            test_utils::assert_eq(ramm::get_collected_protocol_fees<MATIC>(&ramm), 0);
+            test_utils::assert_eq(ramm::get_collected_protocol_fees<USDT>(&ramm), 0);
 
-            test_scenario::return_shared<RAMM>(alice_ramm);
-            test_scenario::return_shared<Aggregator>(btc_aggr);
-            test_scenario::return_shared<Aggregator>(eth_aggr);
-        };
+            test_utils::assert_eq(ramm::get_lptokens_issued<ETH>(&ramm), 200 * test_util::eth_factor());
+            test_utils::assert_eq(ramm::get_typed_lptokens_issued<ETH>(&ramm), 200 * test_util::eth_factor());
 
-        test_scenario::end(scenario_val);
-    }
+            test_utils::assert_eq(ramm::get_lptokens_issued<MATIC>(&ramm), 200_000 * test_util::matic_factor());
+            test_utils::assert_eq(ramm::get_typed_lptokens_issued<MATIC>(&ramm), 200_000 * test_util::matic_factor());
 
-    #[test]
-    #[expected_failure(abort_code = interface3::ERAMMInvalidSize)]
-    /// Check that calling `liquidity_deposit_3` on a RAMM without *exactly* 3 assets fails.
-    fun liquidity_deposit_3_invalid_ramm_size() {
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) = test_utils::create_populate_initialize_ramm_2(ALICE);
-        let scenario = &mut scenario_val;
+            test_utils::assert_eq(ramm::get_lptokens_issued<USDT>(&ramm), 400_000 * test_util::usdt_factor());
+            test_utils::assert_eq(ramm::get_typed_lptokens_issued<USDT>(&ramm), 400_000 * test_util::usdt_factor());
 
-        {
-            let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
-            let amount_in = coin::mint_for_testing<BTC>(1000, test_scenario::ctx(scenario));
-            let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
-            let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
+            // Second trade: ETH in, MATIC out
 
-            interface3::liquidity_deposit_3<BTC, ETH, SOL>(
-                &mut alice_ramm,
+            let amount_in = coin::mint_for_testing<ETH>(5 * (test_util::eth_factor() as u64), test_scenario::ctx(scenario));
+            interface3::trade_amount_in_3<ETH, MATIC, USDT>(
+                &mut ramm,
                 amount_in,
-                &btc_aggr,
+                7_400 * (test_util::matic_factor() as u64),
                 &eth_aggr,
-                &eth_aggr,
+                &matic_aggr,
+                &usdt_aggr,
                 test_scenario::ctx(scenario)
             );
 
-            test_scenario::return_shared<RAMM>(alice_ramm);
-            test_scenario::return_shared<Aggregator>(btc_aggr);
+            // The pool should have about 214.99 ETH after this trade
+            // Recall that test ETH's decimal place count is 8.
+            test_utils::assert_eq(ramm::get_balance<ETH>(&ramm), 214_99210_615);
+            test_utils::assert_eq(ramm::get_typed_balance<ETH>(&ramm), 214_99210615);
+
+            // The pool should have about 192511.34 MATIC after the trade.
+            // As above, recall that MATIC's decimal place count is 8.
+            test_utils::assert_eq(ramm::get_balance<MATIC>(&ramm), 192511_33586076);
+            test_utils::assert_eq(ramm::get_typed_balance<MATIC>(&ramm), 192511_33586076);
+
+            test_utils::assert_eq(ramm::get_balance<USDT>(&ramm), 382_026_5288 * test_util::usdt_factor() / 10000);
+            test_utils::assert_eq(ramm::get_typed_balance<USDT>(&ramm), 382_026_5288 * test_util::usdt_factor() / 10000);
+
+            test_utils::assert_eq(ramm::get_collected_protocol_fees<MATIC>(&ramm), 0);
+            test_utils::assert_eq(ramm::get_collected_protocol_fees<USDT>(&ramm), 0);
+
+            // There must not have been any change to issued LP tokens, of any kind.
+            test_utils::assert_eq(ramm::get_lptokens_issued<ETH>(&ramm), 200 * test_util::eth_factor());
+            test_utils::assert_eq(ramm::get_typed_lptokens_issued<ETH>(&ramm), 200 * test_util::eth_factor());
+
+            test_utils::assert_eq(ramm::get_lptokens_issued<MATIC>(&ramm), 200_000 * test_util::matic_factor());
+            test_utils::assert_eq(ramm::get_typed_lptokens_issued<MATIC>(&ramm), 200_000 * test_util::matic_factor());
+
+            test_utils::assert_eq(ramm::get_lptokens_issued<USDT>(&ramm), 400_000 * test_util::usdt_factor());
+            test_utils::assert_eq(ramm::get_typed_lptokens_issued<USDT>(&ramm), 400_000 * test_util::usdt_factor());
+
+            //
+
+            test_scenario::return_shared<RAMM>(ramm);
             test_scenario::return_shared<Aggregator>(eth_aggr);
-        };
-
-        test_scenario::end(scenario_val);
-    }
-
-    #[test]
-    #[expected_failure(abort_code = interface3::ERAMMInvalidSize)]
-    /// Check that calling `liquidity_withdrawal_3` on a RAMM without *exactly* 3 assets fails.
-    fun liquidity_withdrawal_3_invalid_ramm_size() {
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) = test_utils::create_populate_initialize_ramm_2(ALICE);
-        let scenario = &mut scenario_val;
-
-        {
-            let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
-            let lp_token = coin::mint_for_testing<LP<BTC>>(1000, test_scenario::ctx(scenario));
-            let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
-            let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
-
-            interface3::liquidity_withdrawal_3<BTC, ETH, SOL, BTC>(
-                &mut alice_ramm,
-                lp_token,
-                &btc_aggr,
-                &eth_aggr,
-                &eth_aggr,
-                test_scenario::ctx(scenario)
-            );
-
-            test_scenario::return_shared<RAMM>(alice_ramm);
-            test_scenario::return_shared<Aggregator>(btc_aggr);
-            test_scenario::return_shared<Aggregator>(eth_aggr);
-        };
-
-        test_scenario::end(scenario_val);
-    }
-
-    #[test]
-    #[expected_failure(abort_code = interface3::ERAMMInvalidSize)]
-    /// Check that calling `collect_fees_3` on a RAMM without *exactly* 3 assets fails.
-    fun collect_fees_3_invalid_ramm_size() {
-        let (alice_ramm_id, _, _, scenario_val) = test_utils::create_populate_initialize_ramm_2(ALICE);
-        let scenario = &mut scenario_val;
-
-        {
-            let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
-            let admin_cap = test_scenario::take_from_address<RAMMAdminCap>(scenario, ALICE);
-
-            interface3::collect_fees_3<BTC, ETH, SOL>(
-                &mut alice_ramm,
-                &admin_cap,
-                test_scenario::ctx(scenario)
-            );
-
-            test_scenario::return_shared<RAMM>(alice_ramm);
-            test_scenario::return_to_address<RAMMAdminCap>(ALICE, admin_cap);
-        };
-
-        test_scenario::end(scenario_val);
-    }
-
-    // ------------------------------
-    // End of RAMM asset count checks
-    // ------------------------------
-
-    #[test]
-    #[expected_failure(abort_code = interface3::ENotAdmin)]
-    /// This test scenario creates 2 RAMM pools, and attempts to collect the fees of the first
-    /// one with the `RAMMAdminCap` of the second.
-    ///
-    /// It *must* fail.
-    fun collect_fees_3_wrong_admin_cap() {
-        // Create a 3-asset pool with BTC, ETH, SOL
-        let (alice_ramm_id, _, _, _, scenario_val) = test_utils::create_populate_initialize_ramm_3(ALICE);
-        let scenario = &mut scenario_val;
-        
-        test_scenario::next_tx(scenario, BOB);
-        // Create second RAMM whose assets don't matter; only its admin cap is needed.
-        // A second pool is required as it is the only way to have a second `AdminCap` for the test.
-        {
-            ramm::new_ramm(BOB, test_scenario::ctx(scenario));
-        };
-        test_scenario::next_tx(scenario, ALICE);
-
-        {
-            let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
-            let bob_admin_cap = test_scenario::take_from_address<RAMMAdminCap>(scenario, BOB);
-
-            interface3::collect_fees_3<BTC, ETH, SOL>(
-                &mut alice_ramm,
-                &bob_admin_cap,
-                test_scenario::ctx(scenario)
-            );
-
-            test_scenario::return_to_address<RAMMAdminCap>(BOB, bob_admin_cap);
-            test_scenario::return_shared<RAMM>(alice_ramm);
-        };
-
-        test_scenario::end(scenario_val);
-    }
-
-    // --------------------------------------------------
-    // Mismatched assets/aggregators in trading functions
-    // --------------------------------------------------
-
-    #[test]
-    #[expected_failure(abort_code = vec_map::EKeyDoesNotExist)]
-    /// Test using `trade_amount_in_3` with an invalid asset being traded into the RAMM.
-    ///
-    /// This test *must* fail.
-    fun trade_amount_in_3_invalid_asset() {
-        // Create a 3-asset pool with BTC, ETH, SOL
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val) = test_utils::create_populate_initialize_ramm_3(ALICE);
-        let scenario = &mut scenario_val;
-
-        {
-            let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
-            let amount_in = coin::mint_for_testing<USDC>(1000, test_scenario::ctx(scenario));
-            let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
-            let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
-            let sol_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, sol_ag_id);
-
-            interface3::trade_amount_in_3<USDC, ETH, SOL>(
-                &mut alice_ramm,
-                amount_in,
-                0,
-                &btc_aggr,
-                &eth_aggr,
-                &sol_aggr,
-                test_scenario::ctx(scenario)
-            );
-
-            test_scenario::return_shared<RAMM>(alice_ramm);
-            test_scenario::return_shared<Aggregator>(btc_aggr);
-            test_scenario::return_shared<Aggregator>(eth_aggr);
-            test_scenario::return_shared<Aggregator>(sol_aggr);
-        };
-
-        test_scenario::end(scenario_val);
-    }
-
-    #[test]
-    #[expected_failure(abort_code = interface3::ETradeAmountTooSmall)]
-    /// Test using `trade_amount_in_3` with an amount lower that the asset's minimum trade sizze,
-    ///
-    /// This *must* fail.
-    fun trade_amount_in_3_insufficient_amount_in() {
-        // Create a 3-asset pool with BTC, ETH, SOL
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val)
-            = test_utils::create_populate_initialize_ramm_3_with_liquidity_in_out(ALICE);
-        let scenario = &mut scenario_val;
-
-        {
-            let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
-            let amount_in = coin::mint_for_testing<ETH>(999, test_scenario::ctx(scenario));
-            let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
-            let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
-            let sol_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, sol_ag_id);
-
-            interface3::trade_amount_in_3<ETH, BTC, SOL>(
-                &mut alice_ramm,
-                amount_in,
-                0,
-                &eth_aggr,
-                &btc_aggr,
-                &sol_aggr,
-                test_scenario::ctx(scenario)
-            );
-
-            test_scenario::return_shared<RAMM>(alice_ramm);
-            test_scenario::return_shared<Aggregator>(btc_aggr);
-            test_scenario::return_shared<Aggregator>(eth_aggr);
-            test_scenario::return_shared<Aggregator>(sol_aggr);
-        };
-
-        test_scenario::end(scenario_val);
-    }
-
-    #[test]
-    #[expected_failure(abort_code = interface3::ENoLPTokensInCirculation)]
-    /// Test using `trade_amount_in_3` with insufficient liquidity in the pool for
-    /// the inbound asset.
-    ///
-    /// This test *must* fail.
-    fun trade_amount_in_3_no_minted_lptoken() {
-        // Create a 3-asset pool with BTC, ETH, SOL
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val) = test_utils::create_populate_initialize_ramm_3(ALICE);
-        let scenario = &mut scenario_val;
-
-        {
-            let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
-            let amount_in = coin::mint_for_testing<BTC>(1000, test_scenario::ctx(scenario));
-            let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
-            let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
-            let sol_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, sol_ag_id);
-
-            interface3::trade_amount_in_3<BTC, ETH, SOL>(
-                &mut alice_ramm,
-                amount_in,
-                0,
-                &btc_aggr,
-                &eth_aggr,
-                &sol_aggr,
-                test_scenario::ctx(scenario)
-            );
-
-            test_scenario::return_shared<RAMM>(alice_ramm);
-            test_scenario::return_shared<Aggregator>(btc_aggr);
-            test_scenario::return_shared<Aggregator>(eth_aggr);
-            test_scenario::return_shared<Aggregator>(sol_aggr);
-        };
-
-        test_scenario::end(scenario_val);
-    }
-
-    #[test]
-    #[expected_failure(abort_code = interface3::ERAMMInsufficientBalance)]
-    /// Test using `trade_amount_in_3` with the wrong aggregator provided for one of the assets.
-    ///
-    /// This *must* fail.
-    fun trade_amount_in_3_insufficient_outbound_balance() {
-        // Create a 3-asset pool with BTC, ETH, SOL
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val) =
-            test_utils::create_populate_initialize_ramm_3_with_liquidity_in(ALICE);
-        let scenario = &mut scenario_val;
-
-        {
-            let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
-            let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
-            let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
-            let sol_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, sol_ag_id);
-
-            let amount_in = coin::mint_for_testing<BTC>(1000, test_scenario::ctx(scenario));
-            interface3::trade_amount_in_3<BTC, ETH, SOL>(
-                &mut alice_ramm,
-                amount_in,
-                0,
-                &btc_aggr,
-                &sol_aggr,
-                &eth_aggr,
-                test_scenario::ctx(scenario)
-            );
-
-            test_scenario::return_shared<RAMM>(alice_ramm);
-            test_scenario::return_shared<Aggregator>(btc_aggr);
-            test_scenario::return_shared<Aggregator>(eth_aggr);
-            test_scenario::return_shared<Aggregator>(sol_aggr);
-        };
-
-        test_scenario::end(scenario_val);
-    }
-
-    #[test]
-    #[expected_failure(abort_code = ramm::EInvalidAggregator)]
-    /// Test using `trade_amount_in_3` with the wrong aggregator provided for one of the assets.
-    ///
-    /// This *must* fail.
-    fun trade_amount_in_3_invalid_aggregator() {
-        // Create a 3-asset pool with BTC, ETH, SOL
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val) =
-            test_utils::create_populate_initialize_ramm_3_with_liquidity_in_out(ALICE);
-        let scenario = &mut scenario_val;
-
-        {
-            let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
-            let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
-            let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
-            let sol_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, sol_ag_id);
-
-            let amount_in = coin::mint_for_testing<BTC>(1000, test_scenario::ctx(scenario));
-            interface3::trade_amount_in_3<BTC, ETH, SOL>(
-                &mut alice_ramm,
-                amount_in,
-                0,
-                &btc_aggr,
-                &sol_aggr,
-                &eth_aggr,
-                test_scenario::ctx(scenario)
-            );
-
-            test_scenario::return_shared<RAMM>(alice_ramm);
-            test_scenario::return_shared<Aggregator>(btc_aggr);
-            test_scenario::return_shared<Aggregator>(eth_aggr);
-            test_scenario::return_shared<Aggregator>(sol_aggr);
+            test_scenario::return_shared<Aggregator>(matic_aggr);
+            test_scenario::return_shared<Aggregator>(usdt_aggr);
         };
 
         test_scenario::end(scenario_val);

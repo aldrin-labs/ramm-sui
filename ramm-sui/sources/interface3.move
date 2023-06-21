@@ -1,4 +1,7 @@
 module ramm_sui::interface3 {
+    //use std::debug;
+
+    use sui::balance::{Self, Balance};
     use sui::coin::{Self, Coin};
     use sui::object;
     use sui::transfer;
@@ -33,7 +36,7 @@ module ramm_sui::interface3 {
     public entry fun trade_amount_in_3<AssetIn, AssetOut, Other>(
         self: &mut RAMM,
         amount_in: Coin<AssetIn>,
-        _min_ao: u256,
+        min_ao: u64,
         feed_in: &Aggregator,
         feed_out: &Aggregator,
         other: &Aggregator,
@@ -52,13 +55,41 @@ module ramm_sui::interface3 {
         let oth = ramm::get_asset_index<Other>(self);
 
         let asset_prices = vec_map::empty<u8, u256>();
-        ramm::check_feed_and_get_price(self, i, feed_in, &mut asset_prices);
-        ramm::check_feed_and_get_price(self, o, feed_out, &mut asset_prices);
-        ramm::check_feed_and_get_price(self, oth, other, &mut asset_prices);
+        let factors_for_prices = vec_map::empty<u8, u256>();
+        ramm::check_feed_and_get_price(self, i, feed_in, &mut asset_prices, &mut factors_for_prices);
+        ramm::check_feed_and_get_price(self, o, feed_out, &mut asset_prices, &mut factors_for_prices);
+        ramm::check_feed_and_get_price(self, oth, other, &mut asset_prices, &mut factors_for_prices);
 
-        // TODO: do something with the coins, this is just a placeholder
-        let amount_in = ramm::trade_i<AssetIn, AssetOut>(self, i, o, amount_in, asset_prices);
-        transfer::public_transfer(amount_in, tx_context::sender(ctx));
+        let amount_in: Balance<AssetIn> = coin::into_balance(amount_in);
+        let trade: ramm::TradeOutput = ramm::trade_i<AssetIn, AssetOut>(
+            self,
+            i,
+            o,
+            (balance::value(&amount_in) as u256),
+            asset_prices,
+            factors_for_prices
+        );
+
+        let amount_out = (ramm::amount(&trade) as u64);
+        if (ramm::execute(&trade) && amount_out >= min_ao) {
+            let fee: u64 = (ramm::protocol_fee(&trade) as u64);
+            let fee_bal: Balance<AssetIn> = balance::split(&mut amount_in, fee);
+            ramm::join_protocol_fees(self, i, fee_bal);
+
+            ramm::join_bal(self, i, (balance::value(&amount_in) as u256));
+            ramm::join_typed_bal(self, i, amount_in);
+
+            ramm::split_bal(self, o, (amount_out as u256));
+            let amount_out: Balance<AssetOut> = ramm::split_typed_bal(self, o, amount_out);
+            let amount_out: Coin<AssetOut> = coin::from_balance(amount_out, ctx);
+            transfer::public_transfer(amount_out, tx_context::sender(ctx));
+        } else if (!ramm::execute(&trade)) {
+            let amount_in = coin::from_balance(amount_in, ctx);
+            transfer::public_transfer(amount_in, tx_context::sender(ctx));
+        } else {
+            let amount_in = coin::from_balance(amount_in, ctx);
+            transfer::public_transfer(amount_in, tx_context::sender(ctx));
+        };
     }
 
     /// Trading function for a RAMM with three (3) assets.
@@ -97,9 +128,10 @@ module ramm_sui::interface3 {
         let oth = ramm::get_asset_index<Other>(self);
 
         let asset_prices = vec_map::empty<u8, u256>();
-        ramm::check_feed_and_get_price(self, i, feed_in, &mut asset_prices);
-        ramm::check_feed_and_get_price(self, o, feed_out, &mut asset_prices);
-        ramm::check_feed_and_get_price(self, oth, other, &mut asset_prices);
+        let factors_for_prices = vec_map::empty<u8, u256>();
+        ramm::check_feed_and_get_price(self, i, feed_in, &mut asset_prices, &mut factors_for_prices);
+        ramm::check_feed_and_get_price(self, o, feed_out, &mut asset_prices, &mut factors_for_prices);
+        ramm::check_feed_and_get_price(self, oth, other, &mut asset_prices, &mut factors_for_prices);
 
         // TODO: do something with the coins, this is just a placeholder
         ramm::trade_o<AssetIn, AssetOut>(self, i, o, amount_out, asset_prices);
@@ -132,9 +164,10 @@ module ramm_sui::interface3 {
         let anoth = ramm::get_asset_index<Another>(self);
 
         let asset_prices = vec_map::empty<u8, u256>();
-        ramm::check_feed_and_get_price(self, i, feed_in, &mut asset_prices);
-        ramm::check_feed_and_get_price(self, oth, other, &mut asset_prices);
-        ramm::check_feed_and_get_price(self, anoth, another, &mut asset_prices);
+        let factors_for_prices = vec_map::empty<u8, u256>();
+        ramm::check_feed_and_get_price(self, i, feed_in, &mut asset_prices, &mut factors_for_prices);
+        ramm::check_feed_and_get_price(self, oth, other, &mut asset_prices, &mut factors_for_prices);
+        ramm::check_feed_and_get_price(self, anoth, another, &mut asset_prices, &mut factors_for_prices);
 
         let amount_out = ramm::single_asset_deposit(self, i, amount_in, asset_prices, ctx);
 
@@ -170,9 +203,10 @@ module ramm_sui::interface3 {
         let o   = ramm::get_asset_index<AssetOut>(self);
 
         let asset_prices = vec_map::empty<u8, u256>();
-        ramm::check_feed_and_get_price(self, fst, feed1, &mut asset_prices);
-        ramm::check_feed_and_get_price(self, snd, feed2, &mut asset_prices);
-        ramm::check_feed_and_get_price(self, trd, feed3, &mut asset_prices);
+        let factors_for_prices = vec_map::empty<u8, u256>();
+        ramm::check_feed_and_get_price(self, fst, feed1, &mut asset_prices, &mut factors_for_prices);
+        ramm::check_feed_and_get_price(self, snd, feed2, &mut asset_prices, &mut factors_for_prices);
+        ramm::check_feed_and_get_price(self, trd, feed3, &mut asset_prices, &mut factors_for_prices);
 
         let (amount1, amount2, amount3) =
             ramm::single_asset_withdrawal<Asset1, Asset2, Asset3, AssetOut>(self, o, lp_token, asset_prices, ctx);

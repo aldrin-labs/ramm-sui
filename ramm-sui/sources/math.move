@@ -1,10 +1,13 @@
 module ramm_sui::math {
+    //use std::debug;
+
     use sui::vec_map::{Self, VecMap};
 
     use switchboard::math as sb_math;
 
     friend ramm_sui::ramm;
     friend ramm_sui::math_tests;
+    friend ramm_sui::test_util;
 
     const ENegativeSbD: u64 = 0;
     const EMulOverflow: u64 = 1;
@@ -24,7 +27,7 @@ module ramm_sui::math {
     /// # Aborts
     ///
     /// If the calculation overflows.
-    fun pow_u256(base: u256, exp: u8): u256 {
+    public(friend) fun pow_u256(base: u256, exp: u8): u256 {
         let res = 1;
         while (exp >= 1) {
             if (exp % 2 == 0) {
@@ -44,11 +47,12 @@ module ramm_sui::math {
     /// # Aborts
     ///
     /// If the `SwitchboardDecimal`'s `neg`ative flag was set to `true`.
-    public(friend) fun sbd_to_u256(sbd: sb_math::SwitchboardDecimal): u256 {
+    public(friend) fun sbd_to_price_info(sbd: sb_math::SwitchboardDecimal, prec: u8): (u256, u256) {
         let (value, scaling_factor, neg) = sb_math::unpack(sbd);
         assert!(!neg, ENegativeSbD);
 
-        (value as u256) / pow_u256(10, scaling_factor)
+        ((value as u256), pow_u256(10u256, prec - scaling_factor))
+
     }
 
     /// Raise a `base: u256` to the power of a `u8` `exp`onent.
@@ -395,10 +399,13 @@ module ramm_sui::math {
             max_prec
         );
 
-        let condition1: bool = *vec_map::get(&imb_ratios_after_trade, &o) < one - delta &&
-            *vec_map::get(&imb_ratios_after_trade, &o) < *vec_map::get(&imb_ratios_before_trade, &o);
-        let condition2: bool = one + delta < *vec_map::get(&imb_ratios_after_trade, &i) &&
-            *vec_map::get(&imb_ratios_before_trade, &i) < *vec_map::get(&imb_ratios_after_trade, &i);
+        let imb_i_before = *vec_map::get(&imb_ratios_before_trade, &i);
+        let imb_i_after = *vec_map::get(&imb_ratios_after_trade, &i);
+        let imb_o_before = *vec_map::get(&imb_ratios_before_trade, &o);
+        let imb_o_after = *vec_map::get(&imb_ratios_after_trade, &o);
+
+        let condition1: bool = imb_o_after < one - delta && imb_o_after < imb_o_before;
+        let condition2: bool = one + delta < imb_i_after && imb_i_before < imb_i_after;
 
         if (condition1 || condition2) {
             false

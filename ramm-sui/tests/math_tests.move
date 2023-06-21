@@ -8,6 +8,7 @@ module ramm_sui::math_tests {
     use switchboard::math as sb_math;
 
     use ramm_sui::ramm;
+    use ramm_sui::test_util;
     use ramm_sui::math as ramm_math;
 
     const EIncorrectMath: u64 = 0;
@@ -38,16 +39,18 @@ module ramm_sui::math_tests {
 
     #[test]
     fun test_switchboard_decimal() {
-        let sbd = sb_math::new(1234567000, 3, false);
+        let sbd = sb_math::new(1234567000, 9, false);
+        let (price, factor_for_price) = ramm_math::sbd_to_price_info(sbd, PRECISION_DECIMAL_PLACES);
 
-        assert!(ramm_math::sbd_to_u256(sbd) == 1234567u256, EIncorrectMath);
+        test_utils::assert_eq(price, 1234567000u256);
+        test_utils::assert_eq(factor_for_price, 1000u256);
     }
 
     #[test]
     #[expected_failure(abort_code = ramm_math::ENegativeSbD)]
     fun test_switchboard_decimal_fail() {
         let sbd = sb_math::new(1234567000, 3, true);
-        let _ = ramm_math::sbd_to_u256(sbd);
+        let (_, _) = ramm_math::sbd_to_price_info(sbd, PRECISION_DECIMAL_PLACES);
     }
 
     #[test]
@@ -278,19 +281,19 @@ module ramm_sui::math_tests {
         let factors_balances = vec_map::empty<u8, u256>();
 
         vec_map::insert(&mut balances, 0, bal_0);
-        vec_map::insert(&mut lp_tokens_issued, 0, 200 * FACTOR_LPT);
+        vec_map::insert(&mut lp_tokens_issued, 0, 200 * test_util::eth_factor());
         vec_map::insert(&mut prices, 0, 1_800_000_000_000);
         vec_map::insert(&mut factors_prices, 0, ramm_math::pow(10u256, PRECISION_DECIMAL_PLACES - prices_decimal_places));
         vec_map::insert(&mut factors_balances, 0, ramm_math::pow(10u256, PRECISION_DECIMAL_PLACES - balances_decimal_places));
 
         vec_map::insert(&mut balances, 1, bal_1);
-        vec_map::insert(&mut lp_tokens_issued, 1, 200_000 * FACTOR_LPT);
+        vec_map::insert(&mut lp_tokens_issued, 1, 200_000 * test_util::matic_factor());
         vec_map::insert(&mut prices, 1, 1_200_000_000);
         vec_map::insert(&mut factors_prices, 1, ramm_math::pow(10u256, PRECISION_DECIMAL_PLACES - prices_decimal_places));
         vec_map::insert(&mut factors_balances, 1, ramm_math::pow(10u256, PRECISION_DECIMAL_PLACES - balances_decimal_places));
 
         vec_map::insert(&mut balances, 2, bal_2);
-        vec_map::insert(&mut lp_tokens_issued, 2, 400_000 * FACTOR_LPT);
+        vec_map::insert(&mut lp_tokens_issued, 2, 400_000 * test_util::usdt_factor());
         vec_map::insert(&mut prices, 2, 1_000_000_000);
         vec_map::insert(&mut factors_prices, 2, ramm_math::pow(10u256, PRECISION_DECIMAL_PLACES - prices_decimal_places));
         vec_map::insert(&mut factors_balances, 2, ramm_math::pow(10u256, PRECISION_DECIMAL_PLACES - balances_decimal_places));
@@ -305,7 +308,13 @@ module ramm_sui::math_tests {
     /// any trade is done.
     fun imbalance_ratios_1() {
         let (balances, lp_tokens_issued, prices, factors_prices, factors_balances) =
-            imbalance_ratios(200 * ONE, 200_000 * ONE, 400_000 * ONE, 9, 8);
+            imbalance_ratios(
+                200 * test_util::eth_factor(),
+                200_000 * test_util::matic_factor(),
+                400_000 * test_util::usdt_factor(),
+                9,
+                8
+        );
 
         let imbs = ramm_math::imbalance_ratios(
             &balances,
@@ -355,15 +364,15 @@ module ramm_sui::math_tests {
     fun imbalance_ratios_2() {
         let i: u8 = 0;
         let o: u8 = 2;
-        let prev_eth = 200 * ONE;
-        let new_eth = 209995 * ONE / 1000;
+        let prev_eth = 200 * test_util::eth_factor();
+        let new_eth = 209995 * test_util::eth_factor() / 1000;
         let ai: u256 = new_eth - prev_eth;
-        let old_usdt = 400_000 * ONE;
-        let new_usdt = 38_202_653 * ONE / 100;
+        let old_usdt = 400_000 * test_util::usdt_factor();
+        let new_usdt = 38_202_653 * test_util::usdt_factor() / 100;
         let ao: u256 = old_usdt - new_usdt;
 
         let (balances, lp_tokens_issued, prices, factors_prices, factors_balances) =
-            imbalance_ratios(new_eth, 200_000 * ONE, new_usdt, 9, 8);
+            imbalance_ratios(new_eth, 200_000 * test_util::matic_factor(), new_usdt, 9, 8);
 
         let imbs = ramm_math::imbalance_ratios(
             &balances,
@@ -405,6 +414,14 @@ module ramm_sui::math_tests {
         // The fee for the example's first trade should be roughly 0.116%
         test_utils::assert_eq(1157542314, scaled_fee);
 
+        let factor_i = *vec_map::get(&factors_balances, &i);
+        let pr_fee: u256 = ramm_math::mul3(
+                PROTOCOL_FEE,
+                scaled_fee,
+                ai * factor_i,
+                PRECISION_DECIMAL_PLACES,
+                MAX_PRECISION_DECIMAL_PLACES
+            ) / factor_i;
         let imbalance_ratios_check = ramm_math::check_imbalance_ratios(
             &balances,
             &lp_tokens_issued,
@@ -413,7 +430,7 @@ module ramm_sui::math_tests {
             o,
             ai,
             ao,
-            scaled_fee,
+            pr_fee,
             &factors_balances,
             FACTOR_LPT,
             &factors_prices,
@@ -433,15 +450,15 @@ module ramm_sui::math_tests {
     fun imbalance_ratios_3() {
         let i: u8 = 0;
         let o: u8 = 1;
-        let prev_eth = 209995 * ONE / 1000;
-        let new_eth = 21499 * ONE / 100;
+        let prev_eth = 209995 * test_util::eth_factor() / 1000;
+        let new_eth = 21499 * test_util::eth_factor() / 100;
         let ai: u256 = new_eth - prev_eth;
-        let old_matic = 200_000 * ONE;
-        let new_matic = 19251134 * ONE / 100;
+        let old_matic = 200_000 * test_util::matic_factor();
+        let new_matic = 19251134 * test_util::matic_factor() / 100;
         let ao: u256 = old_matic - new_matic;
 
         let (balances, lp_tokens_issued, prices, factors_prices, factors_balances) =
-            imbalance_ratios(new_eth, new_matic, 38_202_653 * ONE / 100, 9, 8);
+            imbalance_ratios(new_eth, new_matic, 38_202_653 * test_util::usdt_factor() / 100, 9, 8);
 
         let imbs = ramm_math::imbalance_ratios(
             &balances,
@@ -475,6 +492,14 @@ module ramm_sui::math_tests {
         // The corresponding fee would be roughly 0.139%
         test_utils::assert_eq(1392790602, scaled_fee);
 
+        let factor_i = *vec_map::get(&factors_balances, &i);
+        let pr_fee: u256 = ramm_math::mul3(
+                PROTOCOL_FEE,
+                scaled_fee,
+                ai * factor_i,
+                PRECISION_DECIMAL_PLACES,
+                MAX_PRECISION_DECIMAL_PLACES
+            ) / factor_i;
         let imbalance_ratios_check = ramm_math::check_imbalance_ratios(
             &balances,
             &lp_tokens_issued,
@@ -483,7 +508,7 @@ module ramm_sui::math_tests {
             o,
             ai,
             ao,
-            scaled_fee,
+            pr_fee,
             &factors_balances,
             FACTOR_LPT,
             &factors_prices,
@@ -512,15 +537,15 @@ module ramm_sui::math_tests {
     fun imbalance_ratios_fail() {
         let i: u8 = 0;
         let o: u8 = 2;
-        let prev_eth = 260 * ONE;
-        let new_eth = 270 * ONE;
+        let prev_eth = 260 * test_util::eth_factor();
+        let new_eth = 270 * test_util::eth_factor();
         let ai: u256 = new_eth - prev_eth;
-        let old_usdt = 29_215_918 * ONE / 100;
-        let new_usdt = 27_418_571 * ONE / 100;
+        let old_usdt = 29_215_918 * test_util::usdt_factor() / 100;
+        let new_usdt = 27_418_571 * test_util::usdt_factor() / 100;
         let ao: u256 = old_usdt - new_usdt;
 
         let (balances, lp_tokens_issued, prices, factors_prices, factors_balances) =
-            imbalance_ratios(new_eth, 200_000 * ONE, new_usdt, 9, 8);
+            imbalance_ratios(new_eth, 200_000 * test_util::matic_factor(), new_usdt, 9, 8);
 
         let imbs = ramm_math::imbalance_ratios(
             &balances,
@@ -553,7 +578,15 @@ module ramm_sui::math_tests {
             MAX_PRECISION_DECIMAL_PLACES,
         );
 
-         let imbalance_ratios_check = ramm_math::check_imbalance_ratios(
+        let factor_i = *vec_map::get(&factors_balances, &i);
+        let pr_fee: u256 = ramm_math::mul3(
+                PROTOCOL_FEE,
+                scaled_fee,
+                ai * factor_i,
+                PRECISION_DECIMAL_PLACES,
+                MAX_PRECISION_DECIMAL_PLACES
+            ) / factor_i;
+        let imbalance_ratios_check = ramm_math::check_imbalance_ratios(
             &balances,
             &lp_tokens_issued,
             &prices,
@@ -561,7 +594,7 @@ module ramm_sui::math_tests {
             o,
             ai,
             ao,
-            scaled_fee,
+            pr_fee,
             &factors_balances,
             FACTOR_LPT,
             &factors_prices,
@@ -590,15 +623,15 @@ module ramm_sui::math_tests {
     fun imbalance_ratios_pass() {
         let i: u8 = 2;
         let o: u8 = 0;
-        let old_eth = 260 * ONE;
-        let new_eth = 250 * ONE;
+        let old_eth = 260 * test_util::eth_factor();
+        let new_eth = 250 * test_util::eth_factor();
         let ao: u256 = old_eth - new_eth;
-        let old_usdt = 27_418_571 * ONE / 100;
-        let new_usdt = 29_215_918 * ONE / 100;
+        let old_usdt = 27_418_571 * test_util::usdt_factor() / 100;
+        let new_usdt = 29_215_918 * test_util::usdt_factor() / 100;
         let ai: u256 = new_usdt - old_usdt;
 
         let (balances, lp_tokens_issued, prices, factors_prices, factors_balances) =
-            imbalance_ratios(new_eth, 200_000 * ONE, new_usdt, 9, 8);
+            imbalance_ratios(new_eth, 200_000 * test_util::matic_factor(), new_usdt, 9, 8);
 
         let imbs = ramm_math::imbalance_ratios(
             &balances,
@@ -631,6 +664,14 @@ module ramm_sui::math_tests {
             MAX_PRECISION_DECIMAL_PLACES,
         );
 
+        let factor_i = *vec_map::get(&factors_balances, &i);
+        let pr_fee: u256 = ramm_math::mul3(
+                PROTOCOL_FEE,
+                scaled_fee,
+                ai * factor_i,
+                PRECISION_DECIMAL_PLACES,
+                MAX_PRECISION_DECIMAL_PLACES
+            ) / factor_i;
          let imbalance_ratios_check = ramm_math::check_imbalance_ratios(
             &balances,
             &lp_tokens_issued,
@@ -639,7 +680,7 @@ module ramm_sui::math_tests {
             o,
             ai,
             ao,
-            scaled_fee,
+            pr_fee,
             &factors_balances,
             FACTOR_LPT,
             &factors_prices,
