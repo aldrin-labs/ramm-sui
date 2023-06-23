@@ -8,7 +8,7 @@ module ramm_sui::interface3 {
 
     use switchboard::aggregator::Aggregator;
 
-    use ramm_sui::ramm::{Self, RAMM, RAMMAdminCap};
+    use ramm_sui::ramm::{Self, LP, RAMM, RAMMAdminCap};
 
     const THREE: u8 = 3;
 
@@ -157,8 +157,12 @@ module ramm_sui::interface3 {
             let amount_out: Coin<AssetOut> = coin::from_balance(amount_out, ctx);
             transfer::public_transfer(amount_out, tx_context::sender(ctx));
 
-            let remainder: Coin<AssetIn> = coin::from_balance(remainder, ctx);
-            transfer::public_transfer(remainder, tx_context::sender(ctx));
+            if (balance::value(&remainder) > 0) {
+                let remainder: Coin<AssetIn> = coin::from_balance(remainder, ctx);
+                transfer::public_transfer(remainder, tx_context::sender(ctx));
+            } else {
+                balance::destroy_zero(remainder);
+            }
         } else if (!ramm::execute(&trade)) {
             transfer::public_transfer(max_ai, tx_context::sender(ctx));
         } else {
@@ -197,10 +201,23 @@ module ramm_sui::interface3 {
         ramm::check_feed_and_get_price(self, oth, other, &mut asset_prices, &mut factors_for_prices);
         ramm::check_feed_and_get_price(self, anoth, another, &mut asset_prices, &mut factors_for_prices);
 
-        let amount_out = ramm::single_asset_deposit(self, i, amount_in, asset_prices, ctx);
+        let lpt: u64 = ramm::single_asset_deposit<AssetIn>(self, i, coin::value(&amount_in), asset_prices, factors_for_prices);
 
-        // TODO: something must be done with these LP tokens
-        transfer::public_transfer(amount_out, tx_context::sender(ctx));
+        if (lpt == 0) {
+            transfer::public_transfer(amount_in, tx_context::sender(ctx));
+            // TODO for after events are implemented
+        } else {
+            let amount_in: Balance<AssetIn> = coin::into_balance(amount_in);
+            ramm::join_bal(self, i, (balance::value(&amount_in) as u256));
+            ramm::join_typed_bal(self, i, amount_in);
+
+            ramm::incr_lptokens_issued<AssetIn>(self, lpt);
+            let lpt: Balance<LP<AssetIn>> = ramm::mint_lp_tokens(self, lpt);
+            let lpt: Coin<LP<AssetIn>> = coin::from_balance(lpt, ctx);
+            
+            transfer::public_transfer(lpt, tx_context::sender(ctx));
+        }
+
     }
 
     /// Deposit liquidity into a 3-asset RAMM.

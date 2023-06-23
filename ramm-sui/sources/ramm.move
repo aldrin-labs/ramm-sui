@@ -583,7 +583,11 @@ module ramm_sui::ramm {
         get_lptok_issued(self, ix)
     }
 
-    fun incr_lptokens_issued<Asset>(self: &mut RAMM, minted: u64) {
+    /// Update untyped count of issued LP tokens for a given asset.
+    ///
+    /// It's is the user's responsibility to ensure that there is also an
+    /// update to the typed count for this token.
+    public(friend) fun incr_lptokens_issued<Asset>(self: &mut RAMM, minted: u64) {
         let ix = get_asset_index<Asset>(self);
         let lptoks = vec_map::get_mut(&mut self.lp_tokens_issued, &ix);
         *lptoks = *lptoks + (minted as u256);
@@ -606,7 +610,11 @@ module ramm_sui::ramm {
         get_typed_lptok_issued<Asset>(self, ix)
     }
 
-    fun mint_lp_tokens<Asset>(self: &mut RAMM, amount: u64): Balance<LP<Asset>> {
+    /// Mint LP tokens for a given asset, in a given amount.
+    ///
+    /// It's is the user's responsibility to ensure that there is also an
+    /// update to the untyped count for this token.
+    public(friend) fun mint_lp_tokens<Asset>(self: &mut RAMM, amount: u64): Balance<LP<Asset>> {
         let supply = get_lptoken_supply<Asset>(self);
         balance::increase_supply(supply, amount)
     }
@@ -1096,22 +1104,44 @@ module ramm_sui::ramm {
     public(friend) fun single_asset_deposit<AssetIn>(
         self: &mut RAMM,
         i: u8,
-        ai: Coin<AssetIn>,
-        _prices: VecMap<u8, u256>,
-        ctx: &mut TxContext
-        ): Coin<LP<AssetIn>> {
-        // TODO
-        let amount_in = coin::into_balance(ai);
-        let amount_in_u64 = balance::value(&amount_in);
-        let curr_bal = vec_map::get_mut(&mut self.balances, &i);
-        let curr_typed_bal = bag::borrow_mut<u8, Balance<AssetIn>>(&mut self.typed_balances, i);
-        let new_bal = balance::join(curr_typed_bal, amount_in);
-        *curr_bal = (new_bal as u256);
+        ai: u64,
+        prices: VecMap<u8, u256>,
+        factors_for_prices: VecMap<u8, u256>
+    ): u64 {
 
-        incr_lptokens_issued<AssetIn>(self, amount_in_u64);
-        let lptoken_balance = mint_lp_tokens(self, amount_in_u64);
+        let factor_i = *vec_map::get(&self.factors_for_balances, &i);
 
-        coin::from_balance(lptoken_balance, ctx)
+        if (get_typed_lptok_issued<AssetIn>(self, i) == 0 ||
+            (get_typed_lptok_issued<AssetIn>(self, i) != 0 && get_typed_bal<AssetIn>(self, i) == 0)
+        ) {
+            let (_B, _L) = compute_B_and_L(self, &prices, &factors_for_prices);
+            if (_B == 0) {
+                let lpt: u64 = ai;
+                return lpt
+            } else {
+                let lpt: u256 = div(mul((ai as u256) * factor_i, _L), _B) / FACTOR_LPT;
+                return (lpt as u64)
+            }
+        };
+
+        if ((get_typed_lptok_issued<AssetIn>(self, i) != 0 && get_typed_bal<AssetIn>(self, i) != 0)) {
+            let imb_ratios: VecMap<u8, u256> = imbalance_ratios(self, &prices, &factors_for_prices);
+            let bi: u256 = get_typed_bal<AssetIn>(self, i) * factor_i;
+            let ri: u256 = *vec_map::get(&imb_ratios, &i);
+
+            let lpt: u256 =
+                div(
+                    mul3(
+                        (ai as u256) * factor_i,
+                        ri,
+                        get_typed_lptok_issued<AssetIn>(self, i) * FACTOR_LPT
+                        ),
+                    bi
+                ) / FACTOR_LPT;
+            return (lpt as u64)
+        } else {
+            return 0
+        }
     }
 
     public(friend) fun single_asset_withdrawal<Asset1, Asset2, Asset3, AssetOut>(
