@@ -190,6 +190,12 @@ module ramm_sui::ramm {
         asset_count: u8,
     }
 
+    /// Result of an asset deposit/withdrawal operation by a trader.
+    /// If `execute_trade` is `true`, then:
+    /// * in the case of an asset deposit, the amount of the outbound asset is specified,
+    ///   as well as the fee to be levied on the inbound asset
+    /// * in the case of an asset withdrawal, the amount of the inbound asset is specified,
+    ///   as well as the fee to be levied on the inbound asset
     struct TradeOutput has drop{
         amount: u256,
         protocol_fee: u256,
@@ -1061,7 +1067,7 @@ module ramm_sui::ramm {
             let ai: u256 = div(num, denom) / factor_i;
             let pr_fee: u256 = mul3(PROTOCOL_FEE, BASE_FEE, ai * factor_i) / factor_i;
             let execute: bool = check_imbalance_ratios(self, &prices, i, o, ai, ao, pr_fee, &factors_for_prices);
-            return TradeOutput {amount: ao, protocol_fee: pr_fee, execute_trade: execute}
+            return TradeOutput {amount: ai, protocol_fee: pr_fee, execute_trade: execute}
         };
 
         let _W: VecMap<u8, u256> = weights(self, &prices, &factors_for_prices);
@@ -1143,6 +1149,7 @@ module ramm_sui::ramm {
             return 0
         }
     }
+
 
     public(friend) fun single_asset_withdrawal<Asset1, Asset2, Asset3, AssetOut>(
         self: &mut RAMM,
