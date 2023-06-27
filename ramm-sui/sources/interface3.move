@@ -12,6 +12,11 @@ module ramm_sui::interface3 {
 
     const THREE: u8 = 3;
 
+    /// Amounts of LP tokens are considered to have 9 decimal places.
+    ///
+    /// This `const` factor is used when performing calculations with LP tokens.
+    const FACTOR_LPT: u256 = 1_000_000_000_000 / 1_000_000_000; // FACTOR_LPT = 10**(PRECISION_DECIMAL_PLACES-LP_TOKENS_DECIMAL_PLACES)
+
     const ERAMMInvalidSize: u64 = 0;
     const EDepositsDisabled: u64 = 1;
     const EInvalidDeposit: u64 = 2;
@@ -19,6 +24,7 @@ module ramm_sui::interface3 {
     const ERAMMInsufficientBalance: u64 = 4;
     const ETradeAmountTooSmall: u64 = 5;
     const ENotAdmin: u64 = 6;
+    const ELiqWthdrw: u64 = 7;
 
     /// Trading function for a RAMM with three (3) assets.
     /// Used to deposit a given amount of asset `T_i`, in exchange for asset `T_o`.
@@ -176,7 +182,7 @@ module ramm_sui::interface3 {
     ///
     /// * If this function is called on a RAMM that does not have 3 assets.
     /// * If the amount being traded in is zero
-    /// * If the RAMM does not contain any of the assets types provided
+    /// * If the RAMM does not contain any of the asset types provided
     /// * If the aggregator for each asset doesn't match the address in the RAMM's records
     public entry fun liquidity_deposit_3<AssetIn, Other, Another>(
         self: &mut RAMM,
@@ -211,7 +217,9 @@ module ramm_sui::interface3 {
             ramm::join_bal(self, i, (balance::value(&amount_in) as u256));
             ramm::join_typed_bal(self, i, amount_in);
 
+            // Update RAMM's untyped count of LP tokens for incoming asset
             ramm::incr_lptokens_issued<AssetIn>(self, lpt);
+            // Update RAMM's typed count of LP tokens for incoming asset
             let lpt: Balance<LP<AssetIn>> = ramm::mint_lp_tokens(self, lpt);
             let lpt: Coin<LP<AssetIn>> = coin::from_balance(lpt, ctx);
             
@@ -220,14 +228,14 @@ module ramm_sui::interface3 {
 
     }
 
-    /// Deposit liquidity into a 3-asset RAMM.
+    /// Withdraw liquidity from a 3-asset RAMM.
     ///
     /// # Aborts
     ///
     /// * If the RAMM does not have 3 assets
     /// * If the pool does not have the asset for which the withdrawal is being requested
-    /// * If the RAMM does not contain any of the assets types provided
-    /// * If the aggregatoe for each asset doesn't match the address in the RAMM's records
+    /// * If the RAMM does not contain any of the asset types provided
+    /// * If the aggregator for each asset doesn't match the address in the RAMM's records
     public entry fun liquidity_withdrawal_3<Asset1, Asset2, Asset3, AssetOut>(
         self: &mut RAMM,
         lp_token: Coin<ramm::LP<AssetOut>>,
@@ -253,11 +261,78 @@ module ramm_sui::interface3 {
         ramm::check_feed_and_get_price(self, snd, feed2, &mut asset_prices, &mut factors_for_prices);
         ramm::check_feed_and_get_price(self, trd, feed3, &mut asset_prices, &mut factors_for_prices);
 
-        let (amount1, amount2, amount3) =
-            ramm::single_asset_withdrawal<Asset1, Asset2, Asset3, AssetOut>(self, o, lp_token, asset_prices, ctx);
-        transfer::public_transfer(amount1, tx_context::sender(ctx));
-        transfer::public_transfer(amount2, tx_context::sender(ctx));
-        transfer::public_transfer(amount3, tx_context::sender(ctx));
+        let lpt: u64 = coin::value(&lp_token);
+        let factor_o: u256 = ramm::get_fact_for_bal(self, o);
+        let withdrawal_output =
+            ramm::single_asset_withdrawal<AssetOut>(
+                self,
+                o,
+                lpt,
+                asset_prices,
+                factors_for_prices,
+            );
+
+        let lpt: u256 = (lpt as u256);
+        let lpt_amount: &mut u256 = &mut (copy lpt);
+        if (ramm::remaining(&withdrawal_output) > 0) {
+            // lpt_amount = lpt*(out.value-out.remaining)/out.value
+            *lpt_amount =
+                ramm::div(
+                    ramm::mul(
+                        lpt * FACTOR_LPT,
+                        (ramm::value(&withdrawal_output) - ramm::remaining(&withdrawal_output)) * factor_o
+                    ),
+                    ramm::value(&withdrawal_output) * factor_o
+                ) / FACTOR_LPT;
+        };
+
+        let burn_amount: u64 = (*lpt_amount as u64);
+        let lp_token: Balance<LP<AssetOut>> = coin::into_balance(lp_token);
+        let burn_tokens: Balance<LP<AssetOut>> = balance::split(&mut lp_token, burn_amount);
+        // Update RAMM's untyped count of LP tokens for outgoing asset
+        ramm::decr_lptokens_issued<AssetOut>(self, burn_amount);
+        // Update RAMM's typed count of LP tokens for outgoing asset
+        let burned: u64 = ramm::burn_lp_tokens<AssetOut>(self, burn_tokens);
+        assert!(burned == burn_amount, ELiqWthdrw);
+        // All of the tokens from the provider were burned, so the `Balance` can be
+        // destroyed
+        if (balance::value(&lp_token) == 0) {
+            balance::destroy_zero(lp_token);
+        } else {
+            // Not all LP tokens could be redeemed, so the remainder is returned to the
+            // liquidity provider i.e. the current tx's sender.
+            let lp_token: Coin<LP<AssetOut>> = coin::from_balance(lp_token, ctx);
+            transfer::public_transfer(lp_token, tx_context::sender(ctx));
+        };
+
+        let amounts_out = ramm::amounts(&withdrawal_output);
+
+        // Withdraw first asset in the RAMM for the liquidity provider
+        let amount_fst: u256 = *vec_map::get(&amounts_out, &fst);
+        if (amount_fst != 0) {
+            ramm::split_bal(self, fst, amount_fst);
+            let amount_out: Balance<Asset1> = ramm::split_typed_bal(self, fst, (amount_fst as u64));
+            let amount_out: Coin<Asset1> = coin::from_balance(amount_out, ctx);
+            transfer::public_transfer(amount_out, tx_context::sender(ctx));
+        };
+
+        // Withdraw second asset in the RAMM for the liquidity provider
+        let amount_snd: u256 = *vec_map::get(&amounts_out, &snd);
+        if (amount_snd != 0) {
+            ramm::split_bal(self, snd, amount_snd);
+            let amount_out: Balance<Asset2> = ramm::split_typed_bal(self, snd, (amount_snd as u64));
+            let amount_out: Coin<Asset2> = coin::from_balance(amount_out, ctx);
+            transfer::public_transfer(amount_out, tx_context::sender(ctx));
+        };
+
+        // Withdraw third asset in the RAMM for the liquidity provider
+        let amount_trd: u256 = *vec_map::get(&amounts_out, &trd);
+        if (amount_trd != 0) {
+            ramm::split_bal(self, trd, amount_trd);
+            let amount_out: Balance<Asset3> = ramm::split_typed_bal(self, trd, (amount_trd as u64));
+            let amount_out: Coin<Asset3> = coin::from_balance(amount_out, ctx);
+            transfer::public_transfer(amount_out, tx_context::sender(ctx));
+        };
     }
 
     /// Collect fees for a given RAMM, sending them to the fee collection address
