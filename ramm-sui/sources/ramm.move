@@ -14,10 +14,12 @@ module ramm_sui::ramm {
 
     use ramm_sui::math as ramm_math;
 
+    friend ramm_sui::interface2;
     friend ramm_sui::interface3;
 
     // Because of the below declarations, use the `test` flag when building or
     // creating test coverage maps: `sui move test coverage --test`.
+    friend ramm_sui::interface2_tests;
     friend ramm_sui::interface3_safety_tests;
     friend ramm_sui::interface3_tests;
     friend ramm_sui::math_tests;
