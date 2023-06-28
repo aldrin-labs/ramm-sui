@@ -1218,6 +1218,14 @@ module ramm_sui::ramm {
         let lpt: u256 = (lpt as u256);
 
         let amounts_out = vec_map::empty<u8, u256>();
+        // Required to initialize this `VecMap` to zeroes, or `liquidity_withdrawal`
+        // will fail.
+        let t: u8 = 0;
+        while (t < get_asset_count(self)) {
+            vec_map::insert(&mut amounts_out, t, 0);
+            t = t + 1;
+        };
+
         let a_remaining: &mut u256 = &mut 0;
         let factor_o: u256 = get_fact_for_bal(self, o);
         let bo: u256 = get_typed_bal<AssetOut>(self, o) * factor_o;
@@ -1268,7 +1276,7 @@ module ramm_sui::ramm {
                     // Withdrawal continued with different token
                 };
             } else {
-                *ao = div(bo, ro) * factor_o;
+                *ao = div(bo, ro) / factor_o;
                 let amount_out_o = vec_map::get_mut(&mut amounts_out, &o);
                 if (*ao <= get_bal(self, o)) {
                     *amount_out_o = *amount_out_o + *ao;
