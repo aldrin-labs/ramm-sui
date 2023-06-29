@@ -609,8 +609,8 @@ module ramm_sui::test_util {
         vec_map::insert(&mut add_liquidity, 0, true);
         vec_map::insert(&mut add_liquidity, 1, true);
         let initial_asset_liquidity: VecMap<u8, u64> = vec_map::empty();
-        vec_map::insert(&mut initial_asset_liquidity, 0, 300 * (eth_factor() as u64));
-        vec_map::insert(&mut initial_asset_liquidity, 1, 400_000 * (matic_factor() as u64));
+        vec_map::insert(&mut initial_asset_liquidity, 0, 500 * (eth_factor() as u64));
+        vec_map::insert(&mut initial_asset_liquidity, 1, 900_000 * (matic_factor() as u64));
 
         create_populate_initialize_ramm_2_asset<ETH, USDT>(
             asset_prices,

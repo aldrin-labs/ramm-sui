@@ -65,8 +65,8 @@ module ramm_sui::ramm {
     const PROTOCOL_FEE: u256 = 50 * 1_000_000_000_000 / 100; // PROTOCOL_FEE = _PROTOCOL_FEE*10**(PRECISION_DECIMAL_PLACES-2)
 
     /// Miguel's note:
-    /// Maximum permitted deviation of the imbalance ratios from 1.0. 2 decimal places
-    /// are considered.
+    /// Maximum permitted deviation of the imbalance ratios from 1.0.
+    /// 2 decimal places are considered.
     ///
     /// Hence DELTA=25 is interpreted as 0.25
     const DELTA: u256 = 25 * 1_000_000_000_000 / 100; // DELTA = _DELTA * 10**(PRECISION_DECIMAL_PLACES-2)
@@ -1357,6 +1357,5 @@ module ramm_sui::ramm {
         };
 
         WithdrawalOutput {amounts: amounts_out, value: *ao, remaining: *a_remaining}
-
     }
 }

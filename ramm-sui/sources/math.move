@@ -404,14 +404,12 @@ module ramm_sui::math {
         let imb_o_before = *vec_map::get(&imb_ratios_before_trade, &o);
         let imb_o_after = *vec_map::get(&imb_ratios_after_trade, &o);
 
-        let condition1: bool = imb_o_after < one - delta && imb_o_after < imb_o_before;
-        let condition2: bool = one + delta < imb_i_after && imb_i_before < imb_i_after;
+        let condition1: bool = one - delta <= imb_o_after;
+        let condition2: bool = imb_i_after <= one + delta;
+        let condition3: bool =
+            (imb_i_after < imb_i_before + delta / 5) && (imb_o_after > imb_o_before - delta / 5);
 
-        if (condition1 || condition2) {
-            false
-        } else {
-            true
-        }
+        condition1 && condition2 && condition3
     }
 
     /// Returns the scaled base fee and leverage parameter for a trade where token `i` goes into the
