@@ -33,11 +33,14 @@ module ramm_sui::ramm {
     const ERAMMNewAssetFailure: u64 = 4;
     const ENotInitialized: u64 = 5;
     const EWrongNewAssetCap: u64 = 6;
+    const EBrokenRAMMInvariants: u64 = 7;
 
-    /// ------------------
-    /// Constants for math
-    /// ------------------
+    /// --------------
+    /// RAMM Constants
+    /// --------------
 
+    const TWO: u8 = 2;
+    const THREE: u8 = 3;
 
     /// Number of decimal places of precision.
     const PRECISION_DECIMAL_PLACES: u8 = 12;
@@ -486,6 +489,50 @@ module ramm_sui::ramm {
         object::delete(uid);
 
         let _ = option::extract(&mut self.new_asset_cap_id);
+    }
+
+    /// -------------------------
+    /// RAMM structure invariants
+    /// -------------------------
+
+    /// Given a 2-asset RAMM, check that its internal invariants hold.
+    ///
+    /// This function should be used before and after operations that modify the RAMM's internal
+    /// state such as trading or liquidity deposits/withdrawals, because
+    /// * if the invariant does not hold at the start, the operation should not be performed
+    /// * if it did hold, but then failed to, the operation should be rolled back
+    public(friend) fun check_ramm_invariants_2<Asset1, Asset2>(self: &RAMM) {
+        // This invariant checking function must only be used on RAMMs with 2 assets.
+        assert!(get_asset_count(self) == TWO, EBrokenRAMMInvariants);
+
+        // First, the typed and untyped balances must never go out of sync, for any reason.
+        assert!(get_balance<Asset1>(self) == get_typed_balance<Asset1>(self), EBrokenRAMMInvariants);
+        assert!(get_balance<Asset2>(self) == get_typed_balance<Asset2>(self), EBrokenRAMMInvariants);
+
+        // Secondly, the typed and untyped counts of issued LP tokens must always match.
+        assert!(get_lptokens_issued<Asset1>(self) == get_typed_lptokens_issued<Asset1>(self), EBrokenRAMMInvariants);
+        assert!(get_lptokens_issued<Asset2>(self) == get_typed_lptokens_issued<Asset2>(self), EBrokenRAMMInvariants);
+    }
+
+    /// Given a 3-asset RAMM, check that its internal invariants hold.
+    ///
+    /// This function should be used before and after operations that modify the RAMM's internal
+    /// state such as trading or liquidity deposits/withdrawals, because
+    /// * if the invariant does not hold at the start, the operation should not be performed
+    /// * if it did hold, but then failed to, the operation should be rolled back
+    public(friend) fun check_ramm_invariants_3<Asset1, Asset2, Asset3>(self: &RAMM) {
+        // This invariant checking function must only be used on RAMMs with 3 assets.
+        assert!(get_asset_count(self) == THREE, EBrokenRAMMInvariants);
+
+        // First, the typed and untyped balances must never go out of sync, for any reason.
+        assert!(get_balance<Asset1>(self) == get_typed_balance<Asset1>(self), EBrokenRAMMInvariants);
+        assert!(get_balance<Asset2>(self) == get_typed_balance<Asset2>(self), EBrokenRAMMInvariants);
+        assert!(get_balance<Asset3>(self) == get_typed_balance<Asset3>(self), EBrokenRAMMInvariants);
+
+        // Secondly, the typed and untyped counts of issued LP tokens must always match.
+        assert!(get_lptokens_issued<Asset1>(self) == get_typed_lptokens_issued<Asset1>(self), EBrokenRAMMInvariants);
+        assert!(get_lptokens_issued<Asset2>(self) == get_typed_lptokens_issued<Asset2>(self), EBrokenRAMMInvariants);
+        assert!(get_lptokens_issued<Asset3>(self) == get_typed_lptokens_issued<Asset3>(self), EBrokenRAMMInvariants);
     }
 
     /// --------------------------
