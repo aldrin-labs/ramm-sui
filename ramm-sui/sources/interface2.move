@@ -52,7 +52,7 @@ module ramm_sui::interface2 {
         assert!(coin::value(&amount_in) >= ramm::get_min_trade_amount(self, i), ETradeAmountTooSmall);
         assert!(ramm::lptok_in_circulation<AssetIn>(self, i) > 0, ENoLPTokensInCirculation);
 
-         let o = ramm::get_asset_index<AssetOut>(self);
+        let o = ramm::get_asset_index<AssetOut>(self);
         let o_bal: u64 = (ramm::get_bal(self, o) as u64);
         assert!(o_bal > 0, ERAMMInsufficientBalance);
 
