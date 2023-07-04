@@ -22,6 +22,7 @@ module ramm_sui::interface3_safety_tests {
     3. calling the function with a `Coin` amount below the minimum required for that operation fails
         - liquidity operations excluded
     4. calling the function with insufficient liquidity in the pool fails
+        - liquidity operations excluded
     5. calling the function on a RAMM with insufficient outbound assets fails
     6. calling the function using an incorrect `Aggregator` for one of the assets fails
     7. calling the function on a pool with exactly enough balance to satisfy the order, but whose
@@ -380,8 +381,6 @@ module ramm_sui::interface3_safety_tests {
         test_scenario::end(scenario_val);
     }
 
-////////////////
-
     #[test]
     #[expected_failure(abort_code = interface3::ENoLPTokensInCirculation)]
     /// Test using `trade_amount_out_3` with insufficient liquidity in the pool for
@@ -552,7 +551,8 @@ module ramm_sui::interface3_safety_tests {
     #[expected_failure(abort_code = interface3::ERAMMInvalidSize)]
     /// Check that calling `liquidity_deposit_3` on a RAMM without *exactly* 3 assets fails.
     fun liquidity_deposit_3_invalid_ramm_size() {
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) = test_util::create_ramm_test_scenario_btc_eth_no_liq(ALICE);
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) =
+            test_util::create_ramm_test_scenario_btc_eth_no_liq(ALICE);
         let scenario = &mut scenario_val;
 
         {
@@ -573,6 +573,116 @@ module ramm_sui::interface3_safety_tests {
             test_scenario::return_shared<RAMM>(alice_ramm);
             test_scenario::return_shared<Aggregator>(btc_aggr);
             test_scenario::return_shared<Aggregator>(eth_aggr);
+        };
+
+        test_scenario::end(scenario_val);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = vec_map::EKeyDoesNotExist)]
+    /// Test using `liquidity_deposit_3` with an invalid asset being deposit into the RAMM.
+    ///
+    /// This test *must* fail.
+    fun liquidity_deposit_3_invalid_asset() {
+        // Create a 3-asset pool with BTC, ETH, SOL
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val) =
+            test_util::create_ramm_test_scenario_btc_eth_sol_with_liq(ALICE);
+        let scenario = &mut scenario_val;
+
+        {
+            let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
+            let amount_in = coin::mint_for_testing<USDC>(1000, test_scenario::ctx(scenario));
+            let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
+            let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
+            let sol_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, sol_ag_id);
+
+            interface3::liquidity_deposit_3<USDC, ETH, SOL>(
+                &mut alice_ramm,
+                amount_in,
+                &btc_aggr,
+                &eth_aggr,
+                &sol_aggr,
+                test_scenario::ctx(scenario)
+            );
+
+            test_scenario::return_shared<RAMM>(alice_ramm);
+            test_scenario::return_shared<Aggregator>(btc_aggr);
+            test_scenario::return_shared<Aggregator>(eth_aggr);
+            test_scenario::return_shared<Aggregator>(sol_aggr);
+        };
+
+        test_scenario::end(scenario_val);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = interface3::EInvalidDeposit)]
+    /// Test using `liquidity_deposit_3` with 0 coins being deposited into the RAMM.
+    ///
+    /// This test *must* fail.
+    fun liquidity_deposit_3_zero_deposit() {
+        // Create a 3-asset pool with BTC, ETH, SOL
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val) =
+            test_util::create_ramm_test_scenario_btc_eth_sol_with_liq(ALICE);
+        let scenario = &mut scenario_val;
+
+        {
+            let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
+            let amount_in = coin::mint_for_testing<USDC>(0, test_scenario::ctx(scenario));
+            let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
+            let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
+            let sol_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, sol_ag_id);
+
+            interface3::liquidity_deposit_3<USDC, ETH, SOL>(
+                &mut alice_ramm,
+                amount_in,
+                &btc_aggr,
+                &eth_aggr,
+                &sol_aggr,
+                test_scenario::ctx(scenario)
+            );
+
+            test_scenario::return_shared<RAMM>(alice_ramm);
+            test_scenario::return_shared<Aggregator>(btc_aggr);
+            test_scenario::return_shared<Aggregator>(eth_aggr);
+            test_scenario::return_shared<Aggregator>(sol_aggr);
+        };
+
+        test_scenario::end(scenario_val);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = ramm::EInvalidAggregator)]
+    /// Test using `liquidity_deposit_3` with the wrong aggregator provided for one of the assets.
+    ///
+    /// This *must* fail.
+    fun liquidity_deposit_3_invalid_aggregator() {
+        // Create a 3-asset pool with BTC, ETH, SOL
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val) =
+            test_util::create_ramm_test_scenario_btc_eth_sol_with_liq(ALICE);
+        let scenario = &mut scenario_val;
+
+        {
+            let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
+            let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
+            let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
+            let sol_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, sol_ag_id);
+
+            let amount_in = coin::mint_for_testing<BTC>(1 * (test_util::btc_factor() as u64), test_scenario::ctx(scenario));
+            // Recall that the type argument order here implies that BTC is inbound, SOL is outbound,
+            // which should be reflected in the order of the aggregators (but is not, hence the error).
+            interface3::liquidity_deposit_3<BTC, ETH, SOL>(
+                &mut alice_ramm,
+                amount_in,
+                &btc_aggr,
+                &eth_aggr,
+                &eth_aggr,
+                test_scenario::ctx(scenario)
+            );
+
+            test_scenario::return_shared<RAMM>(alice_ramm);
+            test_scenario::return_shared<Aggregator>(btc_aggr);
+            test_scenario::return_shared<Aggregator>(eth_aggr);
+            test_scenario::return_shared<Aggregator>(sol_aggr);
         };
 
         test_scenario::end(scenario_val);
