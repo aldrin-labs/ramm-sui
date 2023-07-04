@@ -29,6 +29,7 @@ module ramm_sui::interface3 {
     const ETradeAmountTooSmall: u64 = 6;
     const ENotAdmin: u64 = 7;
     const ELiqWthdrwLPTBurn: u64 = 8;
+    const EInvalidWithdrawal: u64 = 9;
 
     /// Trading function for a RAMM with three (3) assets.
     /// Used to deposit a given amount of asset `T_i`, in exchange for asset `T_o`.
@@ -249,6 +250,7 @@ module ramm_sui::interface3 {
         ctx: &mut TxContext
     ) {
         assert!(ramm::get_asset_count(self) == THREE, ERAMMInvalidSize);
+        assert!(coin::value(&lp_token) > 0, EInvalidWithdrawal);
 
         let fst = ramm::get_asset_index<Asset1>(self);
         let snd = ramm::get_asset_index<Asset2>(self);
@@ -296,6 +298,7 @@ module ramm_sui::interface3 {
         ramm::decr_lptokens_issued<AssetOut>(self, burn_amount);
         // Update RAMM's typed count of LP tokens for outgoing asset
         let burned: u64 = ramm::burn_lp_tokens<AssetOut>(self, burn_tokens);
+        // This cannot happen, but it's best to guard anyway.
         assert!(burned == burn_amount, ELiqWthdrwLPTBurn);
         // All of the tokens from the provider were burned, so the `Balance` can be
         // destroyed
