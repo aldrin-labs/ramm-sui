@@ -469,8 +469,8 @@ module ramm_sui::test_util {
     public(friend) fun create_ramm_test_scenario_btc_eth_with_liq(sender: address)
         : (ID, ID, ID, test_scenario::Scenario) {
         let initial_asset_liquidity: VecMap<u8, u64> = vec_map::empty();
-            vec_map::insert(&mut initial_asset_liquidity, 0, 1000);
-            vec_map::insert(&mut initial_asset_liquidity, 1, 1000);
+            vec_map::insert(&mut initial_asset_liquidity, 0, (btc_factor() as u64));
+            vec_map::insert(&mut initial_asset_liquidity, 1, (eth_factor() as u64));
 
         create_ramm_test_scenario_btc_eth(
             sender,
@@ -540,9 +540,9 @@ module ramm_sui::test_util {
         sender: address,
     ): (ID, ID, ID, ID, test_scenario::Scenario) {
         let initial_asset_liquidity: VecMap<u8, u64> = vec_map::empty();
-            vec_map::insert(&mut initial_asset_liquidity, 0, 1000);
-            vec_map::insert(&mut initial_asset_liquidity, 1, 1000);
-            vec_map::insert(&mut initial_asset_liquidity, 2, 1000);
+            vec_map::insert(&mut initial_asset_liquidity, 0, (btc_factor() as u64));
+            vec_map::insert(&mut initial_asset_liquidity, 1, (eth_factor() as u64));
+            vec_map::insert(&mut initial_asset_liquidity, 2, (sol_factor() as u64));
 
         create_ramm_test_scenario_btc_eth_sol(
             sender,

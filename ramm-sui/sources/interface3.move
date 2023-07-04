@@ -23,9 +23,12 @@ module ramm_sui::interface3 {
     const EInvalidDeposit: u64 = 2;
     const ENoLPTokensInCirculation: u64 = 3;
     const ERAMMInsufficientBalance: u64 = 4;
-    const ETradeAmountTooSmall: u64 = 5;
-    const ENotAdmin: u64 = 6;
-    const ELiqWthdrwLPTBurn: u64 = 7;
+    /// The pool may have sufficient balance to perform the trade, but doing so
+    /// would leave it unable to redeem a liquidity provider's LP tokens
+    const ERAMMInsufBalForCirculatingLPToken: u64 = 5;
+    const ETradeAmountTooSmall: u64 = 6;
+    const ENotAdmin: u64 = 7;
+    const ELiqWthdrwLPTBurn: u64 = 8;
 
     /// Trading function for a RAMM with three (3) assets.
     /// Used to deposit a given amount of asset `T_i`, in exchange for asset `T_o`.
@@ -126,7 +129,7 @@ module ramm_sui::interface3 {
         let o_bal: u64 = (ramm::get_bal(self, o) as u64);
         assert!(o_bal >= amount_out, ERAMMInsufficientBalance);
         if (amount_out == o_bal) {
-            assert!(ramm::lptok_in_circulation<AssetOut>(self, o) == 0, ERAMMInsufficientBalance)
+            assert!(ramm::lptok_in_circulation<AssetOut>(self, o) == 0, ERAMMInsufBalForCirculatingLPToken)
         };
         let oth = ramm::get_asset_index<Other>(self);
 
