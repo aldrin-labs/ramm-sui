@@ -23,9 +23,13 @@ module ramm_sui::interface2 {
     const EInvalidDeposit: u64 = 2;
     const ENoLPTokensInCirculation: u64 = 3;
     const ERAMMInsufficientBalance: u64 = 4;
-    const ETradeAmountTooSmall: u64 = 5;
-    const ENotAdmin: u64 = 6;
-    const ELiqWthdrwLPTBurn: u64 = 7;
+    /// The pool may have sufficient balance to perform the trade, but doing so
+    /// would leave it unable to redeem a liquidity provider's LP tokens
+    const ERAMMInsufBalForCirculatingLPToken: u64 = 5;
+    const ETradeAmountTooSmall: u64 = 6;
+    const ENotAdmin: u64 = 7;
+    const ELiqWthdrwLPTBurn: u64 = 8;
+    const EInvalidWithdrawal: u64 = 9;
 
     /// Trading function for a RAMM with two (2) assets.
     /// Used to deposit a given amount of asset `T_i`, in exchange for asset `T_o`.
@@ -121,7 +125,7 @@ module ramm_sui::interface2 {
         let o_bal: u64 = (ramm::get_bal(self, o) as u64);
         assert!(o_bal >= amount_out, ERAMMInsufficientBalance);
         if (amount_out == o_bal) {
-            assert!(ramm::lptok_in_circulation<AssetOut>(self, o) == 0, ERAMMInsufficientBalance)
+            assert!(ramm::lptok_in_circulation<AssetOut>(self, o) == 0, ERAMMInsufBalForCirculatingLPToken)
         };
 
         let asset_prices = vec_map::empty<u8, u256>();
@@ -235,6 +239,7 @@ module ramm_sui::interface2 {
         ctx: &mut TxContext
     ) {
         assert!(ramm::get_asset_count(self) == TWO, ERAMMInvalidSize);
+        assert!(coin::value(&lp_token) > 0, EInvalidWithdrawal);
 
         let fst = ramm::get_asset_index<Asset1>(self);
         let snd = ramm::get_asset_index<Asset2>(self);
@@ -280,6 +285,7 @@ module ramm_sui::interface2 {
         ramm::decr_lptokens_issued<AssetOut>(self, burn_amount);
         // Update RAMM's typed count of LP tokens for outgoing asset
         let burned: u64 = ramm::burn_lp_tokens<AssetOut>(self, burn_tokens);
+        // This cannot happen, but it's best to guard anyway.
         assert!(burned == burn_amount, ELiqWthdrwLPTBurn);
         // All of the tokens from the provider were burned, so the `Balance` can be
         // destroyed
