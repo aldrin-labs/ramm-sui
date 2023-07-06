@@ -99,6 +99,8 @@ module ramm_sui::interface3 {
             let amount_in = coin::from_balance(amount_in, ctx);
             transfer::public_transfer(amount_in, tx_context::sender(ctx));
         };
+
+        ramm::check_ramm_invariants_3<AssetIn, AssetOut, Other>(self);
     }
 
     /// Trading function for a RAMM with three (3) assets.
@@ -179,6 +181,8 @@ module ramm_sui::interface3 {
         } else {
             transfer::public_transfer(max_ai, tx_context::sender(ctx));
         };
+
+        ramm::check_ramm_invariants_3<AssetIn, AssetOut, Other>(self);
     }
 
     /// Liquidity deposit for a pool with three (3) assets.
@@ -229,8 +233,9 @@ module ramm_sui::interface3 {
             let lpt: Coin<LP<AssetIn>> = coin::from_balance(lpt, ctx);
             
             transfer::public_transfer(lpt, tx_context::sender(ctx));
-        }
+        };
 
+        ramm::check_ramm_invariants_3<AssetIn, Other, Another>(self);
     }
 
     /// Withdraw liquidity from a 3-asset RAMM.
@@ -339,6 +344,8 @@ module ramm_sui::interface3 {
             let amount_out: Coin<Asset3> = coin::from_balance(amount_out, ctx);
             transfer::public_transfer(amount_out, tx_context::sender(ctx));
         };
+
+        ramm::check_ramm_invariants_3<Asset1, Asset2, Asset3>(self);
     }
 
     /// Collect fees for a given RAMM, sending them to the fee collection address
@@ -371,5 +378,7 @@ module ramm_sui::interface3 {
         transfer::public_transfer(fst, fee_collector);
         transfer::public_transfer(snd, fee_collector);
         transfer::public_transfer(trd, fee_collector);
+
+        ramm::check_ramm_invariants_3<Asset1, Asset2, Asset3>(self);
     }
 }
