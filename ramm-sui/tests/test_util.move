@@ -136,6 +136,9 @@ module ramm_sui::test_util {
         );
     }
 
+    /// Create an `Aggregator`, and populate it with the providede values.
+    ///
+    /// This function does not create a shared object, see `create_write_share_aggregator`.
     public(friend) fun create_write_aggregator(
         scenario: &mut Scenario,
         val: u128,
@@ -496,10 +499,10 @@ module ramm_sui::test_util {
 
     /// Another helper for tests - create a RAMM, add 3 assets to it, initialize it, and then
     /// return the scenario with the created objects.
-    /// The specific assets don't matter as this is a test, so they are fixed to be BTC, ETH, SOL,
+    /// The specific assets don't matter, so they are fixed to be BTC, ETH, SOL,
     /// in that order.
     ///
-    /// Useful to test post-initialization behavior e.g. fee collection, setting.
+    /// Useful to test post-initialization behavior e.g. fee collection, fee collection address setting.
     ///
     /// Returns:
     /// 1. the ID of the created RAMM
@@ -536,6 +539,11 @@ module ramm_sui::test_util {
         )
     }
 
+    /// Does the same as `create_ramm_test_scenario_btc_eth_sol`, but adds initial liquidity
+    /// to each of the BTC/ETH/SOL RAMM's assets:
+    /// 1. 1 BTC
+    /// 2. 1 ETH
+    /// 3. 1 SOL
     public(friend) fun create_ramm_test_scenario_btc_eth_sol_with_liq(
         sender: address,
     ): (ID, ID, ID, ID, test_scenario::Scenario) {
@@ -550,6 +558,11 @@ module ramm_sui::test_util {
         )
     }
 
+    /// Does the same as `create_ramm_test_scenario_btc_eth_sol`, but adds initial liquidity
+    /// to each of the BTC/ETH/SOL RAMM's assets:
+    /// 1. 1 BTC
+    /// 2. 1 ETH
+    /// 3. 1 SOL
     public(friend) fun create_ramm_test_scenario_btc_eth_sol_no_liq(
         sender: address,
     ): (ID, ID, ID, ID, test_scenario::Scenario) {

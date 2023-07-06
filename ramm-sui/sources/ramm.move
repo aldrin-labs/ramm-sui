@@ -207,14 +207,25 @@ module ramm_sui::ramm {
         execute_trade: bool
     }
 
+    /// Return a `TradeOutput`'s calculated amount - might be `0`, depending on the `execute`
+    /// flag.
     public(friend) fun amount(to: &TradeOutput): u256 {
         to.amount
     }
 
+    /// Return a trade's calculated protocol fees.
     public(friend) fun protocol_fee(to: &TradeOutput): u256 {
         to.protocol_fee
     }
 
+    /// Returns `true` if a trade has been greenlit by the protocol's checks, and `false` if not.
+    ///
+    /// This field can be `false` for reasons such as:
+    /// 1. not enough pool balances to execute the trade
+    /// 2. it may fail due to imbalance ratio checks
+    ///
+    /// Note that even if the field is `true`, it is possible the trade is not executed - because
+    /// the `TradeOutput`'s `amount` does not conform to the trader's slippage tolerance, for example.
     public(friend) fun execute(to: &TradeOutput): bool {
         to.execute_trade
     }
