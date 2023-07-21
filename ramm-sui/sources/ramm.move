@@ -1,5 +1,7 @@
 module ramm_sui::ramm {
     use std::option::{Self, Option};
+    use std::string::{Self, String};
+    use std::type_name::{Self, TypeName};
 
     use sui::bag::{Self, Bag};
     use sui::balance::{Self, Balance, Supply};
@@ -7,8 +9,6 @@ module ramm_sui::ramm {
     use sui::transfer;
     use sui::tx_context::{Self, TxContext};
     use sui::vec_map::{Self, VecMap};
-
-    use std::type_name::{Self, TypeName};
 
     use switchboard::aggregator::{Self, Aggregator};
 
@@ -204,7 +204,8 @@ module ramm_sui::ramm {
     struct TradeOutput has drop {
         amount: u256,
         protocol_fee: u256,
-        execute_trade: bool
+        execute_trade: bool,
+        message: String,
     }
 
     /// Return a `TradeOutput`'s calculated amount - might be `0`, depending on the `execute`
@@ -228,6 +229,14 @@ module ramm_sui::ramm {
     /// the `TradeOutput`'s `amount` does not conform to the trader's slippage tolerance, for example.
     public(friend) fun execute(to: &TradeOutput): bool {
         to.execute_trade
+    }
+
+    /// Return a given `TradeOutput`'s message.
+    ///
+    /// Recall that `String` is being implicitly copied here, as it is a wrapper over
+    /// `vector<u8>`, and since `u8 has copy`, so does `vector<u8>`.
+    public(friend) fun message(to: &TradeOutput): String {
+        to.message
     }
 
     /// Result of a liquidity withdrawal by a trader that had previously deposited
@@ -571,6 +580,13 @@ module ramm_sui::ramm {
     ///
     /// The latter kind can then rely on the former, while only exposing a type-level API
     /// to consumers of this module, and avoiding error-prone manual asset indexing.
+
+    /// RAMM ID
+
+    /// Return a RAMM's `ID`.
+    public(friend) fun get_id(self: &RAMM): ID {
+        object::id(self)
+    }
 
     /// Admin cap
     
@@ -1135,6 +1151,21 @@ module ramm_sui::ramm {
         )
     }
 
+    /// Returns a message according to the trade being executed or not.
+    fun check_imbalance_ratios_message(execute_trade: bool): String {
+        if (execute_trade) {
+            string::utf8(b"Trade executed.")
+        } else {
+            string::utf8(b"The trade was not executed because of pool imbalance.")
+        }
+    }
+
+    /// This message will be used by `TradeOutput` when either `trade_i/trade_o` cannot perform
+    /// a trade due to failed imbalance ratio checks.
+    fun low_imb_ratio_trade_failure_msg(): String {
+        string::utf8(b"The trade was not executed because the imbalance ratio of the out-token is too low.")
+    }
+
     /// Returns the scaled base fee and leverage parameter for a trade where token `i` goes into the
     /// pool and token `o` goes out of the pool.
     fun scaled_fee_and_leverage(
@@ -1193,7 +1224,8 @@ module ramm_sui::ramm {
             let ao: u256 = div(num, *vec_map::get(&prices, &i) * factor_for_price_o) / factor_o;
             let pr_fee: u256 = mul3(PROTOCOL_FEE, BASE_FEE, ai * factor_i) / factor_i;
             let execute: bool = check_imbalance_ratios(self, &prices, i, o, ai, ao, pr_fee, &factors_for_prices);
-            return TradeOutput {amount: ao, protocol_fee: pr_fee, execute_trade: execute}
+            let message: String = check_imbalance_ratios_message(execute);
+            return TradeOutput {amount: ao, protocol_fee: pr_fee, execute_trade: execute, message}
         };
 
         let _W: VecMap<u8, u256> = weights(self, &prices, &factors_for_prices);
@@ -1206,7 +1238,12 @@ module ramm_sui::ramm {
             let imbs = imbalance_ratios(self, &prices, &factors_for_prices);
             let imb_ratios_initial_o: u256 = *vec_map::get(&imbs, &o);
             if (imb_ratios_initial_o < ONE - DELTA) {
-                return TradeOutput {amount: 0, protocol_fee: 0, execute_trade: false}
+                return TradeOutput {
+                    amount: 0,
+                    protocol_fee: 0,
+                    execute_trade: false,
+                    message: low_imb_ratio_trade_failure_msg()
+                }
             };
             let (tf, l) = scaled_fee_and_leverage(self, &prices, i, o, &factors_for_prices);
             *trading_fee = tf;
@@ -1223,11 +1260,16 @@ module ramm_sui::ramm {
         if (ao > get_typed_bal<AssetOut>(self, o) ||
             (ao == get_typed_bal<AssetOut>(self, o) && get_typed_lptok_issued<AssetOut>(self, o) != 0)
         ) {
-            return TradeOutput {amount: 0, protocol_fee:0, execute_trade: false}
+            return TradeOutput {
+                amount: 0,
+                protocol_fee:0,
+                execute_trade: false,
+                message: string::utf8(b"The trade was not executed because there is not enough balance of the out-token.")
+            }
         };
         let execute: bool = check_imbalance_ratios(self, &prices, i, o, ai, ao, pr_fee, &factors_for_prices);
-
-        TradeOutput {amount: ao, protocol_fee: pr_fee, execute_trade: execute}
+        let message: String = check_imbalance_ratios_message(execute);
+        TradeOutput {amount: ao, protocol_fee: pr_fee, execute_trade: execute, message}
     }
 
     /// Internal function, used by the public trading API e.g. `trade_amount_out_3`.
@@ -1261,7 +1303,8 @@ module ramm_sui::ramm {
             let ai: u256 = div(num, denom) / factor_i;
             let pr_fee: u256 = mul3(PROTOCOL_FEE, BASE_FEE, ai * factor_i) / factor_i;
             let execute: bool = check_imbalance_ratios(self, &prices, i, o, ai, ao, pr_fee, &factors_for_prices);
-            return TradeOutput {amount: ai, protocol_fee: pr_fee, execute_trade: execute}
+            let message: String = check_imbalance_ratios_message(execute);
+            return TradeOutput {amount: ai, protocol_fee: pr_fee, execute_trade: execute, message}
         };
 
         let _W: VecMap<u8, u256> = weights(self, &prices, &factors_for_prices);
@@ -1274,7 +1317,12 @@ module ramm_sui::ramm {
             let imbs = imbalance_ratios(self, &prices, &factors_for_prices);
             let imb_ratios_initial_o: u256 = *vec_map::get(&imbs, &o);
             if (imb_ratios_initial_o < ONE - DELTA) {
-                return TradeOutput {amount: 0, protocol_fee: 0, execute_trade: false}
+                return TradeOutput {
+                    amount: 0,
+                    protocol_fee: 0,
+                    execute_trade: false,
+                    message: low_imb_ratio_trade_failure_msg()
+                }
             };
             let (tf, l) = scaled_fee_and_leverage(self, &prices, i, o, &factors_for_prices);
             *trading_fee = tf;
@@ -1289,7 +1337,8 @@ module ramm_sui::ramm {
         let pr_fee: u256 = mul3(PROTOCOL_FEE, *trading_fee, ai * factor_i) / factor_i;
 
         let execute: bool = check_imbalance_ratios(self, &prices, i, o, ai, ao, pr_fee, &factors_for_prices);
-        TradeOutput {amount: ai, protocol_fee: pr_fee, execute_trade: execute}
+        let message: String = check_imbalance_ratios_message(execute);
+        TradeOutput {amount: ai, protocol_fee: pr_fee, execute_trade: execute, message}
     }
 
     /// ----------------------------
@@ -1301,7 +1350,7 @@ module ramm_sui::ramm {
     /// the caller.
     ///
     /// Unlike the client-facing API, this function can be used on a RAMM of any size.
-    public(friend) fun single_asset_deposit<AssetIn>(
+    public(friend) fun liq_dep<AssetIn>(
         self: &mut RAMM,
         i: u8,
         ai: u64,
@@ -1353,7 +1402,7 @@ module ramm_sui::ramm {
     /// This function is internal to the RAMM, and it can/should only be used indirectly.
     /// In other words, by being called in the client facing modules of the package, e.g.
     /// `interface3` for 3-asset RAMMs.
-    public(friend) fun single_asset_withdrawal<AssetOut>(
+    public(friend) fun liq_wthdrw<AssetOut>(
         self: &mut RAMM,
         o: u8,
         lpt: u64,
