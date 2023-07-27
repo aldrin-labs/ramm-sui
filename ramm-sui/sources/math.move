@@ -90,6 +90,13 @@ module ramm_sui::math {
         result
     }
 
+    /// Given `x`, `y` and `z` with `prec` decimal places of precision, and at most `max_prec`
+    /// places, calculate `x * y * z` with `prec` places, and at most `max_prec`.
+    ///
+    /// # Aborts
+    ///
+    /// * If any operand overflows past `pow(10, max_prec)`
+    /// * If any intermediate/final results overflow past `pow(10, max_prec)`
     public(friend) fun mul3(x: u256, y: u256, z: u256, prec: u8, max_prec: u8): u256 {
         mul(x, mul(y, z, prec, max_prec), prec, max_prec)
     }
@@ -377,17 +384,6 @@ module ramm_sui::math {
         let balance_after_o: &mut u256 = vec_map::get_mut(&mut balances_after, &o);
         *balance_after_o = *balance_after_o - ao;
 
-        let imb_ratios_before_trade: VecMap<u8, u256> = imbalance_ratios(
-            &balances_before,
-            lp_tokens_issued,
-            prices,
-            factors_for_balances,
-            factor_lpt,
-            factors_for_prices,
-            prec,
-            max_prec
-        );
-
         let imb_ratios_after_trade: VecMap<u8, u256> = imbalance_ratios(
             &balances_after,
             lp_tokens_issued,
@@ -399,17 +395,13 @@ module ramm_sui::math {
             max_prec
         );
 
-        let imb_i_before = *vec_map::get(&imb_ratios_before_trade, &i);
         let imb_i_after = *vec_map::get(&imb_ratios_after_trade, &i);
-        let imb_o_before = *vec_map::get(&imb_ratios_before_trade, &o);
         let imb_o_after = *vec_map::get(&imb_ratios_after_trade, &o);
 
         let condition1: bool = one - delta <= imb_o_after;
         let condition2: bool = imb_i_after <= one + delta;
-        let condition3: bool =
-            (imb_i_after < imb_i_before + delta / 5) && (imb_o_after > imb_o_before - delta / 5);
 
-        condition1 && condition2 && condition3
+        condition1 && condition2
     }
 
     /// Returns the scaled base fee and leverage parameter for a trade where token `i` goes into the
