@@ -1024,8 +1024,8 @@ module ramm_sui::ramm {
     ///
     /// The value of `MU` is to be taken as a percentage.
     public(friend) fun check_trade_amount_in<Asset>(self: &RAMM, amount_in: u256) {
-        let cmp: u256 = div(mul(get_typed_balance<Asset>(self), MU), ONE - MU);
-        assert!(amount_in < cmp, ETradeExcessAmountIn);
+        let cmp: u256 = mul(div(MU, ONE - MU), get_typed_balance<Asset>(self));
+        assert!(amount_in <= cmp, ETradeExcessAmountIn);
     }
 
     /// Check if the amount of a trade's outbound asset does not exceed `MU` (as a percentage)
@@ -1034,7 +1034,7 @@ module ramm_sui::ramm {
     /// The value of `MU` is to be taken as a percentage.
     public(friend) fun check_trade_amount_out<Asset>(self: &RAMM, amount_out: u256) {
         let cmp: u256 = mul(get_typed_balance<Asset>(self), MU);
-        assert!(amount_out < cmp, ETradeExcessAmountOut);
+        assert!(amount_out <= cmp, ETradeExcessAmountOut);
     }
 
     /// ------------------------

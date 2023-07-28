@@ -15,6 +15,8 @@ module ramm_sui::interface3_safety_tests {
     /// ------------------------
 
     /*
+    IMPORTANT NOTE
+
     Each externally `public` function from `ramm_sui::interface3` will have, where applicable,
     the following safety checks, grouped in the same section of the module:
     1. calling the function with a RAMM of inappropriate size fails
@@ -25,8 +27,12 @@ module ramm_sui::interface3_safety_tests {
         - liquidity operations excluded
     5. calling the function on a RAMM with insufficient outbound assets fails
         - liquidity operations excluded
-    6. calling the function using an incorrect `Aggregator` for one of the assets fails
-    7. calling the function on a pool with exactly enough balance to satisfy the order, but whose
+    6. executing a trade with excessive inbound assets fails
+        - liquidity operations excluded
+    7. executing a trade with excessive outbound assets fails
+        - liquidity operations excluded
+    8. calling the function using an incorrect `Aggregator` for one of the assets fails
+    9. calling the function on a pool with exactly enough balance to satisfy the order, but whose
        outbound asset has circulating LP tokens that would be left unredeemable
          - `trade_amount_out` only
 
@@ -217,6 +223,84 @@ module ramm_sui::interface3_safety_tests {
                 &mut alice_ramm,
                 amount_in,
                 1,
+                &btc_aggr,
+                &eth_aggr,
+                &sol_aggr,
+                test_scenario::ctx(scenario)
+            );
+
+            test_scenario::return_shared<RAMM>(alice_ramm);
+            test_scenario::return_shared<Aggregator>(btc_aggr);
+            test_scenario::return_shared<Aggregator>(eth_aggr);
+            test_scenario::return_shared<Aggregator>(sol_aggr);
+        };
+
+        test_scenario::end(scenario_val);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = ramm::ETradeExcessAmountIn)]
+    /// This test confirms that a trade with an inflow larger than 5% of a pool's balance
+    /// for the inbound asset will fail.
+    fun trade_amount_in_3_excessive_amount_in() {
+        // Create a 3-asset pool with BTC, ETH
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val) =
+            test_util::create_ramm_test_scenario_btc_eth_sol_with_liq(ALICE);
+        let scenario = &mut scenario_val;
+
+        {
+            let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
+            let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
+            let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
+            let sol_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, sol_ag_id);
+
+            // Recall that these test scenarios have 1000 units of each asset as starting liquidity
+            // 53 / 1000 > 0.05 = MU, the maximum trade constant
+            let amount_in = coin::mint_for_testing<BTC>(53 * (test_util::btc_factor() as u64), test_scenario::ctx(scenario));
+            interface3::trade_amount_in_3<BTC, ETH, SOL>(
+                &mut alice_ramm,
+                amount_in,
+                0,
+                &btc_aggr,
+                &eth_aggr,
+                &sol_aggr,
+                test_scenario::ctx(scenario)
+            );
+
+            test_scenario::return_shared<RAMM>(alice_ramm);
+            test_scenario::return_shared<Aggregator>(btc_aggr);
+            test_scenario::return_shared<Aggregator>(eth_aggr);
+            test_scenario::return_shared<Aggregator>(sol_aggr);
+        };
+
+        test_scenario::end(scenario_val);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = ramm::ETradeExcessAmountOut)]
+    /// This test confirms that a trade with an outflow larger than 5% of a pool's balance
+    /// for the outbound asset will fail.
+    fun trade_amount_in_3_excessive_amount_out() {
+        // Create a 3-asset pool with BTC, ETH, SOL
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val) =
+            test_util::create_ramm_test_scenario_btc_eth_sol_with_liq(ALICE);
+        let scenario = &mut scenario_val;
+
+        {
+            let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
+            let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
+            let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
+            let sol_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, sol_ag_id);
+
+            // Recall that these test scenarios have 1000 units of each asset as starting liquidity
+            // Starting prices are 27802.45 for BTC and 1884.085 for ETH.
+            // This means 1 BTC can purchase roughly 14.75 ETH, meaning the trade below would
+            // request 147.56 ETH from the pool, much more than the allowed ~50 ETH.
+            let amount_in = coin::mint_for_testing<BTC>(10 * (test_util::btc_factor() as u64), test_scenario::ctx(scenario));
+            interface3::trade_amount_in_3<BTC, ETH, SOL>(
+                &mut alice_ramm,
+                amount_in,
+                0,
                 &btc_aggr,
                 &eth_aggr,
                 &sol_aggr,
@@ -449,6 +533,80 @@ module ramm_sui::interface3_safety_tests {
                 max_amount_in,
                 &btc_aggr,
                 &eth_aggr,
+                &sol_aggr,
+                test_scenario::ctx(scenario)
+            );
+
+            test_scenario::return_shared<RAMM>(alice_ramm);
+            test_scenario::return_shared<Aggregator>(btc_aggr);
+            test_scenario::return_shared<Aggregator>(eth_aggr);
+            test_scenario::return_shared<Aggregator>(sol_aggr);
+        };
+
+        test_scenario::end(scenario_val);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = ramm::ETradeExcessAmountOut)]
+    /// This test confirms that a trade with an outflow larger than 5% of a pool's balance
+    /// for the outbound asset will fail.
+    fun trade_amount_out_3_excessive_amount_out() {
+        // Create a 3-asset pool with BTC, ETH, SOL
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val) =
+            test_util::create_ramm_test_scenario_btc_eth_sol_with_liq(ALICE);
+        let scenario = &mut scenario_val;
+
+        {
+            let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
+            let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
+            let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
+            let sol_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, sol_ag_id);
+
+            let max_amount_in = coin::mint_for_testing<BTC>(53 * (test_util::btc_factor() as u64), test_scenario::ctx(scenario));
+            interface3::trade_amount_out_3<BTC, ETH, SOL>(
+                &mut alice_ramm,
+                (52 * test_util::eth_factor() as u64),
+                max_amount_in,
+                &btc_aggr,
+                &eth_aggr,
+                &sol_aggr,
+                test_scenario::ctx(scenario)
+            );
+
+            test_scenario::return_shared<RAMM>(alice_ramm);
+            test_scenario::return_shared<Aggregator>(btc_aggr);
+            test_scenario::return_shared<Aggregator>(eth_aggr);
+            test_scenario::return_shared<Aggregator>(sol_aggr);
+        };
+
+        test_scenario::end(scenario_val);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = ramm::ETradeExcessAmountIn)]
+    /// This test confirms that a trade with an inflow larger than 5% of a pool's balance
+    /// for the inbound asset will fail.
+    fun trade_amount_out_3_excessive_amount_in() {
+        // Create a 3-asset pool with BTC, ETH, SOL
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val) =
+            test_util::create_ramm_test_scenario_btc_eth_sol_with_liq(ALICE);
+        let scenario = &mut scenario_val;
+
+        {
+            let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
+            let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
+            let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
+            let sol_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, sol_ag_id);
+
+            // Recall that these test scenarios have 1000 units of each asset as starting liquidity
+            // 145 / 1000 > 0.05 = MU, the maximum trade constant
+            let max_amount_in = coin::mint_for_testing<ETH>(145 * (test_util::btc_factor() as u64), test_scenario::ctx(scenario));
+            interface3::trade_amount_out_3<ETH, BTC, SOL>(
+                &mut alice_ramm,
+                (10 * test_util::btc_factor() as u64),
+                max_amount_in,
+                &eth_aggr,
+                &btc_aggr,
                 &sol_aggr,
                 test_scenario::ctx(scenario)
             );
