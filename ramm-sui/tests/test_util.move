@@ -472,8 +472,8 @@ module ramm_sui::test_util {
     public(friend) fun create_ramm_test_scenario_btc_eth_with_liq(sender: address)
         : (ID, ID, ID, test_scenario::Scenario) {
         let initial_asset_liquidity: VecMap<u8, u64> = vec_map::empty();
-            vec_map::insert(&mut initial_asset_liquidity, 0, (btc_factor() as u64));
-            vec_map::insert(&mut initial_asset_liquidity, 1, (eth_factor() as u64));
+            vec_map::insert(&mut initial_asset_liquidity, 0, (1000 * btc_factor() as u64));
+            vec_map::insert(&mut initial_asset_liquidity, 1, (1000 * eth_factor() as u64));
 
         create_ramm_test_scenario_btc_eth(
             sender,
@@ -540,17 +540,17 @@ module ramm_sui::test_util {
     }
 
     /// Does the same as `create_ramm_test_scenario_btc_eth_sol`, but adds initial liquidity
-    /// to each of the BTC/ETH/SOL RAMM's assets:
-    /// 1. 1 BTC
-    /// 2. 1 ETH
-    /// 3. 1 SOL
+    /// to each of the BTC/ETH/SOL assets in the RAMM:
+    /// 1. 1000 BTC
+    /// 2. 1000 ETH
+    /// 3. 1000 SOL
     public(friend) fun create_ramm_test_scenario_btc_eth_sol_with_liq(
         sender: address,
     ): (ID, ID, ID, ID, test_scenario::Scenario) {
         let initial_asset_liquidity: VecMap<u8, u64> = vec_map::empty();
-            vec_map::insert(&mut initial_asset_liquidity, 0, (btc_factor() as u64));
-            vec_map::insert(&mut initial_asset_liquidity, 1, (eth_factor() as u64));
-            vec_map::insert(&mut initial_asset_liquidity, 2, (sol_factor() as u64));
+            vec_map::insert(&mut initial_asset_liquidity, 0, (1000 * btc_factor() as u64));
+            vec_map::insert(&mut initial_asset_liquidity, 1, (1000 * eth_factor() as u64));
+            vec_map::insert(&mut initial_asset_liquidity, 2, (1000 * sol_factor() as u64));
 
         create_ramm_test_scenario_btc_eth_sol(
             sender,
@@ -558,11 +558,8 @@ module ramm_sui::test_util {
         )
     }
 
-    /// Does the same as `create_ramm_test_scenario_btc_eth_sol`, but adds initial liquidity
-    /// to each of the BTC/ETH/SOL RAMM's assets:
-    /// 1. 1 BTC
-    /// 2. 1 ETH
-    /// 3. 1 SOL
+    /// Does the same as `create_ramm_test_scenario_btc_eth_sol`, without initial liquidity
+    /// for any of the BTC/ETH/SOL assets in the RAMM.
     public(friend) fun create_ramm_test_scenario_btc_eth_sol_no_liq(
         sender: address,
     ): (ID, ID, ID, ID, test_scenario::Scenario) {

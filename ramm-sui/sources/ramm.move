@@ -35,6 +35,10 @@ module ramm_sui::ramm {
     const ENotInitialized: u64 = 5;
     const EWrongNewAssetCap: u64 = 6;
     const EBrokenRAMMInvariants: u64 = 7;
+    /// A trade's inbound amount exceeded the set maximum (MU).
+    const ETradeExcessAmountIn: u64 = 8;
+    /// A trade's outbound amount exceeded the set maximum (MU).
+    const ETradeExcessAmountOut: u64 = 9;
 
     /// --------------
     /// RAMM Constants
@@ -56,6 +60,10 @@ module ramm_sui::ramm {
     /// Sui Move does not permit using constants in other constants' definitions, so
     /// `ONE` will need to be hardcoded.
     const ONE: u256 = 1_000_000_000_000;
+
+    /// Value mu \in ]0, 1[ that dictates the maximum size a trade can have.
+    /// Here, mu = 0.05, meaning trades cannot use more than 5% of the RAMM's balances at once.
+    const MU: u256 = 5 * 1_000_000_000_000 / 100; // _MU * 10**(PRECISION_DECIMAL_PLACES-2)
 
     /// Base fee in basis points:
     ///
@@ -1009,6 +1017,24 @@ module ramm_sui::ramm {
     public(friend) fun lptok_in_circulation<Asset>(self: &RAMM, index: u8): u64 {
         let supply: &Supply<LP<Asset>> = bag::borrow(&self.typed_lp_tokens_issued, index);
         balance::supply_value(supply)
+    }
+
+    /// Check if the amount of a trade's inbound asset does not exceed `MU` (as a percentage)
+    /// of the RAMM's balance for that asset.
+    ///
+    /// The value of `MU` is to be taken as a percentage.
+    public(friend) fun check_trade_amount_in<Asset>(self: &RAMM, amount_in: u256) {
+        let cmp: u256 = div(mul(get_typed_balance<Asset>(self), MU), ONE - MU);
+        assert!(amount_in < cmp, ETradeExcessAmountIn);
+    }
+
+    /// Check if the amount of a trade's outbound asset does not exceed `MU` (as a percentage)
+    /// of the RAMM's balance for that asset.
+    ///
+    /// The value of `MU` is to be taken as a percentage.
+    public(friend) fun check_trade_amount_out<Asset>(self: &RAMM, amount_out: u256) {
+        let cmp: u256 = mul(get_typed_balance<Asset>(self), MU);
+        assert!(amount_out < cmp, ETradeExcessAmountOut);
     }
 
     /// ------------------------

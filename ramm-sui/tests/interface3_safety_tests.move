@@ -520,7 +520,7 @@ module ramm_sui::interface3_safety_tests {
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let sol_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, sol_ag_id);
 
-            let amount: u64 = 1 * (test_util::btc_factor() as u64);
+            let amount: u64 = 1000 * (test_util::btc_factor() as u64);
 
             let max_amount_in = coin::mint_for_testing<BTC>(amount, test_scenario::ctx(scenario));
             // Recall that the type argument order here implies that BTC is inbound, SOL is outbound,

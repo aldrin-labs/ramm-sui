@@ -13,11 +13,13 @@ module ramm_sui::interface2 {
     use switchboard::aggregator::Aggregator;
 
     use ramm_sui::events::{Self, TradeIn, TradeOut};
-    use ramm_sui::ramm::{Self, LP, RAMM, RAMMAdminCap};
+    use ramm_sui::ramm::{Self, LP, RAMM, RAMMAdminCap, TradeOutput};
 
     const TWO: u8 = 2;
 
     /// Amounts of LP tokens are considered to have 9 decimal places.
+    ///
+    /// Sui Move does not allow the export of `const`s, so this is a redefinition from `ramm.move`.
     ///
     /// This `const` factor is used when performing calculations with LP tokens.
     const FACTOR_LPT: u256 = 1_000_000_000_000 / 1_000_000_000; // FACTOR_LPT = 10**(PRECISION_DECIMAL_PLACES-LP_TOKENS_DECIMAL_PLACES)
@@ -64,13 +66,17 @@ module ramm_sui::interface2 {
         let o_bal: u64 = (ramm::get_bal(self, o) as u64);
         assert!(o_bal > 0, ERAMMInsufficientBalance);
 
+        // The trade's size should be checked before oracles are accessed, to spare the trouble
+        // of locking the oracle object only to have the tx abort anyway.
+        ramm::check_trade_amount_in<AssetIn>(self, (coin::value(&amount_in) as u256));
+
         let asset_prices = vec_map::empty<u8, u256>();
         let factors_for_prices = vec_map::empty<u8, u256>();
         ramm::check_feed_and_get_price(self, i, feed_in, &mut asset_prices, &mut factors_for_prices);
         ramm::check_feed_and_get_price(self, o, feed_out, &mut asset_prices, &mut factors_for_prices);
 
         let amount_in_u64: u64 = coin::value(&amount_in);
-        let trade: ramm::TradeOutput = ramm::trade_i<AssetIn, AssetOut>(
+        let trade: TradeOutput = ramm::trade_i<AssetIn, AssetOut>(
             self,
             i,
             o,
@@ -80,6 +86,8 @@ module ramm_sui::interface2 {
         );
 
         let amount_out_u256: u256 = ramm::amount(&trade);
+        ramm::check_trade_amount_out<AssetOut>(self, amount_out_u256);
+
         let amount_out_u64: u64 = (amount_out_u256 as u64);
         if (ramm::execute(&trade) && amount_out_u64 >= min_ao) {
             let amount_in: Balance<AssetIn> = coin::into_balance(amount_in);
@@ -164,13 +172,16 @@ module ramm_sui::interface2 {
         if (amount_out == o_bal) {
             assert!(ramm::lptok_in_circulation<AssetOut>(self, o) == 0, ERAMMInsufBalForCirculatingLPToken)
         };
+        // The trade's size should be checked before oracles are accessed, to spare the trouble
+        // of locking the oracle object only to have the tx abort anyway.
+        ramm::check_trade_amount_out<AssetOut>(self, (amount_out as u256));
 
         let asset_prices = vec_map::empty<u8, u256>();
         let factors_for_prices = vec_map::empty<u8, u256>();
         ramm::check_feed_and_get_price(self, i, feed_in, &mut asset_prices, &mut factors_for_prices);
         ramm::check_feed_and_get_price(self, o, feed_out, &mut asset_prices, &mut factors_for_prices);
 
-        let trade = ramm::trade_o<AssetIn, AssetOut>(
+        let trade: TradeOutput = ramm::trade_o<AssetIn, AssetOut>(
             self,
             i,
             o,
@@ -179,6 +190,7 @@ module ramm_sui::interface2 {
             factors_for_prices
         );
 
+        ramm::check_trade_amount_in<AssetIn>(self, ramm::amount(&trade));
         let trade_amount = (ramm::amount(&trade) as u64);
 
         let max_ai_u64: u64 = coin::value(&max_ai);
