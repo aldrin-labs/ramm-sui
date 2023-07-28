@@ -71,12 +71,12 @@ module ramm_sui::interface2_tests {
             test_utils::assert_eq(ramm::get_balance<ETH>(&ramm), 480 * test_util::eth_factor());
             test_utils::assert_eq(ramm::get_typed_balance<ETH>(&ramm), 480 * test_util::eth_factor());
 
-            let total_usdt: u256 = 940036_92422635;
-            test_utils::assert_eq(ramm::get_balance<USDT>(&ramm), 940036_92422635);
-            test_utils::assert_eq(ramm::get_typed_balance<USDT>(&ramm), 940036_92422635);
+            let total_usdt: u256 = 940044_93561689;
+            test_utils::assert_eq(ramm::get_balance<USDT>(&ramm), total_usdt);
+            test_utils::assert_eq(ramm::get_typed_balance<USDT>(&ramm), total_usdt);
 
             test_utils::assert_eq(ramm::get_collected_protocol_fees<ETH>(&ramm), 0);
-            test_utils::assert_eq(ramm::get_collected_protocol_fees<USDT>(&ramm), 20_02847635);
+            test_utils::assert_eq(ramm::get_collected_protocol_fees<USDT>(&ramm), 12_01708581);
 
             test_utils::assert_eq(ramm::get_lptokens_issued<ETH>(&ramm), 500 * test_util::eth_factor());
             test_utils::assert_eq(ramm::get_typed_lptokens_issued<ETH>(&ramm), 500 * test_util::eth_factor());
@@ -137,7 +137,7 @@ module ramm_sui::interface2_tests {
             let eth = test_scenario::take_from_address<Coin<ETH>>(scenario, ADMIN);
             test_utils::assert_eq(coin::value(&eth), (480 * test_util::eth_factor() as u64));
             let usdt = test_scenario::take_from_address<Coin<USDT>>(scenario, ADMIN);
-            let first_usdt_wthdrwl: u256 = 40019_43380000;
+            let first_usdt_wthdrwl: u256 = 40023_65032000;
             test_utils::assert_eq((coin::value(&usdt) as u256), first_usdt_wthdrwl);
 
             test_scenario::return_to_address(ADMIN, eth);
@@ -179,7 +179,7 @@ module ramm_sui::interface2_tests {
         let snd_udst_wthdrwl: u256 = {
             let usdt = test_scenario::take_from_address<Coin<USDT>>(scenario, ADMIN);
 
-            let snd_udst_wthdrwl: u256 = 900017_49042635;
+            let snd_udst_wthdrwl: u256 = 900021_28529689;
             test_utils::assert_eq((coin::value(&usdt) as u256), snd_udst_wthdrwl);
             test_scenario::return_to_address(ADMIN, usdt);
 

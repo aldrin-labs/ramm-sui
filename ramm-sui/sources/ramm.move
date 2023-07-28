@@ -73,8 +73,8 @@ module ramm_sui::ramm {
     // BASE_LEVERAGE = _BASE_LEVERAGE * ONE
     const BASE_LEVERAGE: u256 = 100 * 1_000_000_000_000;
 
-    /// 50% of collected base fees go to the RAMM.
-    const PROTOCOL_FEE: u256 = 50 * 1_000_000_000_000 / 100; // PROTOCOL_FEE = _PROTOCOL_FEE*10**(PRECISION_DECIMAL_PLACES-2)
+    /// 30% of collected base fees go to the RAMM.
+    const PROTOCOL_FEE: u256 = 30 * 1_000_000_000_000 / 100; // PROTOCOL_FEE = _PROTOCOL_FEE*10**(PRECISION_DECIMAL_PLACES-2)
 
     /// Miguel's note:
     /// Maximum permitted deviation of the imbalance ratios from 1.0.

@@ -32,7 +32,7 @@ module ramm_sui::math_tests {
     const DELTA: u256 = 25 * 1_000_000_000_000 / 100; // DELTA = _DELTA * 10**(PRECISION_DECIMAL_PLACES-2)
 
     const BASE_FEE: u256 = 10 * 1_000_000_000_000 / 10000; // _BASE_FEE * 10**(PRECISION_DECIMAL_PLACES-4)
-    const PROTOCOL_FEE: u256 = 50 * 1_000_000_000_000 / 100;
+    const PROTOCOL_FEE: u256 = 30 * 1_000_000_000_000 / 100;
 
     // BASE_LEVERAGE = _BASE_LEVERAGE * ONE
     const BASE_LEVERAGE: u256 = 100 * 1_000_000_000_000;
@@ -532,7 +532,7 @@ module ramm_sui::math_tests {
 
     /*
 
-    IMPORTANT
+    IMPORTANT NOTE
 
     The tests below check whether `check_imbalance_ratios` behaves correctly in all of the
     situations below:

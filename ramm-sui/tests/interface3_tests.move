@@ -24,7 +24,7 @@ module ramm_sui::interface3_tests {
     /// of the inbound asset they will deposit, and will receive however much of the outbound
     /// asset the pool can provide.
     /// The trader receives no "change".
-    fun test_trade_i() {
+    fun trade_amount_in_3_test() {
         let (ramm_id, eth_ag_id, matic_ag_id, usdt_ag_id, scenario_val) = test_util::create_ramm_test_scenario_eth_matic_usdt(ADMIN);
         let scenario = &mut scenario_val;
 
@@ -49,8 +49,8 @@ module ramm_sui::interface3_tests {
                 test_scenario::ctx(scenario)
             );
 
-            test_utils::assert_eq(ramm::get_balance<ETH>(&ramm), 209995 * test_util::eth_factor() / 1000);
-            test_utils::assert_eq(ramm::get_typed_balance<ETH>(&ramm), 209995 * test_util::eth_factor() / 1000);
+            test_utils::assert_eq(ramm::get_balance<ETH>(&ramm), 209997 * test_util::eth_factor() / 1000);
+            test_utils::assert_eq(ramm::get_typed_balance<ETH>(&ramm), 209997 * test_util::eth_factor() / 1000);
 
             test_utils::assert_eq(ramm::get_balance<MATIC>(&ramm), 200_000 * test_util::matic_factor());
             test_utils::assert_eq(ramm::get_typed_balance<MATIC>(&ramm), 200_000 * test_util::matic_factor());
@@ -58,7 +58,7 @@ module ramm_sui::interface3_tests {
             test_utils::assert_eq(ramm::get_balance<USDT>(&ramm), 382_026_5288 * test_util::usdt_factor() / 10000);
             test_utils::assert_eq(ramm::get_typed_balance<USDT>(&ramm), 382_026_5288 * test_util::usdt_factor() / 10000);
 
-            test_utils::assert_eq(ramm::get_collected_protocol_fees<ETH>(&ramm), 5 * (test_util::eth_factor() as u64) / 1000);
+            test_utils::assert_eq(ramm::get_collected_protocol_fees<ETH>(&ramm), 3 * (test_util::eth_factor() as u64) / 1000);
             test_utils::assert_eq(ramm::get_collected_protocol_fees<MATIC>(&ramm), 0);
             test_utils::assert_eq(ramm::get_collected_protocol_fees<USDT>(&ramm), 0);
 
@@ -86,18 +86,18 @@ module ramm_sui::interface3_tests {
 
             // The pool should have about 214.99 ETH after this trade
             // Recall that test ETH's decimal place count is 8.
-            test_utils::assert_eq(ramm::get_balance<ETH>(&ramm), 214_99210_615);
-            test_utils::assert_eq(ramm::get_typed_balance<ETH>(&ramm), 214_99210615);
+            test_utils::assert_eq(ramm::get_balance<ETH>(&ramm), 214_99526364);
+            test_utils::assert_eq(ramm::get_typed_balance<ETH>(&ramm), 214_99526364);
 
             // The pool should have about 192511.34 MATIC after the trade.
             // As above, recall that MATIC's decimal place count is 8.
-            test_utils::assert_eq(ramm::get_balance<MATIC>(&ramm), 192511_33586076);
-            test_utils::assert_eq(ramm::get_typed_balance<MATIC>(&ramm), 192511_33586076);
+            test_utils::assert_eq(ramm::get_balance<MATIC>(&ramm), 192511_33618744);
+            test_utils::assert_eq(ramm::get_typed_balance<MATIC>(&ramm), 1925113_3618744);
 
             test_utils::assert_eq(ramm::get_balance<USDT>(&ramm), 382_026_5288 * test_util::usdt_factor() / 10000);
             test_utils::assert_eq(ramm::get_typed_balance<USDT>(&ramm), 382_026_5288 * test_util::usdt_factor() / 10000);
 
-            test_utils::assert_eq(ramm::get_collected_protocol_fees<ETH>(&ramm), 789385);
+            test_utils::assert_eq(ramm::get_collected_protocol_fees<ETH>(&ramm), 473636);
             test_utils::assert_eq(ramm::get_collected_protocol_fees<MATIC>(&ramm), 0);
             test_utils::assert_eq(ramm::get_collected_protocol_fees<USDT>(&ramm), 0);
 
@@ -158,9 +158,9 @@ module ramm_sui::interface3_tests {
 
         {
             let eth = test_scenario::take_from_address<Coin<ETH>>(scenario, ADMIN);
-            // The liquidity provider should have about 200.05 ETH, with the 0.05 ETH
+            // The liquidity provider should have about 200.06 ETH, with the 0.06 ETH
             // being the result of collected fees.
-            test_utils::assert_eq(coin::value(&eth), 20000518458);
+            test_utils::assert_eq(coin::value(&eth), 200_00632135);
             test_scenario::return_to_address(ADMIN, eth);
         };
 
@@ -173,7 +173,7 @@ module ramm_sui::interface3_tests {
     /// This function is used for RAMM withdrawals i.e. the trader specifies exactly how much
     /// of an asset they desire, and provide an upper bound of the inbound asset,
     /// being returned the remainder.
-    fun test_trade_o() {
+    fun trade_amount_out_3_test() {
         let (ramm_id, eth_ag_id, matic_ag_id, usdt_ag_id, scenario_val) = test_util::create_ramm_test_scenario_eth_matic_usdt(ADMIN);
         let scenario = &mut scenario_val;
 
@@ -198,8 +198,8 @@ module ramm_sui::interface3_tests {
                 test_scenario::ctx(scenario)
             );
 
-            test_utils::assert_eq(ramm::get_balance<ETH>(&ramm), 20900835553);
-            test_utils::assert_eq(ramm::get_typed_balance<ETH>(&ramm), 20900835553);
+            test_utils::assert_eq(ramm::get_balance<ETH>(&ramm), 209_01015811);
+            test_utils::assert_eq(ramm::get_typed_balance<ETH>(&ramm), 209_01015811);
 
             test_utils::assert_eq(ramm::get_balance<MATIC>(&ramm), 200_000 * test_util::matic_factor());
             test_utils::assert_eq(ramm::get_typed_balance<MATIC>(&ramm), 200_000 * test_util::matic_factor());
@@ -207,7 +207,7 @@ module ramm_sui::interface3_tests {
             test_utils::assert_eq(ramm::get_balance<USDT>(&ramm), 383_800 * test_util::usdt_factor());
             test_utils::assert_eq(ramm::get_typed_balance<USDT>(&ramm), 383_800 * test_util::usdt_factor());
 
-            test_utils::assert_eq(ramm::get_collected_protocol_fees<ETH>(&ramm), 450643);
+            test_utils::assert_eq(ramm::get_collected_protocol_fees<ETH>(&ramm), 270385);
             test_utils::assert_eq(ramm::get_collected_protocol_fees<MATIC>(&ramm), 0);
             test_utils::assert_eq(ramm::get_collected_protocol_fees<USDT>(&ramm), 0);
 
