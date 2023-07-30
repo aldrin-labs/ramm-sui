@@ -158,9 +158,10 @@ module ramm_sui::interface3_tests {
 
         {
             let eth = test_scenario::take_from_address<Coin<ETH>>(scenario, ADMIN);
-            // The liquidity provider should have about 200.06 ETH, with the 0.06 ETH
-            // being the result of collected fees.
-            test_utils::assert_eq(coin::value(&eth), 200_00632135);
+            // The liquidity provider should have about 199.2 ETH, with about 0.06 ETH
+            // being the result of collected fees, and -0.8 ETH the liquidity withdrawal
+            // fee of 0.4%.
+            test_utils::assert_eq(coin::value(&eth), 199_20629607);
             test_scenario::return_to_address(ADMIN, eth);
         };
 
