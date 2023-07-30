@@ -411,42 +411,46 @@ module ramm_sui::interface3 {
             transfer::public_transfer(lp_token, tx_context::sender(ctx));
         };
 
-        let amounts_out = ramm::amounts(&withdrawal_output);
+        let amounts_out: VecMap<u8, u256> = ramm::amounts(&withdrawal_output);
+        let fees: VecMap<u8, u256> = ramm::fees(&withdrawal_output);
 
         // Withdraw first asset in the RAMM for the liquidity provider
         let amount_fst: u256 = *vec_map::get(&amounts_out, &fst);
         if (amount_fst != 0) {
-            ramm::split_bal(self, fst, amount_fst);
-            let amount_out: Balance<Asset1> = ramm::split_typed_bal(self, fst, (amount_fst as u64));
-            let amount_out: Coin<Asset1> = coin::from_balance(amount_out, ctx);
-            transfer::public_transfer(amount_out, tx_context::sender(ctx));
+            let fee_fst: u256 = *vec_map::get(&fees, &fst);
+            let amount_fst: Coin<Asset1> = ramm::liq_withdraw_helper<Asset1>(self, fst, amount_fst, fee_fst, ctx);
+            transfer::public_transfer(amount_fst, tx_context::sender(ctx));
         };
 
         // Withdraw second asset in the RAMM for the liquidity provider
         let amount_snd: u256 = *vec_map::get(&amounts_out, &snd);
         if (amount_snd != 0) {
-            ramm::split_bal(self, snd, amount_snd);
-            let amount_out: Balance<Asset2> = ramm::split_typed_bal(self, snd, (amount_snd as u64));
-            let amount_out: Coin<Asset2> = coin::from_balance(amount_out, ctx);
-            transfer::public_transfer(amount_out, tx_context::sender(ctx));
+            let fee_snd: u256 = *vec_map::get(&fees, &snd);
+            let amount_snd: Coin<Asset2> = ramm::liq_withdraw_helper<Asset2>(self, snd, amount_snd, fee_snd, ctx);
+            transfer::public_transfer(amount_snd, tx_context::sender(ctx));
         };
 
         // Withdraw third asset in the RAMM for the liquidity provider
         let amount_trd: u256 = *vec_map::get(&amounts_out, &trd);
         if (amount_trd != 0) {
-            ramm::split_bal(self, trd, amount_trd);
-            let amount_out: Balance<Asset3> = ramm::split_typed_bal(self, trd, (amount_trd as u64));
-            let amount_out: Coin<Asset3> = coin::from_balance(amount_out, ctx);
-            transfer::public_transfer(amount_out, tx_context::sender(ctx));
+            let fee_trd: u256 = *vec_map::get(&fees, &trd);
+            let amount_trd: Coin<Asset3> = ramm::liq_withdraw_helper<Asset3>(self, trd, amount_trd, fee_trd, ctx);
+            transfer::public_transfer(amount_trd, tx_context::sender(ctx));
         };
 
+        // Build required data structures for liquidity withdrawal event emission.
+
         let amounts_out_u64: VecMap<TypeName, u64> = vec_map::empty();
+        let fees_u64: VecMap<TypeName, u64> = vec_map::empty();
         vec_map::insert(&mut amounts_out_u64, type_name::get<Asset1>(), (*vec_map::get(&amounts_out, &fst) as u64));
+        vec_map::insert(&mut fees_u64, type_name::get<Asset1>(), (*vec_map::get(&fees, &fst) as u64));
         if (vec_map::contains(&amounts_out, &snd)) {
             vec_map::insert(&mut amounts_out_u64, type_name::get<Asset2>(), (*vec_map::get(&amounts_out, &snd) as u64));
+            vec_map::insert(&mut fees_u64, type_name::get<Asset2>(), (*vec_map::get(&fees, &snd) as u64));
         };
         if (vec_map::contains(&amounts_out, &trd)) {
             vec_map::insert(&mut amounts_out_u64, type_name::get<Asset3>(), (*vec_map::get(&amounts_out, &trd) as u64));
+            vec_map::insert(&mut fees_u64, type_name::get<Asset3>(), (*vec_map::get(&fees, &trd) as u64));
         };
 
         events::liquidity_withdrawal_event(
@@ -454,7 +458,8 @@ module ramm_sui::interface3 {
             tx_context::sender(ctx),
             type_name::get<AssetOut>(),
             lpt_u64,
-            amounts_out_u64
+            amounts_out_u64,
+            fees_u64
         );
 
         ramm::check_ramm_invariants_3<Asset1, Asset2, Asset3>(self);
