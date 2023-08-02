@@ -597,7 +597,7 @@ module ramm_sui::test_util {
 
     /// Create an ETH/USDT pool with the parameters from the whitepaper's second
     /// practical example.
-    public(friend) fun create_testing_ramm_eth_udst(sender: address): (ID, ID, ID, Scenario) {
+    public(friend) fun create_ramm_test_scenario_eth_usdt(sender: address): (ID, ID, ID, Scenario) {
         let asset_prices: VecMap<u8, u128> = vec_map::empty();
         vec_map::insert(&mut asset_prices, 0, 2000000000000);
         vec_map::insert(&mut asset_prices, 1, 1000000000);

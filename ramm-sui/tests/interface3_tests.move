@@ -401,6 +401,12 @@ module ramm_sui::interface3_tests {
     }
 
     #[test]
+    /// Test for fee collection after a liquidity withdrawal.
+    ///
+    /// After the pool's admin withdraws all of their 200 ETH liquidity from a perfectly balanced pool:
+    /// * the admin should receive 0.8 ETH (or 8000000 units when using 8 decimal places) of
+    ///   protocol fees from this withdrawal, and 0 of any other asset.
+    /// * futhermore, the RAMM's fees should be null after the collection
     fun collect_fees_3_test_2() {
         let (ramm_id, eth_ag_id, matic_ag_id, usdt_ag_id, scenario_val) = test_util::create_ramm_test_scenario_eth_matic_usdt(ADMIN);
         let scenario = &mut scenario_val;
@@ -412,6 +418,7 @@ module ramm_sui::interface3_tests {
 
         test_scenario::next_tx(scenario, ADMIN);
 
+        // First step: the admin withdraws the ETH they've provided to the pool
         let (initial_eth_balance, initial_matic_balance, initial_usdt_balance): (u256, u256, u256) = {
             let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
@@ -433,10 +440,12 @@ module ramm_sui::interface3_tests {
                 test_scenario::ctx(scenario)
             );
 
+            // Check that the collected ETH fee matches the expected number
             test_utils::assert_eq(
                 (ramm::get_collected_protocol_fees<ETH>(&ramm) as u256),
                 math::mul(init_eth, liq_wthdrwl_fee, prec, max_prec)
             );
+            // Check that the pool collects no other fee except for the ETH
             test_utils::assert_eq(ramm::get_typed_balance<ETH>(&ramm), 0);
             test_utils::assert_eq(ramm::get_lptokens_issued<ETH>(&ramm), 0);
 
@@ -451,6 +460,7 @@ module ramm_sui::interface3_tests {
         let tx_fx: TransactionEffects = test_scenario::next_tx(scenario, ADMIN);
         test_utils::assert_eq(test_scenario::num_user_events(&tx_fx), 1);
 
+        // Second step: the admin performs the fee collection
         {
             let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
             let admin_cap = test_scenario::take_from_address<RAMMAdminCap>(scenario, ADMIN);
