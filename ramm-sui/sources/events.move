@@ -184,16 +184,16 @@ module ramm_sui::events {
         amounts_out: VecMap<TypeName, u64>,
         fees: VecMap<TypeName, u64>,
     ) {
-        event::emit(
-            LiquidityWithdrawalEvent {
+        let lwe = LiquidityWithdrawalEvent {
                 ramm_id,
                 trader,
                 token_out,
                 lpt,
                 amounts_out,
                 fees,
-            }
-        )
+            };
+
+        event::emit(lwe)
     }
 
     /// Datatype describing a Sui event for a given RAMM's fee collection.
@@ -212,13 +212,13 @@ module ramm_sui::events {
         fee_collector: address,
         collected_fees: VecMap<TypeName, u64>
     ) {
-        event::emit(
-            FeeCollectionEvent {
+        let fce = FeeCollectionEvent {
                 ramm_id,
                 admin,
                 fee_collector,
                 collected_fees,
-            }
-        )
+            };
+
+        event::emit(fce)
     }
 }

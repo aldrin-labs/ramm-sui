@@ -1270,6 +1270,8 @@ module ramm_sui::ramm {
     /// and place it into the appropriate variable.
     fun split_liq_wthdrw_fee(amount_out: &mut u256, fee_val: &mut u256) {
         *fee_val = mul(*amount_out, LIQ_WTHDRWL_FEE);
+        /* let temp = *amount_out;
+        *amount_out = mul(*amount_out, ONE - LIQ_WTHDRWL_FEE); */
         *amount_out = *amount_out - *fee_val;
     }
 

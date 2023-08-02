@@ -5,6 +5,7 @@ module ramm_sui::math {
 
     use switchboard::math as sb_math;
 
+    friend ramm_sui::interface3_tests;
     friend ramm_sui::ramm;
     friend ramm_sui::math_tests;
     friend ramm_sui::test_util;

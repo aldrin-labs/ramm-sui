@@ -486,19 +486,23 @@ module ramm_sui::interface3 {
         let snd = ramm::get_asset_index<Asset2>(self);
         let trd = ramm::get_asset_index<Asset3>(self);
 
-        let fst = coin::from_balance(ramm::get_fees_for_asset<Asset1>(self, fst), ctx);
-        let snd = coin::from_balance(ramm::get_fees_for_asset<Asset2>(self, snd), ctx);
-        let trd = coin::from_balance(ramm::get_fees_for_asset<Asset3>(self, trd), ctx);
+        let fst: Coin<Asset1> = coin::from_balance(ramm::get_fees_for_asset<Asset1>(self, fst), ctx);
+        let snd: Coin<Asset2> = coin::from_balance(ramm::get_fees_for_asset<Asset2>(self, snd), ctx);
+        let trd: Coin<Asset3> = coin::from_balance(ramm::get_fees_for_asset<Asset3>(self, trd), ctx);
+
+        let value_fst: u64 = coin::value(&fst);
+        let value_snd: u64 = coin::value(&snd);
+        let value_trd: u64 = coin::value(&trd);
 
         let collected_fees: VecMap<TypeName, u64> = vec_map::empty();
-        vec_map::insert(&mut collected_fees, type_name::get<Asset1>(), coin::value(&fst));
-        vec_map::insert(&mut collected_fees, type_name::get<Asset2>(), coin::value(&snd));
-        vec_map::insert(&mut collected_fees, type_name::get<Asset3>(), coin::value(&trd));
+        vec_map::insert(&mut collected_fees, type_name::get<Asset1>(), value_fst);
+        vec_map::insert(&mut collected_fees, type_name::get<Asset2>(), value_snd);
+        vec_map::insert(&mut collected_fees, type_name::get<Asset3>(), value_trd);
 
         let fee_collector = ramm::get_fee_collector(self);
-        transfer::public_transfer(fst, fee_collector);
-        transfer::public_transfer(snd, fee_collector);
-        transfer::public_transfer(trd, fee_collector);
+        if (value_fst > 0) { transfer::public_transfer(fst, fee_collector); } else { coin::destroy_zero(fst); };
+        if (value_snd > 0) { transfer::public_transfer(snd, fee_collector); } else { coin::destroy_zero(snd); };
+        if (value_trd > 0) { transfer::public_transfer(trd, fee_collector); } else { coin::destroy_zero(trd); };
 
         events::fee_collection_event(
             ramm::get_id(self),

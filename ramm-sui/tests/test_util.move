@@ -6,6 +6,7 @@ module ramm_sui::test_util {
     use sui::coin;
     use sui::object::{Self, ID};
     use sui::test_scenario::{Self, Scenario};
+    use sui::test_utils;
     use sui::tx_context::{Self, TxContext};
     use sui::vec_map::{Self, VecMap};
 
@@ -23,6 +24,22 @@ module ramm_sui::test_util {
     friend ramm_sui::interface2_tests;
     friend ramm_sui::interface3_safety_tests;
     friend ramm_sui::interface3_tests;
+
+    /// ----------------
+    /// Useful operators
+    /// ----------------
+    
+    /// Check that the first operand is stricly less (`<`) than the second.
+    public(friend) fun assert_lt(t1: u256, t2: u256) {
+        let res = t1 < t2;
+        if (!res) {
+            test_utils::print(b"Assertion failed:");
+            std::debug::print(&t1);
+            test_utils::print(b"is not strictly less than");
+            std::debug::print(&t2);
+            abort(0)
+        }
+    }
 
     /// --------------------------------------------------------------------------------------------
     /// Coins used in testing - for coins to be using in the test*net*, see the `ramm-misc` package.
