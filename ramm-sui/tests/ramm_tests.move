@@ -138,6 +138,8 @@ module ramm_sui::ramm_tests {
             assert!(ramm::get_admin_cap_id(&ramm) == object::id(&admin_cap), ERAMMInit);
             assert!(ramm::get_fee_collector(&ramm) == ADMIN, ERAMMInit);
             assert!(ramm::get_aggregator_address<BTC>(&ramm) == aggregator::aggregator_address(&btc_aggr), ERAMMInit);
+            assert!(ramm::get_volatility_index<BTC>(&ramm) == 0, ERAMMInit);
+            assert!(ramm::get_volatility_timestamp<BTC>(&ramm) == 0, ERAMMInit);
 
             assert!(ramm::get_balance<BTC>(&ramm) == 0u256, ERAMMInit);
             assert!(ramm::get_typed_balance<BTC>(&ramm) == 0u256, ERAMMInit);
@@ -221,6 +223,8 @@ module ramm_sui::ramm_tests {
             assert!(ramm::get_admin_cap_id(&ramm) == object::id(&admin_cap), ERAMMDepositStatus);
             assert!(ramm::get_fee_collector(&ramm) == ADMIN, ERAMMDepositStatus);
             assert!(ramm::get_aggregator_address<BTC>(&ramm) == aggregator::aggregator_address(&btc_aggr), ERAMMDepositStatus);
+            assert!(ramm::get_volatility_index<BTC>(&ramm) == 0, ERAMMDepositStatus);
+            assert!(ramm::get_volatility_timestamp<BTC>(&ramm) == 0, ERAMMDepositStatus);
 
             assert!(ramm::get_balance<BTC>(&ramm) == 0u256, ERAMMDepositStatus);
             assert!(ramm::get_typed_balance<BTC>(&ramm) == 0u256, ERAMMDepositStatus);

@@ -166,6 +166,8 @@ module ramm_sui::ramm {
         // map from `u8` -> `switchboard::Aggregator::address`; this address is derived
         // from the aggregator's UID.
         aggregator_addrs: VecMap<u8, address>,
+        volatility_indices: VecMap<u8, u256>,
+        volatility_timestamps: VecMap<u8, u256>,
 
         // Map from asset indexes, `u8`, to untyped balances, `u256`.
         // Both typed and untyped balances are required due to limitations with Sui Move.
@@ -359,6 +361,9 @@ module ramm_sui::ramm {
                 fee_collector,
 
                 aggregator_addrs: vec_map::empty<u8, address>(),
+                volatility_indices: vec_map::empty<u8, u256>(),
+                volatility_timestamps: vec_map::empty<u8, u256>(),
+
                 balances: vec_map::empty<u8, u256>(),
                 typed_balances: bag::new(ctx),
 
@@ -406,6 +411,9 @@ module ramm_sui::ramm {
         assert!(bag::is_empty(&ramm.collected_protocol_fees), ERAMMInvalidInitState);
 
         assert!(vec_map::is_empty<u8, address>(&ramm.aggregator_addrs), ERAMMInvalidInitState);
+        assert!(vec_map::is_empty<u8, u256>(&ramm.volatility_indices), ERAMMInvalidInitState);
+        assert!(vec_map::is_empty<u8, u256>(&ramm.volatility_timestamps), ERAMMInvalidInitState);   
+
         assert!(vec_map::is_empty<u8, u256>(&ramm.balances), ERAMMInvalidInitState);
         assert!(bag::is_empty(&ramm.typed_balances), ERAMMInvalidInitState);
 
@@ -463,6 +471,8 @@ module ramm_sui::ramm {
             type_index,
             aggregator::aggregator_address(feed)
         );
+        vec_map::insert(&mut self.volatility_indices, type_index, 0);
+        vec_map::insert(&mut self.volatility_timestamps, type_index, 0);
 
         vec_map::insert(&mut self.balances, type_index, 0);
         bag::add(&mut self.typed_balances, type_index, balance::zero<Asset>());
@@ -480,6 +490,8 @@ module ramm_sui::ramm {
 
         let n = (self.asset_count as u64);
         assert!(n == vec_map::size(&self.aggregator_addrs), ERAMMNewAssetFailure);
+        assert!(n == vec_map::size(&self.volatility_indices), ERAMMNewAssetFailure);
+        assert!(n == vec_map::size(&self.volatility_timestamps), ERAMMNewAssetFailure);
         assert!(n == vec_map::size(&self.balances), ERAMMNewAssetFailure);
         assert!(n == bag::length(&self.typed_balances), ERAMMNewAssetFailure);
         assert!(n == vec_map::size(&self.lp_tokens_issued), ERAMMNewAssetFailure);
@@ -513,13 +525,20 @@ module ramm_sui::ramm {
         let index_map_size = vec_map::size(&self.types_to_indexes);
         assert!(
             index_map_size > 0 &&
+            index_map_size == vec_map::size(&self.aggregator_addrs) &&
             index_map_size == vec_map::size(&self.balances) &&
-            index_map_size == bag::length(&self.typed_balances) &&
+            index_map_size == bag::length(&self.collected_protocol_fees) &&
+            index_map_size == vec_map::size(&self.deposits_enabled) &&
+            index_map_size == vec_map::size(&self.factors_for_balances) &&
             index_map_size == vec_map::size(&self.lp_tokens_issued) &&
+            index_map_size == vec_map::size(&self.minimum_trade_amounts) &&
+            index_map_size == bag::length(&self.typed_balances) &&
             index_map_size == bag::length(&self.typed_lp_tokens_issued) &&
-            index_map_size == vec_map::size(&self.deposits_enabled),
+            index_map_size == vec_map::size(&self.volatility_indices) &&
+            index_map_size == vec_map::size(&self.volatility_timestamps),
             ERAMMInvalidInitState
         );
+
 
         let ix = 0;
         while (ix < self.asset_count) {
@@ -652,6 +671,44 @@ module ramm_sui::ramm {
     public(friend) fun get_aggregator_address<Asset>(self: &RAMM): address {
         let ix = get_asset_index<Asset>(self);
         get_aggr_addr(self, ix)
+    }
+
+    /// Volatility indices
+
+    /// Given a RAMM and the index of one of its assets, return its latest calculated volatility
+    /// index.
+    ///
+    /// If none has yet been calculated, it'll be 0.
+    ///
+    /// # Aborts
+    ///
+    /// If the provided index does not match any existing asset's.
+    fun get_vol_ix(self: &RAMM, index: u8): u256 {
+        *vec_map::get(&self.volatility_indices, &index)
+    }
+
+    /// Return an asset's most recent volatility index (0 if none has yet been calculated).
+    public(friend) fun get_volatility_index<Asset>(self: &RAMM): u256 {
+        let ix = get_asset_index<Asset>(self);
+        get_vol_ix(self, ix)
+    }
+
+    /// Volatility index timestamps
+
+    /// Given a RAMM and the index of one of its assets, return the timestamp of its
+    /// latest volatility index. If none has yet been calculated, it'll be 0.
+    ///
+    /// # Aborts
+    ///
+    /// If the provided index does not match any existing asset's.
+    fun get_vol_tmstmp(self: &RAMM, index: u8): u256 {
+        *vec_map::get(&self.volatility_timestamps, &index)
+    }
+
+    /// Return the timestamp of an asset's most recent volatility index (0 if none yet exists).
+    public(friend) fun get_volatility_timestamp<Asset>(self: &RAMM): u256 {
+        let ix = get_asset_index<Asset>(self);
+        get_vol_tmstmp(self, ix)
     }
 
     /// Balances
@@ -1270,8 +1327,6 @@ module ramm_sui::ramm {
     /// and place it into the appropriate variable.
     fun split_liq_wthdrw_fee(amount_out: &mut u256, fee_val: &mut u256) {
         *fee_val = mul(*amount_out, LIQ_WTHDRWL_FEE);
-        /* let temp = *amount_out;
-        *amount_out = mul(*amount_out, ONE - LIQ_WTHDRWL_FEE); */
         *amount_out = *amount_out - *fee_val;
     }
 
