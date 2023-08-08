@@ -15,7 +15,7 @@ module ramm_sui::ramm_tests {
     const BOB: address = @0xFACE;
 
     const ERAMMCreation: u64 = 0;
-    const ERAMMInit: u64 = 1;
+    const ERAMMAssetAddition: u64 = 1;
     const ERAMMDepositStatus: u64 = 3;
 
     #[test]
@@ -135,29 +135,31 @@ module ramm_sui::ramm_tests {
             );
 
             // Check the RAMM's internal state after the asset has been added
-            assert!(ramm::get_admin_cap_id(&ramm) == object::id(&admin_cap), ERAMMInit);
-            assert!(ramm::get_fee_collector(&ramm) == ADMIN, ERAMMInit);
-            assert!(ramm::get_aggregator_address<BTC>(&ramm) == aggregator::aggregator_address(&btc_aggr), ERAMMInit);
-            assert!(ramm::get_volatility_index<BTC>(&ramm) == 0, ERAMMInit);
-            assert!(ramm::get_volatility_timestamp<BTC>(&ramm) == 0, ERAMMInit);
+            assert!(ramm::get_admin_cap_id(&ramm) == object::id(&admin_cap), ERAMMAssetAddition);
+            assert!(ramm::get_new_asset_cap_id(&ramm) == option::some(object::id(&new_asset_cap)), ERAMMAssetAddition);
 
-            assert!(ramm::get_balance<BTC>(&ramm) == 0u256, ERAMMInit);
-            assert!(ramm::get_typed_balance<BTC>(&ramm) == 0u256, ERAMMInit);
+            assert!(ramm::get_collected_protocol_fees<BTC>(&ramm) == 0u64, ERAMMAssetAddition);
+            assert!(ramm::get_fee_collector(&ramm) == ADMIN, ERAMMAssetAddition);
 
-            assert!(ramm::get_lptokens_issued<BTC>(&ramm) == 0u256, ERAMMInit);
-            assert!(ramm::get_typed_lptokens_issued<BTC>(&ramm) == 0u256, ERAMMInit);
+            assert!(ramm::get_asset_count(&ramm) == 1, ERAMMAssetAddition);
+            assert!(!ramm::get_deposit_status<BTC>(&ramm), ERAMMAssetAddition);
+            assert!(ramm::get_factor_for_balance<BTC>(&ramm) == 10000u256, ERAMMAssetAddition);
+            assert!(ramm::get_minimum_trade_amount<BTC>(&ramm) == min_trade_amount, ERAMMAssetAddition);
+            assert!(ramm::get_type_index<BTC>(&ramm) == 0u8, ERAMMAssetAddition);
 
-            assert!(ramm::get_minimum_trade_amount<BTC>(&ramm) == min_trade_amount, ERAMMInit);
-            assert!(!ramm::get_deposit_status<BTC>(&ramm), ERAMMInit);
-            assert!(ramm::get_collected_protocol_fees<BTC>(&ramm) == 0u64, ERAMMInit);
+            assert!(ramm::get_aggregator_address<BTC>(&ramm) == aggregator::aggregator_address(&btc_aggr), ERAMMAssetAddition);
+            assert!(ramm::get_previous_price<BTC>(&ramm) == 0, ERAMMAssetAddition);
+            assert!(ramm::get_previous_price_timestamp<BTC>(&ramm) == 0, ERAMMAssetAddition);
+            assert!(ramm::get_volatility_index<BTC>(&ramm) == 0, ERAMMAssetAddition);
+            assert!(ramm::get_volatility_timestamp<BTC>(&ramm) == 0, ERAMMAssetAddition);
 
-            assert!(ramm::get_type_index<BTC>(&ramm) == 0u8, ERAMMInit);
-            assert!(ramm::get_factor_for_balance<BTC>(&ramm) == 10000u256, ERAMMDepositStatus);
+            assert!(ramm::get_balance<BTC>(&ramm) == 0u256, ERAMMAssetAddition);
+            assert!(ramm::get_typed_balance<BTC>(&ramm) == 0u256, ERAMMAssetAddition);
 
-            assert!(ramm::get_asset_count(&ramm) == 1, ERAMMInit);
+            assert!(ramm::get_lptokens_issued<BTC>(&ramm) == 0u256, ERAMMAssetAddition);
+            assert!(ramm::get_typed_lptokens_issued<BTC>(&ramm) == 0u256, ERAMMAssetAddition);
 
             test_scenario::return_shared<Aggregator>(btc_aggr);
-
             test_scenario::return_to_address<RAMMAdminCap>(ADMIN, admin_cap);
             test_scenario::return_to_address<RAMMNewAssetCap>(ADMIN, new_asset_cap);
             test_scenario::return_shared<RAMM>(ramm);
@@ -221,8 +223,19 @@ module ramm_sui::ramm_tests {
             //
             // This is to make sure initialization changes nothing more than it needs to - deposit statuses.
             assert!(ramm::get_admin_cap_id(&ramm) == object::id(&admin_cap), ERAMMDepositStatus);
+            assert!(ramm::get_new_asset_cap_id(&ramm) == option::none(), ERAMMAssetAddition);
+
             assert!(ramm::get_fee_collector(&ramm) == ADMIN, ERAMMDepositStatus);
+            assert!(ramm::get_collected_protocol_fees<BTC>(&ramm) == 0u64, ERAMMDepositStatus);
+
+            assert!(ramm::get_asset_count(&ramm) == 1, ERAMMDepositStatus);
+            assert!(ramm::get_factor_for_balance<BTC>(&ramm) == 10000u256, ERAMMDepositStatus);
+            assert!(ramm::get_minimum_trade_amount<BTC>(&ramm) == minimum_trade_amount, ERAMMDepositStatus);
+            assert!(ramm::get_type_index<BTC>(&ramm) == 0u8, ERAMMDepositStatus);
+
             assert!(ramm::get_aggregator_address<BTC>(&ramm) == aggregator::aggregator_address(&btc_aggr), ERAMMDepositStatus);
+            assert!(ramm::get_previous_price<BTC>(&ramm) == 0, ERAMMAssetAddition);
+            assert!(ramm::get_previous_price_timestamp<BTC>(&ramm) == 0, ERAMMAssetAddition);
             assert!(ramm::get_volatility_index<BTC>(&ramm) == 0, ERAMMDepositStatus);
             assert!(ramm::get_volatility_timestamp<BTC>(&ramm) == 0, ERAMMDepositStatus);
 
@@ -231,14 +244,6 @@ module ramm_sui::ramm_tests {
 
             assert!(ramm::get_lptokens_issued<BTC>(&ramm) == 0u256, ERAMMDepositStatus);
             assert!(ramm::get_typed_lptokens_issued<BTC>(&ramm) == 0u256, ERAMMDepositStatus);
-
-            assert!(ramm::get_minimum_trade_amount<BTC>(&ramm) == minimum_trade_amount, ERAMMDepositStatus);
-            assert!(ramm::get_collected_protocol_fees<BTC>(&ramm) == 0u64, ERAMMDepositStatus);
-
-            assert!(ramm::get_type_index<BTC>(&ramm) == 0u8, ERAMMDepositStatus);
-            assert!(ramm::get_factor_for_balance<BTC>(&ramm) == 10000u256, ERAMMDepositStatus);
-
-            assert!(ramm::get_asset_count(&ramm) == 1, ERAMMDepositStatus);
 
             test_scenario::return_shared<Aggregator>(btc_aggr);
             test_scenario::return_shared<RAMM>(ramm);

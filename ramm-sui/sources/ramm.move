@@ -143,7 +143,15 @@ module ramm_sui::ramm {
     ///
     /// See this repository's README for more information.
     struct RAMM has key {
+        // UID of a `RAMM` object. Required for `RAMM` to have the `key` ability,
+        // and ergo become a shared object.
         id: UID,
+
+        /*
+        -----------------------------
+        Administration `Cap`abilities
+        -----------------------------
+        */
 
         // ID of the `AdminCap` required to perform sensitive operations.
         // Not storing this field means any admin of any RAMM can affect any
@@ -156,37 +164,39 @@ module ramm_sui::ramm {
         // * After initialization, no more assets can be added.
         //   - thenceforth and until the RAMM object is deleted, the field will be `None`
         new_asset_cap_id: Option<ID>,
-    
+
+        /*
+        --------------
+        Fee collection
+        --------------
+        */
+
+        // Map from asset indexes `u8` to fees collected over that asset, `Balance<T>`
+        collected_protocol_fees: Bag,
         // Address of the fee to which `Coin<T>` objects representing collected
         // fees will be sent.
         fee_collector: address,
-        // Map from asset indexes `u8` to fees collected over that asset, `Balance<T>`
-        collected_protocol_fees: Bag,
 
-        // map from `u8` -> `switchboard::Aggregator::address`; this address is derived
-        // from the aggregator's UID.
-        aggregator_addrs: VecMap<u8, address>,
-        volatility_indices: VecMap<u8, u256>,
-        volatility_timestamps: VecMap<u8, u256>,
+        /*
+        --------------
+        Asset metadata
+        --------------
+        */
 
-        // Map from asset indexes, `u8`, to untyped balances, `u256`.
-        // Both typed and untyped balances are required due to limitations with Sui Move.
-        balances: VecMap<u8, u256>,
-        // Map from asset indexes `u8` to their respective balances, `Balance<T>`
-        typed_balances: Bag,
-        // minimum trading amounts for each token.
-        minimum_trade_amounts: VecMap<u8, u64>,
-
-        // Map from asset indexes, `u8`, to untyped counts of issued LP tokens for that
-        // asset, in `u256`.
-        lp_tokens_issued: VecMap<u8, u256>,
-        // Map from asset indices, `u8`, to LP token supply data - `Supply<T>`.
-        // From `Supply<T>` it is possible to mint, burn and query issued tokens.
-        typed_lp_tokens_issued: Bag,
-
+        // Total number of assets in the RAMM pool. `N` in the whitepaper.
+        asset_count: u8,
         // per-asset flag marking whether deposits are enabled.
         deposits_enabled: VecMap<u8, bool>,
-
+        // Scaling factor for each of the assets, used to bring their values to the baseline
+        // order of magnitude, using `PRECISION_DECIMAL_PLACES`.
+        //
+        // Every coin has its decimal place count specified in its `CoinMetadata` structure.
+        // This value is used upon asset insertion to calculate the right factor.
+        //
+        // Cannot be changed.
+        factors_for_balances: VecMap<u8, u256>,
+        // minimum trading amounts for each token.
+        minimum_trade_amounts: VecMap<u8, u64>,
         // Mapping between the type names of this pool's assets, and their indexes;
         // used to index other maps in the `RAMM` structure.
         //
@@ -199,16 +209,52 @@ module ramm_sui::ramm {
         // Done for storage considerations: storing type names in every single
         // map/bag as keys is unwieldy.
         types_to_indexes: VecMap<TypeName, u8>,
-        // Scaling factor for each of the assets, used to bring their values to the baseline
-        // order of magnitude, using `PRECISION_DECIMAL_PLACES`.
-        //
-        // Every coin has its decimal place count specified in its `CoinMetadata` structure.
-        // This value is used upon asset insertion to calculate the right factor.
-        //
-        // Cannot be changed.
-        factors_for_balances: VecMap<u8, u256>,
-        // Total number of assets in the RAMM pool. `N` in the whitepaper.
-        asset_count: u8,
+
+        /*
+        -----------------------------------
+        Oracle data and Pricing Information
+        -----------------------------------
+        */
+
+        // map from `u8` -> `switchboard::Aggregator::address`; this address is derived
+        // from the aggregator's UID.
+        aggregator_addrs: VecMap<u8, address>,
+        // map between each asset's index and its most recently queried price, obtained
+        // from the asset's `Aggregator`, whose address is in `aggregator_addrs`
+        previous_prices: VecMap<u8, u256>,
+        // map between each asset's index and the timesstamp of its most recently queried price,
+        previous_price_timestamps: VecMap<u8, u256>,
+        // map between each asset's index and the highest recorded volatility index in
+        // the last `MAX_TIMESTAMP_DIFF` seconds
+        volatility_indices: VecMap<u8, u256>,
+        // map between each asset's index and the timestamp of its highest recorded
+        // volatility in the last `MAX_TIMESTAMP_DIFF` seconds
+        volatility_timestamps: VecMap<u8, u256>,
+
+        /*
+        ------------------
+        Asset balance data
+        ------------------
+        */
+
+        // Map from asset indexes, `u8`, to untyped balances, `u256`.
+        // Both typed and untyped balances are required due to limitations with Sui Move.
+        balances: VecMap<u8, u256>,
+        // Map from asset indexes `u8` to their respective balances, `Balance<T>`
+        typed_balances: Bag,
+
+        /*
+        -----------------
+        LP Token issuance
+        -----------------
+        */
+
+        // Map from asset indexes, `u8`, to untyped counts of issued LP tokens for that
+        // asset, in `u256`.
+        lp_tokens_issued: VecMap<u8, u256>,
+        // Map from asset indices, `u8`, to LP token supply data - `Supply<T>`.
+        // From `Supply<T>` it is possible to mint, burn and query issued tokens.
+        typed_lp_tokens_issued: Bag,
     }
 
     /// Result of an asset deposit/withdrawal operation by a trader.
@@ -356,11 +402,22 @@ module ramm_sui::ramm {
 
         let ramm_init = RAMM {
                 id: object::new(ctx),
+
                 admin_cap_id,
                 new_asset_cap_id,
+
+                collected_protocol_fees: bag::new(ctx),
                 fee_collector,
 
+                asset_count: 0,
+                deposits_enabled: vec_map::empty<u8, bool>(),
+                factors_for_balances: vec_map::empty<u8, u256>(),
+                minimum_trade_amounts: vec_map::empty<u8, u64>(),
+                types_to_indexes: vec_map::empty<TypeName, u8>(),
+
                 aggregator_addrs: vec_map::empty<u8, address>(),
+                previous_prices: vec_map::empty<u8, u256>(),
+                previous_price_timestamps: vec_map::empty<u8, u256>(),
                 volatility_indices: vec_map::empty<u8, u256>(),
                 volatility_timestamps: vec_map::empty<u8, u256>(),
 
@@ -369,14 +426,6 @@ module ramm_sui::ramm {
 
                 lp_tokens_issued: vec_map::empty<u8, u256>(),
                 typed_lp_tokens_issued: bag::new(ctx),
-
-                minimum_trade_amounts: vec_map::empty<u8, u64>(),
-                deposits_enabled: vec_map::empty<u8, bool>(),
-                collected_protocol_fees: bag::new(ctx),
-
-                types_to_indexes: vec_map::empty<TypeName, u8>(),
-                factors_for_balances: vec_map::empty<u8, u256>(),
-                asset_count: 0
             };
 
         transfer::transfer(admin_cap, tx_context::sender(ctx));
@@ -407,10 +456,19 @@ module ramm_sui::ramm {
 
         assert!(ramm.admin_cap_id == object::id(&a), ERAMMInvalidInitState);
         assert!(ramm.new_asset_cap_id == option::some(object::id(&na)), ERAMMInvalidInitState);
+
         assert!(ramm.fee_collector == admin, ERAMMInvalidInitState);
         assert!(bag::is_empty(&ramm.collected_protocol_fees), ERAMMInvalidInitState);
 
+        assert!(ramm.asset_count == 0, ERAMMInvalidInitState);
+        assert!(vec_map::is_empty<u8, bool>(&ramm.deposits_enabled), ERAMMInvalidInitState);
+        assert!(vec_map::is_empty<u8, u256>(&ramm.factors_for_balances), ERAMMInvalidInitState);
+        assert!(vec_map::is_empty<u8, u64>(&ramm.minimum_trade_amounts), ERAMMInvalidInitState);
+        assert!(vec_map::is_empty<TypeName, u8>(&ramm.types_to_indexes), ERAMMInvalidInitState);
+
         assert!(vec_map::is_empty<u8, address>(&ramm.aggregator_addrs), ERAMMInvalidInitState);
+        assert!(vec_map::is_empty<u8, u256>(&ramm.previous_prices), ERAMMInvalidInitState);
+        assert!(vec_map::is_empty<u8, u256>(&ramm.previous_price_timestamps), ERAMMInvalidInitState);   
         assert!(vec_map::is_empty<u8, u256>(&ramm.volatility_indices), ERAMMInvalidInitState);
         assert!(vec_map::is_empty<u8, u256>(&ramm.volatility_timestamps), ERAMMInvalidInitState);   
 
@@ -419,15 +477,6 @@ module ramm_sui::ramm {
 
         assert!(vec_map::is_empty<u8, u256>(&ramm.lp_tokens_issued), ERAMMInvalidInitState);
         assert!(bag::is_empty(&ramm.typed_lp_tokens_issued), ERAMMInvalidInitState);
-
-        assert!(vec_map::is_empty<u8, u64>(&ramm.minimum_trade_amounts), ERAMMInvalidInitState);
-        assert!(vec_map::is_empty<u8, bool>(&ramm.deposits_enabled), ERAMMInvalidInitState);
-        assert!(bag::is_empty(&ramm.collected_protocol_fees), ERAMMInvalidInitState);
-
-        assert!(vec_map::is_empty<TypeName, u8>(&ramm.types_to_indexes), ERAMMInvalidInitState);
-        assert!(vec_map::is_empty<u8, u256>(&ramm.factors_for_balances), ERAMMInvalidInitState);
-
-        assert!(ramm.asset_count == 0, ERAMMInvalidInitState);
 
         test_scenario::return_to_address<RAMMAdminCap>(admin, a);
         test_scenario::return_to_address<RAMMNewAssetCap>(admin, na);
@@ -464,42 +513,47 @@ module ramm_sui::ramm {
 
         let type_name = type_name::get<Asset>();
         let type_index = self.asset_count;
-        self.asset_count = self.asset_count + 1;
 
-        vec_map::insert(
-            &mut self.aggregator_addrs,
-            type_index,
-            aggregator::aggregator_address(feed)
-        );
+        bag::add(&mut self.collected_protocol_fees, type_index, balance::zero<Asset>());
+
+        self.asset_count = self.asset_count + 1;
+        vec_map::insert(&mut self.deposits_enabled, type_index, false);
+        let factor_balance: u256 = ramm_math::pow(10u256, PRECISION_DECIMAL_PLACES - asset_decimal_places);
+        vec_map::insert(&mut self.factors_for_balances, type_index, factor_balance);
+        vec_map::insert(&mut self.minimum_trade_amounts, type_index, min_trade_amnt);
+        vec_map::insert(&mut self.types_to_indexes, type_name, type_index);
+
+        vec_map::insert(&mut self.aggregator_addrs, type_index, aggregator::aggregator_address(feed));
+        vec_map::insert(&mut self.previous_prices, type_index, 0);
+        vec_map::insert(&mut self.previous_price_timestamps, type_index, 0);
         vec_map::insert(&mut self.volatility_indices, type_index, 0);
         vec_map::insert(&mut self.volatility_timestamps, type_index, 0);
 
         vec_map::insert(&mut self.balances, type_index, 0);
         bag::add(&mut self.typed_balances, type_index, balance::zero<Asset>());
-        vec_map::insert(&mut self.minimum_trade_amounts, type_index, min_trade_amnt);
 
         vec_map::insert(&mut self.lp_tokens_issued, type_index, 0);
         bag::add(&mut self.typed_lp_tokens_issued, type_index, balance::create_supply(LP<Asset> {}));
 
-        vec_map::insert(&mut self.deposits_enabled, type_index, false);
-        bag::add(&mut self.collected_protocol_fees, type_index, balance::zero<Asset>());
-
-        vec_map::insert(&mut self.types_to_indexes, type_name, type_index);
-        let factor_balance: u256 = ramm_math::pow(10u256, PRECISION_DECIMAL_PLACES - asset_decimal_places);
-        vec_map::insert(&mut self.factors_for_balances, type_index, factor_balance);
-
         let n = (self.asset_count as u64);
+
+        assert!(n == bag::length(&self.collected_protocol_fees), ERAMMNewAssetFailure);
+
+        assert!(n == vec_map::size(&self.deposits_enabled), ERAMMNewAssetFailure);
+        assert!(n == vec_map::size(&self.factors_for_balances), ERAMMNewAssetFailure);
+        assert!(n == vec_map::size(&self.types_to_indexes), ERAMMNewAssetFailure);
+
         assert!(n == vec_map::size(&self.aggregator_addrs), ERAMMNewAssetFailure);
+        assert!(n == vec_map::size(&self.previous_prices), ERAMMNewAssetFailure);
+        assert!(n == vec_map::size(&self.previous_price_timestamps), ERAMMNewAssetFailure);
         assert!(n == vec_map::size(&self.volatility_indices), ERAMMNewAssetFailure);
         assert!(n == vec_map::size(&self.volatility_timestamps), ERAMMNewAssetFailure);
+
         assert!(n == vec_map::size(&self.balances), ERAMMNewAssetFailure);
         assert!(n == bag::length(&self.typed_balances), ERAMMNewAssetFailure);
+
         assert!(n == vec_map::size(&self.lp_tokens_issued), ERAMMNewAssetFailure);
         assert!(n == bag::length(&self.typed_lp_tokens_issued), ERAMMNewAssetFailure);
-        assert!(n == vec_map::size(&self.deposits_enabled), ERAMMNewAssetFailure);
-        assert!(n == bag::length(&self.collected_protocol_fees), ERAMMNewAssetFailure);
-        assert!(n == vec_map::size(&self.types_to_indexes), ERAMMNewAssetFailure);
-        assert!(n == vec_map::size(&self.factors_for_balances), ERAMMNewAssetFailure);
     }
 
     /// Initialize a RAMM pool.
@@ -525,17 +579,23 @@ module ramm_sui::ramm {
         let index_map_size = vec_map::size(&self.types_to_indexes);
         assert!(
             index_map_size > 0 &&
-            index_map_size == vec_map::size(&self.aggregator_addrs) &&
-            index_map_size == vec_map::size(&self.balances) &&
             index_map_size == bag::length(&self.collected_protocol_fees) &&
+
             index_map_size == vec_map::size(&self.deposits_enabled) &&
             index_map_size == vec_map::size(&self.factors_for_balances) &&
-            index_map_size == vec_map::size(&self.lp_tokens_issued) &&
             index_map_size == vec_map::size(&self.minimum_trade_amounts) &&
-            index_map_size == bag::length(&self.typed_balances) &&
-            index_map_size == bag::length(&self.typed_lp_tokens_issued) &&
+
+            index_map_size == vec_map::size(&self.aggregator_addrs) &&
+            index_map_size == vec_map::size(&self.previous_prices) &&
+            index_map_size == vec_map::size(&self.previous_price_timestamps) &&
             index_map_size == vec_map::size(&self.volatility_indices) &&
-            index_map_size == vec_map::size(&self.volatility_timestamps),
+            index_map_size == vec_map::size(&self.volatility_timestamps) &&
+
+            index_map_size == vec_map::size(&self.balances) &&
+            index_map_size == bag::length(&self.typed_balances) &&
+
+            index_map_size == vec_map::size(&self.lp_tokens_issued) &&
+            index_map_size == bag::length(&self.typed_lp_tokens_issued),
             ERAMMInvalidInitState
         );
 
@@ -629,12 +689,35 @@ module ramm_sui::ramm {
         object::id(self)
     }
 
+    /*
+    -----------------------------
+    Administration `Cap`abilities
+    -----------------------------
+    */
+
     /// Admin cap
     
     /// Return the ID of the RAMM's admin capability.
     public(friend) fun get_admin_cap_id(self: &RAMM): ID {
         self.admin_cap_id
     }
+
+    /// New asset cap
+    
+    /// Returns:
+    ///
+    /// * `option::some(id)`, where `id: ID` is the ID of the RAMM's new asset capability, *if*
+    ///    the RAMM has already been initialized
+    /// * `option::none()` if the RAMM has already been initialized.
+    public(friend) fun get_new_asset_cap_id(self: &RAMM): Option<ID> {
+        self.new_asset_cap_id
+    }
+
+    /*
+    --------------
+    Fee collection
+    --------------
+    */
 
     /// Fee collector address
 
@@ -655,233 +738,51 @@ module ramm_sui::ramm {
         self.fee_collector = new_fee_addr;
     }
 
-    /// Aggregator addresses
-
-    /// Given a RAMM and the index of one of its assets, return the `address` of
-    /// the `Aggregator` used for pricing information for that asset.
+    /// Obtain the untyped (`u64`) value of fees collected by the RAMM for a certain asset.
     ///
-    /// # Aborts
-    ///
-    /// If the provided index does not match any existing asset's.
-    fun get_aggr_addr(self: &RAMM, index: u8): address {
-        *vec_map::get(&self.aggregator_addrs, &index)
+    /// To be used only by other functions in this module.
+    fun get_fees<Asset>(self: &RAMM, index: u8): u64 {
+        let fee_balance: &Balance<Asset> = bag::borrow<u8, Balance<Asset>>(&self.collected_protocol_fees, index);
+        balance::value(fee_balance)
     }
 
-    /// Return the Switchboard aggregator address for a given asset.
-    public(friend) fun get_aggregator_address<Asset>(self: &RAMM): address {
+    /// Returns the untyped (`u64`) value of fees collected by the RAMM for a given asset.
+    public(friend) fun get_collected_protocol_fees<Asset>(self: &RAMM): u64 {
         let ix = get_asset_index<Asset>(self);
-        get_aggr_addr(self, ix)
+        get_fees<Asset>(self, ix)
     }
 
-    /// Volatility indices
-
-    /// Given a RAMM and the index of one of its assets, return its latest calculated volatility
-    /// index.
+    /// Internal function to retrieve fees for an asset.
     ///
-    /// If none has yet been calculated, it'll be 0.
+    /// It returns a `Balance<Asset>` with the RAMM's fees, and leaves behind a zero `Balance`
+    /// in the `Bag` the RAMM uses to store fees.
     ///
-    /// # Aborts
+    /// The reason it does this:
     ///
-    /// If the provided index does not match any existing asset's.
-    fun get_vol_ix(self: &RAMM, index: u8): u256 {
-        *vec_map::get(&self.volatility_indices, &index)
+    /// * The size of the bag with collected fees should always be equal to the number of assets
+    ///   in the RAMM;
+    /// * as such, instead of removing the `Balance` struct, it is mutably borrowed, and then
+    ///   `balance::split` in such a way that
+    ///   - `balance::zero<Asset>` is left in the bag
+    ///   - the original balance is returned
+    public(friend) fun get_fees_for_asset<Asset>(self: &mut RAMM, ix: u8): Balance<Asset> {
+        let mut_bal: &mut Balance<Asset> =
+            bag::borrow_mut<u8, Balance<Asset>>(&mut self.collected_protocol_fees, ix);
+        let curr_fee = balance::value(mut_bal);
+        balance::split(mut_bal, curr_fee)
     }
 
-    /// Return an asset's most recent volatility index (0 if none has yet been calculated).
-    public(friend) fun get_volatility_index<Asset>(self: &RAMM): u256 {
-        let ix = get_asset_index<Asset>(self);
-        get_vol_ix(self, ix)
+    /// Increase the RAMM's collected fees for a certain asset given a `Balance` of it.
+    public(friend) fun join_protocol_fees<Asset>(self: &mut RAMM, index: u8, fee: Balance<Asset>) {
+        let fee_bal = bag::borrow_mut<u8, Balance<Asset>>(&mut self.collected_protocol_fees, index);
+        balance::join(fee_bal, fee);
     }
 
-    /// Volatility index timestamps
-
-    /// Given a RAMM and the index of one of its assets, return the timestamp of its
-    /// latest volatility index. If none has yet been calculated, it'll be 0.
-    ///
-    /// # Aborts
-    ///
-    /// If the provided index does not match any existing asset's.
-    fun get_vol_tmstmp(self: &RAMM, index: u8): u256 {
-        *vec_map::get(&self.volatility_timestamps, &index)
-    }
-
-    /// Return the timestamp of an asset's most recent volatility index (0 if none yet exists).
-    public(friend) fun get_volatility_timestamp<Asset>(self: &RAMM): u256 {
-        let ix = get_asset_index<Asset>(self);
-        get_vol_tmstmp(self, ix)
-    }
-
-    /// Balances
-
-    /// Get an asset's typed balance, meaning the untyped, pure scalar value (`u256`) used
-    /// internally by the RAMM to represent an asset's balance.
-    public(friend) fun get_bal(self: &RAMM, index: u8): u256 {
-        *vec_map::get(&self.balances, &index)
-    }
-
-    /// Getter for an asset's untyped balance.
-    /// The asset index is not passed in, but instead obtained through the type parameter for safety.
-    public(friend) fun get_balance<Asset>(self: &RAMM): u256 {
-        let ix = get_asset_index<Asset>(self);
-        get_bal(self, ix)
-    }
-
-    /// Getter to mutable reference to an asset's untyped balance.
-    fun get_mut_bal(self: &mut RAMM, index: u8): &mut u256 {
-        vec_map::get_mut(&mut self.balances, &index)
-    }
-
-    /// Increment an asset's untyped balance by a given amount.
-    ///
-    /// It is the caller's responsibility to ensure this change is also
-    /// reflected in, or is a reflection of, equivalent changes in the asset's typed
-    /// balance.
-    public(friend) fun join_bal(self: &mut RAMM, index: u8, bal: u256) {
-        let asset_bal: &mut u256 = get_mut_bal(self, index);
-        *asset_bal = *asset_bal + bal;
-    }
-
-    /// Decrement an asset's untyped balance by a given amount.
-    ///
-    /// It is the caller's responsibility to ensure this change is also
-    /// reflected in, or is a reflection of, equivalent changes in the asset's typed
-    /// balance.
-    public(friend) fun split_bal(self: &mut RAMM, index: u8, val: u256) {
-        let asset_bal: &mut u256 = get_mut_bal(self, index);
-        *asset_bal = *asset_bal - val;
-    }
-
-    /// Typed Balances
-
-    /// Internal getter for an asset's typed balance, with the asset index passed in
-    /// and not calculated.
-    fun get_typed_bal<Asset>(self: &RAMM, index: u8): u256 {
-        (balance::value(bag::borrow<u8, Balance<Asset>>(&self.typed_balances, index)) as u256)
-    }
-
-    /// Getter for an asset's typed balance.
-    /// The asset index is not passed in, but instead obtained through the type parameter for safety.
-    public(friend) fun get_typed_balance<Asset>(self: &RAMM): u256 {
-        let ix = get_asset_index<Asset>(self);
-        get_typed_bal<Asset>(self, ix)
-    }
-
-    fun get_mut_typed_bal<Asset>(self: &mut RAMM, index: u8): &mut Balance<Asset> {
-        bag::borrow_mut<u8, Balance<Asset>>(&mut self.typed_balances, index)
-    }
-
-    /// Increment an asset's typed balance by a given amount.
-    ///
-    /// It is the caller's responsibility to ensure this change is also
-    /// reflected in, or is a reflection of, equivalent changes in the asset's untyped
-    /// balance.
-    public(friend) fun join_typed_bal<Asset>(self: &mut RAMM, index: u8, bal: Balance<Asset>) {
-        let asset_bal: &mut Balance<Asset> = get_mut_typed_bal(self, index);
-        balance::join(asset_bal, bal);
-    }
-
-    /// Decrement an asset's typed balance by a given amount, returning the deducted
-    /// `Balance`.
-    ///
-    /// It is the caller's responsibility to ensure this change is also
-    /// reflected in, or is a reflection of, equivalent changes in the asset's untyped
-    /// balance.
-    public(friend) fun split_typed_bal<Asset>(self: &mut RAMM, index: u8, val: u64): Balance<Asset> {
-        let asset_bal: &mut Balance<Asset> = get_mut_typed_bal(self, index);
-        balance::split(asset_bal, val)
-    }
-
-    /// LP Tokens Issued
-
-    /// Given an asset's index, return how many LP tokens for that asset are currently
-    /// in circulation.
-    ///
-    /// # Aborts
-    ///
-    /// * If the provided index matches no asset
-    fun get_lptok_issued(self: &RAMM, index: u8): u256 {
-        *vec_map::get(&self.lp_tokens_issued, &index)
-    }
-
-    /// Given an asset, return how many LP tokens for that asset are currently
-    /// in circulation.
-    ///
-    /// # Aborts
-    ///
-    /// * If the provided asset does not exist in the RAMM.
-    public(friend) fun get_lptokens_issued<Asset>(self: &RAMM): u256 {
-        let ix = get_asset_index<Asset>(self);
-        get_lptok_issued(self, ix)
-    }
-
-    /// Update untyped count of issued LP tokens for a given asset.
-    ///
-    /// It is the user's responsibility to ensure that there is also an
-    /// update to the typed count for this token.
-    public(friend) fun incr_lptokens_issued<Asset>(self: &mut RAMM, minted: u64) {
-        let ix = get_asset_index<Asset>(self);
-        let lptoks = vec_map::get_mut(&mut self.lp_tokens_issued, &ix);
-        *lptoks = *lptoks + (minted as u256);
-    }
-
-    /// Update untyped count of issued LP tokens for a given asset.
-    ///
-    /// It is the user's responsibility to ensure that there is also an
-    /// update to the typed count for this token.
-    public(friend) fun decr_lptokens_issued<Asset>(self: &mut RAMM, burned: u64) {
-        let ix = get_asset_index<Asset>(self);
-        let lptoks = vec_map::get_mut(&mut self.lp_tokens_issued, &ix);
-        *lptoks = *lptoks - (burned as u256);
-    }
-
-    /// Typed LP Tokens Issued
-
-    /// Given an asset, return a *mutable* reference to the `Supply` used to
-    /// tally/mint/burn the RAMM's LP tokens for that asset.
-    ///
-    /// Internal use only!
-    fun get_lptoken_supply<Asset>(self: &mut RAMM): &mut Supply<LP<Asset>> {
-        let ix = get_asset_index<Asset>(self);
-        bag::borrow_mut<u8, Supply<LP<Asset>>>(&mut self.typed_lp_tokens_issued, ix)
-    }
-
-    /// Given an asset's index, return the untyped count of issued LP tokens for that asset.
-    ///
-    /// # Aborts
-    ///
-    /// * If the index does not index any asset.
-    fun get_typed_lptok_issued<Asset>(self: &RAMM, index: u8): u256 {
-        let supply = bag::borrow<u8, Supply<LP<Asset>>>(&self.typed_lp_tokens_issued, index);
-        (balance::supply_value(supply) as u256)
-    }
-
-    /// Given an asset, return the untyped count of issued LP tokens for that asset.
-    ///
-    /// # Aborts
-    ///
-    /// * If the RAMM does not contain the provided asset
-    public(friend) fun get_typed_lptokens_issued<Asset>(self: &RAMM): u256 {
-        let ix = get_asset_index<Asset>(self);
-        get_typed_lptok_issued<Asset>(self, ix)
-    }
-
-    /// Mint LP tokens for a given asset, in a given amount.
-    ///
-    /// It's is the user's responsibility to ensure that there is also an
-    /// update to the untyped LP token count for this token.
-    public(friend) fun mint_lp_tokens<Asset>(self: &mut RAMM, amount: u64): Balance<LP<Asset>> {
-        let supply = get_lptoken_supply<Asset>(self);
-        balance::increase_supply(supply, amount)
-    }
-
-    /// Burn a given amount of LP tokens for a given asset.
-    ///
-    /// It's is the user's responsibility to ensure that there is also an
-    /// update to the untyped LP token count for this token.
-    public(friend) fun burn_lp_tokens<Asset>(self: &mut RAMM, lp_tokens: Balance<LP<Asset>>): u64 {
-        let supply = get_lptoken_supply<Asset>(self);
-        balance::decrease_supply(supply, lp_tokens)
-    }
+    /*
+    --------------
+    Asset metadata
+    --------------
+    */
 
     /// Minimum trading amounts
 
@@ -976,44 +877,268 @@ module ramm_sui::ramm {
         can_deposit_asset(self, ix)
     }
 
-    /// Obtain the untyped (`u64`) value of fees collected by the RAMM for a certain asset.
+    /*
+    -----------------------------------
+    Oracle data and Pricing Information
+    -----------------------------------
+    */
+
+    /// Aggregator addresses
+
+    /// Given a RAMM and the index of one of its assets, return the `address` of
+    /// the `Aggregator` used for pricing information for that asset.
     ///
-    /// To be used only by other functions in this module.
-    fun get_fees<Asset>(self: &RAMM, index: u8): u64 {
-        let fee_balance: &Balance<Asset> = bag::borrow<u8, Balance<Asset>>(&self.collected_protocol_fees, index);
-        balance::value(fee_balance)
+    /// # Aborts
+    ///
+    /// If the provided index does not match any existing asset's.
+    fun get_aggr_addr(self: &RAMM, index: u8): address {
+        *vec_map::get(&self.aggregator_addrs, &index)
     }
 
-    /// Returns the untyped (`u64`) value of fees collected by the RAMM for a given asset.
-    public(friend) fun get_collected_protocol_fees<Asset>(self: &RAMM): u64 {
+    /// Return the Switchboard aggregator address for a given asset.
+    public(friend) fun get_aggregator_address<Asset>(self: &RAMM): address {
         let ix = get_asset_index<Asset>(self);
-        get_fees<Asset>(self, ix)
+        get_aggr_addr(self, ix)
     }
 
-    /// Internal function to retrieve fees for an asset.
-    ///
-    /// It returns a `Balance<Asset>` with the RAMM's fees, and leaves behind a zero `Balance`
-    /// in the `Bag` the RAMM uses to store fees.
-    ///
-    /// The reason it does this:
-    ///
-    /// * The size of the bag with collected fees should always be equal to the number of assets
-    ///   in the RAMM;
-    /// * as such, instead of removing the `Balance` struct, it is mutably borrowed, and then
-    ///   `balance::split` in such a way that
-    ///   - `balance::zero<Asset>` is left in the bag
-    ///   - the original balance is returned
-    public(friend) fun get_fees_for_asset<Asset>(self: &mut RAMM, ix: u8): Balance<Asset> {
-        let mut_bal: &mut Balance<Asset> =
-            bag::borrow_mut<u8, Balance<Asset>>(&mut self.collected_protocol_fees, ix);
-        let curr_fee = balance::value(mut_bal);
-        balance::split(mut_bal, curr_fee)
+    fun get_prev_prc(self: &RAMM, index: u8): u256 {
+        *vec_map::get(&self.previous_prices, &index)
     }
 
-    /// Increase the RAMM's collected fees for a certain asset given a `Balance` of it.
-    public(friend) fun join_protocol_fees<Asset>(self: &mut RAMM, index: u8, fee: Balance<Asset>) {
-        let fee_bal = bag::borrow_mut<u8, Balance<Asset>>(&mut self.collected_protocol_fees, index);
-        balance::join(fee_bal, fee);
+    public(friend) fun get_previous_price<Asset>(self: &RAMM): u256 {
+        let ix = get_asset_index<Asset>(self);
+        get_prev_prc(self, ix)
+    }
+
+    fun get_prev_prc_tmstmp(self: &RAMM, index: u8): u256 {
+        *vec_map::get(&self.previous_price_timestamps, &index)
+    }
+
+    public(friend) fun get_previous_price_timestamp<Asset>(self: &RAMM): u256 {
+        let ix = get_asset_index<Asset>(self);
+        get_prev_prc_tmstmp(self, ix)
+    }
+
+    /// Volatility indices
+
+    /// Given a RAMM and the index of one of its assets, return its latest calculated volatility
+    /// index.
+    ///
+    /// If none has yet been calculated, it'll be 0.
+    ///
+    /// # Aborts
+    ///
+    /// If the provided index does not match any existing asset's.
+    fun get_vol_ix(self: &RAMM, index: u8): u256 {
+        *vec_map::get(&self.volatility_indices, &index)
+    }
+
+    /// Return an asset's most recent volatility index (0 if none has yet been calculated).
+    public(friend) fun get_volatility_index<Asset>(self: &RAMM): u256 {
+        let ix = get_asset_index<Asset>(self);
+        get_vol_ix(self, ix)
+    }
+
+    /// Volatility index timestamps
+
+    /// Given a RAMM and the index of one of its assets, return the timestamp of its
+    /// latest volatility index. If none has yet been calculated, it'll be 0.
+    ///
+    /// # Aborts
+    ///
+    /// If the provided index does not match any existing asset's.
+    fun get_vol_tmstmp(self: &RAMM, index: u8): u256 {
+        *vec_map::get(&self.volatility_timestamps, &index)
+    }
+
+    /// Return the timestamp of an asset's most recent volatility index (0 if none yet exists).
+    public(friend) fun get_volatility_timestamp<Asset>(self: &RAMM): u256 {
+        let ix = get_asset_index<Asset>(self);
+        get_vol_tmstmp(self, ix)
+    }
+
+    /*
+    ------------------
+    Asset balance data
+    ------------------
+    */
+
+    /// Untyped balances
+
+    /// Get an asset's typed balance, meaning the untyped, pure scalar value (`u256`) used
+    /// internally by the RAMM to represent an asset's balance.
+    public(friend) fun get_bal(self: &RAMM, index: u8): u256 {
+        *vec_map::get(&self.balances, &index)
+    }
+
+    /// Getter for an asset's untyped balance.
+    /// The asset index is not passed in, but instead obtained through the type parameter for safety.
+    public(friend) fun get_balance<Asset>(self: &RAMM): u256 {
+        let ix = get_asset_index<Asset>(self);
+        get_bal(self, ix)
+    }
+
+    /// Getter to mutable reference to an asset's untyped balance.
+    fun get_mut_bal(self: &mut RAMM, index: u8): &mut u256 {
+        vec_map::get_mut(&mut self.balances, &index)
+    }
+
+    /// Increment an asset's untyped balance by a given amount.
+    ///
+    /// It is the caller's responsibility to ensure this change is also
+    /// reflected in, or is a reflection of, equivalent changes in the asset's typed
+    /// balance.
+    public(friend) fun join_bal(self: &mut RAMM, index: u8, bal: u256) {
+        let asset_bal: &mut u256 = get_mut_bal(self, index);
+        *asset_bal = *asset_bal + bal;
+    }
+
+    /// Decrement an asset's untyped balance by a given amount.
+    ///
+    /// It is the caller's responsibility to ensure this change is also
+    /// reflected in, or is a reflection of, equivalent changes in the asset's typed
+    /// balance.
+    public(friend) fun split_bal(self: &mut RAMM, index: u8, val: u256) {
+        let asset_bal: &mut u256 = get_mut_bal(self, index);
+        *asset_bal = *asset_bal - val;
+    }
+
+    /// Typed Balances
+
+    /// Internal getter for an asset's typed balance, with the asset index passed in
+    /// and not calculated.
+    fun get_typed_bal<Asset>(self: &RAMM, index: u8): u256 {
+        (balance::value(bag::borrow<u8, Balance<Asset>>(&self.typed_balances, index)) as u256)
+    }
+
+    /// Getter for an asset's typed balance.
+    /// The asset index is not passed in, but instead obtained through the type parameter for safety.
+    public(friend) fun get_typed_balance<Asset>(self: &RAMM): u256 {
+        let ix = get_asset_index<Asset>(self);
+        get_typed_bal<Asset>(self, ix)
+    }
+
+    fun get_mut_typed_bal<Asset>(self: &mut RAMM, index: u8): &mut Balance<Asset> {
+        bag::borrow_mut<u8, Balance<Asset>>(&mut self.typed_balances, index)
+    }
+
+    /// Increment an asset's typed balance by a given amount.
+    ///
+    /// It is the caller's responsibility to ensure this change is also
+    /// reflected in, or is a reflection of, equivalent changes in the asset's untyped
+    /// balance.
+    public(friend) fun join_typed_bal<Asset>(self: &mut RAMM, index: u8, bal: Balance<Asset>) {
+        let asset_bal: &mut Balance<Asset> = get_mut_typed_bal(self, index);
+        balance::join(asset_bal, bal);
+    }
+
+    /// Decrement an asset's typed balance by a given amount, returning the deducted
+    /// `Balance`.
+    ///
+    /// It is the caller's responsibility to ensure this change is also
+    /// reflected in, or is a reflection of, equivalent changes in the asset's untyped
+    /// balance.
+    public(friend) fun split_typed_bal<Asset>(self: &mut RAMM, index: u8, val: u64): Balance<Asset> {
+        let asset_bal: &mut Balance<Asset> = get_mut_typed_bal(self, index);
+        balance::split(asset_bal, val)
+    }
+
+    /*
+    -----------------
+    LP Token issuance
+    -----------------
+    */
+
+    /// LP Tokens Issued
+
+    /// Given an asset's index, return how many LP tokens for that asset are currently
+    /// in circulation.
+    ///
+    /// # Aborts
+    ///
+    /// * If the provided index matches no asset
+    fun get_lptok_issued(self: &RAMM, index: u8): u256 {
+        *vec_map::get(&self.lp_tokens_issued, &index)
+    }
+
+    /// Given an asset, return how many LP tokens for that asset are currently
+    /// in circulation.
+    ///
+    /// # Aborts
+    ///
+    /// * If the provided asset does not exist in the RAMM.
+    public(friend) fun get_lptokens_issued<Asset>(self: &RAMM): u256 {
+        let ix = get_asset_index<Asset>(self);
+        get_lptok_issued(self, ix)
+    }
+
+    /// Update untyped count of issued LP tokens for a given asset.
+    ///
+    /// It is the user's responsibility to ensure that there is also an
+    /// update to the typed count for this token.
+    public(friend) fun incr_lptokens_issued<Asset>(self: &mut RAMM, minted: u64) {
+        let ix = get_asset_index<Asset>(self);
+        let lptoks = vec_map::get_mut(&mut self.lp_tokens_issued, &ix);
+        *lptoks = *lptoks + (minted as u256);
+    }
+
+    /// Update untyped count of issued LP tokens for a given asset.
+    ///
+    /// It is the user's responsibility to ensure that there is also an
+    /// update to the typed count for this token.
+    public(friend) fun decr_lptokens_issued<Asset>(self: &mut RAMM, burned: u64) {
+        let ix = get_asset_index<Asset>(self);
+        let lptoks = vec_map::get_mut(&mut self.lp_tokens_issued, &ix);
+        *lptoks = *lptoks - (burned as u256);
+    }
+
+    /// Typed LP Tokens Issued
+
+    /// Given an asset, return a *mutable* reference to the `Supply` used to
+    /// tally/mint/burn the RAMM's LP tokens for that asset.
+    ///
+    /// Internal use only!
+    fun get_lptoken_supply<Asset>(self: &mut RAMM): &mut Supply<LP<Asset>> {
+        let ix = get_asset_index<Asset>(self);
+        bag::borrow_mut<u8, Supply<LP<Asset>>>(&mut self.typed_lp_tokens_issued, ix)
+    }
+
+    /// Given an asset's index, return the untyped count of issued LP tokens for that asset.
+    ///
+    /// # Aborts
+    ///
+    /// * If the index does not index any asset.
+    fun get_typed_lptok_issued<Asset>(self: &RAMM, index: u8): u256 {
+        let supply = bag::borrow<u8, Supply<LP<Asset>>>(&self.typed_lp_tokens_issued, index);
+        (balance::supply_value(supply) as u256)
+    }
+
+    /// Given an asset, return the untyped count of issued LP tokens for that asset.
+    ///
+    /// # Aborts
+    ///
+    /// * If the RAMM does not contain the provided asset
+    public(friend) fun get_typed_lptokens_issued<Asset>(self: &RAMM): u256 {
+        let ix = get_asset_index<Asset>(self);
+        get_typed_lptok_issued<Asset>(self, ix)
+    }
+
+    /// Mint LP tokens for a given asset, in a given amount.
+    ///
+    /// It's is the user's responsibility to ensure that there is also an
+    /// update to the untyped LP token count for this token.
+    public(friend) fun mint_lp_tokens<Asset>(self: &mut RAMM, amount: u64): Balance<LP<Asset>> {
+        let supply = get_lptoken_supply<Asset>(self);
+        balance::increase_supply(supply, amount)
+    }
+
+    /// Burn a given amount of LP tokens for a given asset.
+    ///
+    /// It's is the user's responsibility to ensure that there is also an
+    /// update to the untyped LP token count for this token.
+    public(friend) fun burn_lp_tokens<Asset>(self: &mut RAMM, lp_tokens: Balance<LP<Asset>>): u64 {
+        let supply = get_lptoken_supply<Asset>(self);
+        balance::decrease_supply(supply, lp_tokens)
     }
 
     /// Type indexes
