@@ -441,4 +441,75 @@ module ramm_sui::math {
 
         (scaled_fee, scaled_leverage)
     }
+
+    /// Returns the volatility fee as a `u256` with `prec` decimal places.
+    ///
+    /// The value will represent a percentage i.e. a value between `0` and `one`, where
+    /// `one` is the value `1` with `prec` decimal places.
+    public(friend) fun compute_volatility_fee(
+        asset_index: u8,
+        previous_price: u256,
+        previous_price_timestamp: u256,
+        new_price: u256,
+        new_price_timestamp: u256,
+        current_volatility_param: u256,
+        current_volatility_timestamp: u256,
+        volatility_params: &mut VecMap<u8, u256>,
+        volatility_timestamps: &mut VecMap<u8, u256>,
+        prec: u8,
+        max_prec: u8,
+        one: u256,
+        // maximum trade size, `const` defined in main module
+        mu: u256,
+        base_fee: u256,
+        // length of sliding window in seconds, `const` defined in main module
+        tau: u256
+    ): u256 {
+        // A price change of roughly 0.17% should be enough to trigger a volatility fee.
+        let maximum_tolerable_change: u256 =
+            mul3(
+                2 * one,
+                mul3(one - mu, one - mu,one - mu, prec, max_prec),
+                base_fee,
+                prec,
+                max_prec
+            );
+        let volatility_result: u256 = {
+            // In case the time difference between price data is above our defined
+            // threshold of 1 minute (60 seconds)
+            if (new_price_timestamp - previous_price_timestamp > tau) {
+                0
+            }
+            // In case the previous and current price data are not too far apart
+            else {
+                // Sui Move doesn't support negative numbers, so the below check is required
+                // to avoid aborting the program when performing the subtraction
+                let price_change: &mut u256 = &mut 0;
+                if (new_price >= previous_price) {
+                    *price_change = (new_price - previous_price) * one / previous_price;
+                } else {
+                    *price_change = (previous_price - new_price) * one / previous_price;
+                };
+
+                let price_change_param: u256 = 0;
+                if (*price_change > maximum_tolerable_change) {
+                    price_change_param = *price_change;
+                };
+
+                let volat_param_updated: u256 = current_volatility_param;
+                if (new_price_timestamp - current_volatility_timestamp > tau) {
+                    volat_param_updated = 0;
+                };
+                if (price_change_param >= volat_param_updated) {
+                    *vec_map::get_mut(volatility_params, &asset_index) = price_change_param;
+                    *vec_map::get_mut(volatility_timestamps, &asset_index) = new_price_timestamp;
+                    price_change_param
+                } else {
+                    volat_param_updated
+                }
+            }
+        };
+
+        volatility_result
+    }
 }

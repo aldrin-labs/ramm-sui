@@ -66,6 +66,10 @@ module ramm_sui::ramm {
     /// Here, mu = 0.05, meaning trades cannot use more than 5% of the RAMM's balances at once.
     const MU: u256 = 5 * 1_000_000_000_000 / 100; // _MU * 10**(PRECISION_DECIMAL_PLACES-2)
 
+    /// Value, in seconds, of the maximum permitted difference between oracle price information
+    /// that will trigger a volatility parameter update.
+    const TAU: u256 = 60;
+
     /// Base fee in basis points:
     ///
     /// A value of 10 means 0.001 or 0.1%
@@ -225,10 +229,10 @@ module ramm_sui::ramm {
         // map between each asset's index and the timesstamp of its most recently queried price,
         previous_price_timestamps: VecMap<u8, u256>,
         // map between each asset's index and the highest recorded volatility index in
-        // the last `MAX_TIMESTAMP_DIFF` seconds
+        // the last `TAU` seconds.
         volatility_indices: VecMap<u8, u256>,
         // map between each asset's index and the timestamp of its highest recorded
-        // volatility in the last `MAX_TIMESTAMP_DIFF` seconds
+        // volatility in the last `TAU` seconds.
         volatility_timestamps: VecMap<u8, u256>,
 
         /*
@@ -1442,6 +1446,35 @@ module ramm_sui::ramm {
             BASE_LEVERAGE,
             PRECISION_DECIMAL_PLACES,
             MAX_PRECISION_DECIMAL_PLACES,
+        )
+    }
+
+    /// Returns the volatility fee as a `u256` with `PRECISION_DECIMAL_PLACES` decimal places.
+    ///
+    /// The value will represent a percentage i.e. a value between `0` and `ONE`, where
+    /// `ONE` is the value `1` with `PRECISION_DECIMAL_PLACES` decimal places.
+    fun compute_volatility_fee(
+        self: &mut RAMM,
+        asset_index: u8,
+        new_price: u256,
+        new_price_timestamp: u256
+    ): u256 {
+        ramm_math::compute_volatility_fee(
+            asset_index,
+            get_prev_prc(self, asset_index),
+            get_prev_prc_tmstmp(self, asset_index),
+            new_price,
+            new_price_timestamp,
+            get_vol_ix(self, asset_index),
+            get_vol_tmstmp(self, asset_index),
+            &mut self.volatility_indices,
+            &mut self.volatility_timestamps,
+            PRECISION_DECIMAL_PLACES,
+            MAX_PRECISION_DECIMAL_PLACES,
+            ONE,
+            MU,
+            BASE_FEE,
+            TAU
         )
     }
 
