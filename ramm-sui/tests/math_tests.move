@@ -18,24 +18,28 @@ module ramm_sui::math_tests {
     const PRECISION_DECIMAL_PLACES: u8 = 12;
     const MAX_PRECISION_DECIMAL_PLACES: u8 = 25;
     const LP_TOKENS_DECIMAL_PLACES: u8 = 9;
-
     // FACTOR = 10**(PRECISION_DECIMAL_PLACES-LP_TOKENS_DECIMAL_PLACES)
     const FACTOR_LPT: u256 = 1_000_000_000_000 / 1_000_000_000;
-
     const ONE: u256 = 1_000_000_000_000;
 
     /// Miguel's note:
-    /// Maximum permitted deviation of the imbalance ratios from 1.0. 2 decimal places
-    /// are considered.
     ///
-    /// Hence DELTA=25 is interpreted as 0.25
+    /// * Maximum permitted deviation of the imbalance ratios from 1.0.
+    /// * 2 decimal places are considered.
+    ///
+    /// Hence, DELTA=25 is interpreted as 0.25
     const DELTA: u256 = 25 * 1_000_000_000_000 / 100; // DELTA = _DELTA * 10**(PRECISION_DECIMAL_PLACES-2)
+    /// Value mu \in ]0, 1[ that dictates the maximum size a trade can have.
+    /// Here, mu = 0.05, meaning trades cannot use more than 5% of the RAMM's balances at once.
+    const MU: u256 = 5 * 1_000_000_000_000 / 100; // _MU * 10**(PRECISION_DECIMAL_PLACES-2)
+    /// Value, in seconds, of the maximum permitted difference between oracle price information
+    /// that will trigger a volatility parameter update.
+    const TAU: u256 = 60;
 
     const BASE_FEE: u256 = 10 * 1_000_000_000_000 / 10000; // _BASE_FEE * 10**(PRECISION_DECIMAL_PLACES-4)
     const PROTOCOL_FEE: u256 = 30 * 1_000_000_000_000 / 100;
+    const BASE_LEVERAGE: u256 = 100 * 1_000_000_000_000; // BASE_LEVERAGE = _BASE_LEVERAGE * ONE
 
-    // BASE_LEVERAGE = _BASE_LEVERAGE * ONE
-    const BASE_LEVERAGE: u256 = 100 * 1_000_000_000_000;
 
     #[test]
     fun test_switchboard_decimal() {
@@ -1165,5 +1169,370 @@ module ramm_sui::math_tests {
         );
 
         assert!(!imbalance_ratios_check, EInvalidImbalanceRatios);
+    }
+
+    // ---------------------
+    // Volatility fee checks
+    // ---------------------
+
+    /*
+    IMPORTANT NOTE
+
+    Like above for `check_imbalance_ratios`, the domain for `compute_volatility_fee` is
+    divided into mutually disjoint sets that produce different results, which should
+    allow the function's behavior to be tested in each of them.
+
+    Assume that
+
+    * the RAMM has been initialized:
+        * the state for each asset has both a previous price and its timestamp, and
+        * the state for each asset has both a previous volatility parameter and its timestamp
+    * `compute_volatility_fee` is called with information freshly queried from an asset's pricing
+      oracle:
+        * the most recent price, and its timestamp
+
+    The cases are as follows:
+
+    1. The newest price information is more than `TAU` seconds away from the last
+       recorded price information
+            Result: the volatility fee to be applied is 0
+            State changes: the RAMM's internal state will not change
+    2. The newest price information is within `TAU` seconds from the most recently
+       recorded price information
+        2.1 The newest price information is within `TAU` seconds from the most recently
+            recorded volatility information
+            2.1.1 The price change is under the set threshold of 0.17%
+                Result: the price change as the volatility fee
+                State change: the RAMM's state will not change
+            2.1.2 The price change is equal to 0.17%
+                Result: the price change as the volatility fee
+                State change:
+                    * the asset's volatility parameter is updated to the calculated parameter
+                    * the asset's parameter timestamp is updated to the newest price's
+            2.1.3 The price change is over the set threshold of 0.17%
+                Result: the price change as the volatility fee
+                State change:
+                    * the asset's volatility parameter is updated to the calculated parameter
+                    * the asset's parameter timestamp is updated to the newest price's
+        2.2 The newest price information is more than `TAU` seconds from the most recently
+            recorded volatility information
+            2.2.1 The price change is under the set threshold of 0.17%
+                Result: the price change as the volatility fee
+                State change:
+                    * the asset's volatility parameter is updated to the calculated parameter
+                    * the asset's parameter timestamp is updated to the newest price's
+            2.2.2 The price change is equal to 0.17%
+                Result: the price change as the volatility fee
+                State change:
+                    * the asset's volatility parameter is updated to the calculated parameter
+                    * the asset's parameter timestamp is updated to the newest price's
+            2.2.3 The price change is over the set threshold of 0.17%
+                Result: the price change as the volatility fee
+                State change:
+                    * the asset's volatility parameter is updated to the calculated parameter
+                    * the asset's parameter timestamp is updated to the newest price's
+    */
+
+    #[test]
+    /// Test for volatility fee calculation; corresponds to case 1 above.
+    fun compute_volatility_fee_case_1() {
+        let previous_price: u256 = 1000;
+        let previous_price_timestamp: u256 = 30;
+        let new_price: u256 = 1001;
+        let new_price_timestamp: u256 = 60;
+        let stored_volatility_param: &mut u256 = &mut 0;
+        let stored_volatility_timestamp: &mut u256 = &mut 15;
+
+        let previous_volatility_param: u256 = *stored_volatility_param;
+        let _previous_volatility_timestamp: u256 = *stored_volatility_timestamp;
+
+        let calculated_volatility_fee: u256 = ramm_math::compute_volatility_fee(
+            previous_price,
+            previous_price_timestamp,
+            new_price,
+            new_price_timestamp,
+            stored_volatility_param,
+            stored_volatility_timestamp,
+            PRECISION_DECIMAL_PLACES,
+            MAX_PRECISION_DECIMAL_PLACES,
+            ONE,
+            MU,
+            BASE_FEE,
+            TAU
+        );
+
+        let current_volatility_param: u256 = *stored_volatility_param;
+        let current_volatility_timestamp: u256 = *stored_volatility_timestamp;
+
+        test_utils::assert_eq(calculated_volatility_fee, 0);
+        test_utils::assert_eq(current_volatility_param, previous_volatility_param);
+        test_utils::assert_eq(current_volatility_timestamp, new_price_timestamp);
+    }
+
+    #[test]
+    /// Case in which
+    /// * a sufficiently volatile price change occurs within `TAU` seconds since the last
+    ///   volatility check, and
+    /// * there are more than `TAU` seconds between the newest price, and the most recently
+    ///   calculated volatility parameter, and
+    /// * the calculated volatility parameter is below the most recently stored parameter.
+    ///
+    /// Test for volatility fee calculation; corresponds to case 2.2.1 above.
+    fun compute_volatility_fee_case_2_2_1() {
+        let previous_price: u256 = 1000;
+        let previous_price_timestamp: u256 = 20;
+        let new_price: u256 = 1040;
+        let new_price_timestamp: u256 = 80;
+        let stored_volatility_param: &mut u256 = &mut 50_000_000_000;
+        let stored_volatility_timestamp: &mut u256 = &mut 15;
+
+        let _previous_volatility_param: u256 = *stored_volatility_param;
+        let _previous_volatility_timestamp: u256 = *stored_volatility_timestamp;
+
+        let calculated_volatility_fee: u256 = ramm_math::compute_volatility_fee(
+            previous_price,
+            previous_price_timestamp,
+            new_price,
+            new_price_timestamp,
+            stored_volatility_param,
+            stored_volatility_timestamp,
+            PRECISION_DECIMAL_PLACES,
+            MAX_PRECISION_DECIMAL_PLACES,
+            ONE,
+            MU,
+            BASE_FEE,
+            TAU
+        );
+
+        let current_volatility_param: u256 = *stored_volatility_param;
+        let current_volatility_timestamp: u256 = *stored_volatility_timestamp;
+
+        test_utils::assert_eq(calculated_volatility_fee, 4 * ONE / 100);
+        test_utils::assert_eq(current_volatility_param, 4 * ONE / 100);
+        test_utils::assert_eq(current_volatility_timestamp, new_price_timestamp);
+    }
+
+    #[test]
+    /// Case in which
+    /// * a sufficiently volatile price change occurs within `TAU` seconds since the last
+    ///   volatility check, and
+    /// * there are more than `TAU` seconds between the newest price, and the most recently
+    ///   calculated volatility parameter, and
+    /// * the calculated volatility parameter equals the most recently stored parameter.
+    ///
+    /// Test for volatility fee calculation; corresponds to case 2.2.2 above.
+    fun compute_volatility_fee_case_2_2_2() {
+        let previous_price: u256 = 1000;
+        let previous_price_timestamp: u256 = 20;
+        let new_price: u256 = 1050;
+        let new_price_timestamp: u256 = 80;
+        let stored_volatility_param: &mut u256 = &mut 50_000_000_000;
+        let stored_volatility_timestamp: &mut u256 = &mut 15;
+
+        let _previous_volatility_param: u256 = *stored_volatility_param;
+        let _previous_volatility_timestamp: u256 = *stored_volatility_timestamp;
+
+        let calculated_volatility_fee: u256 = ramm_math::compute_volatility_fee(
+            previous_price,
+            previous_price_timestamp,
+            new_price,
+            new_price_timestamp,
+            stored_volatility_param,
+            stored_volatility_timestamp,
+            PRECISION_DECIMAL_PLACES,
+            MAX_PRECISION_DECIMAL_PLACES,
+            ONE,
+            MU,
+            BASE_FEE,
+            TAU
+        );
+
+        let current_volatility_param: u256 = *stored_volatility_param;
+        let current_volatility_timestamp: u256 = *stored_volatility_timestamp;
+
+        test_utils::assert_eq(calculated_volatility_fee, 5 * ONE / 100);
+        test_utils::assert_eq(current_volatility_param, calculated_volatility_fee);
+        test_utils::assert_eq(current_volatility_timestamp, new_price_timestamp);
+    }
+
+    #[test]
+    /// Case in which
+    /// * a sufficiently volatile price change occurs within `TAU` seconds since the last
+    ///   volatility check, and
+    /// * there are more than `TAU` seconds between the newest price, and the most recently
+    ///   calculated volatility parameter, and
+    /// * the calculated volatility parameter exceeds this most recently stored parameter.
+    ///
+    /// Corresponds to case 2.2.3.
+    fun compute_volatility_fee_2_2_3() {
+        let previous_price: u256 = 1000;
+        let previous_price_timestamp: u256 = 20;
+        let new_price: u256 = 1050;
+        let new_price_timestamp: u256 = 80;
+        let stored_volatility_param: &mut u256 = &mut 40_000_000_000;
+        let stored_volatility_timestamp: &mut u256 = &mut 15;
+
+        let _previous_volatility_param: u256 = *stored_volatility_param;
+        let _previous_volatility_timestamp: u256 = *stored_volatility_timestamp;
+
+        let calculated_volatility_fee: u256 = ramm_math::compute_volatility_fee(
+            previous_price,
+            previous_price_timestamp,
+            new_price,
+            new_price_timestamp,
+            stored_volatility_param,
+            stored_volatility_timestamp,
+            PRECISION_DECIMAL_PLACES,
+            MAX_PRECISION_DECIMAL_PLACES,
+            ONE,
+            MU,
+            BASE_FEE,
+            TAU
+        );
+
+        let current_volatility_param: u256 = *stored_volatility_param;
+        let current_volatility_timestamp: u256 = *stored_volatility_timestamp;
+
+        test_utils::assert_eq(calculated_volatility_fee, 5 * ONE / 100);
+        test_utils::assert_eq(current_volatility_param, calculated_volatility_fee);
+        test_utils::assert_eq(current_volatility_timestamp, new_price_timestamp);
+    }
+
+    #[test]
+    /// Case in which
+    /// * a sufficiently volatile price change occurs within `TAU` seconds since the last
+    ///   volatility check, and
+    /// * the most recently calculated volatility parameter is younger than `TAU` seconds, and
+    /// * the calculated volatility parameter is less than this most recently stored
+    ///   parameter.
+    ///
+    /// Corresponds to case 2.1.1.
+    fun compute_volatility_fee_case_2_1_1() {
+        let previous_price: u256 = 1000;
+        let previous_price_timestamp: u256 = 0;
+        // the price increases by 5%, which do not exceed the previous 10%
+        let new_price: u256 = 1050;
+        // the new price is obtained `TAU` seconds after the previous
+        let new_price_timestamp: u256 = 60;
+        // 0.10, or 10%
+        let stored_volatility_param: &mut u256 = &mut 100_000_000_000;
+        let stored_volatility_timestamp: &mut u256 = &mut 20;
+
+        let _previous_volatility_param: u256 = *stored_volatility_param;
+        let previous_volatility_timestamp: u256 = *stored_volatility_timestamp;
+
+        let calculated_volatility_fee: u256 = ramm_math::compute_volatility_fee(
+            previous_price,
+            previous_price_timestamp,
+            new_price,
+            new_price_timestamp,
+            stored_volatility_param,
+            stored_volatility_timestamp,
+            PRECISION_DECIMAL_PLACES,
+            MAX_PRECISION_DECIMAL_PLACES,
+            ONE,
+            MU,
+            BASE_FEE,
+            TAU
+        );
+
+        let current_volatility_param: u256 = *stored_volatility_param;
+        let current_volatility_timestamp: u256 = *stored_volatility_timestamp;
+
+        test_utils::assert_eq(calculated_volatility_fee, 100_000_000_000);
+        test_utils::assert_eq(current_volatility_param, calculated_volatility_fee);
+        test_utils::assert_eq(current_volatility_timestamp, previous_volatility_timestamp);
+    }
+
+    #[test]
+    /// Case in which
+    /// * a sufficiently volatile price change occurs within `TAU` seconds since the last
+    ///   volatility check, and
+    /// * the most recently calculated volatility parameter is younger than `TAU` seconds, and
+    /// * the calculated volatility parameter equals this most recently stored
+    ///   parameter.
+    ///
+    /// Corresponds to case 2.1.2.
+    fun compute_volatility_fee_case_2_1_2() {
+        let previous_price: u256 = 1000;
+        let previous_price_timestamp: u256 = 0;
+        // the price increases by 5%, which equals the previously recorded 5% for this asset
+        let new_price: u256 = 1050;
+        // the new price is obtained `TAU` seconds after the previous
+        let new_price_timestamp: u256 = 60;
+        // 0.10, or 10%
+        let stored_volatility_param: &mut u256 = &mut 50_000_000_000;
+        let stored_volatility_timestamp: &mut u256 = &mut 20;
+
+        let _previous_volatility_param: u256 = *stored_volatility_param;
+        let _previous_volatility_timestamp: u256 = *stored_volatility_timestamp;
+
+        let calculated_volatility_fee: u256 = ramm_math::compute_volatility_fee(
+            previous_price,
+            previous_price_timestamp,
+            new_price,
+            new_price_timestamp,
+            stored_volatility_param,
+            stored_volatility_timestamp,
+            PRECISION_DECIMAL_PLACES,
+            MAX_PRECISION_DECIMAL_PLACES,
+            ONE,
+            MU,
+            BASE_FEE,
+            TAU
+        );
+
+        let current_volatility_param: u256 = *stored_volatility_param;
+        let current_volatility_timestamp: u256 = *stored_volatility_timestamp;
+
+        test_utils::assert_eq(calculated_volatility_fee, 50_000_000_000);
+        test_utils::assert_eq(current_volatility_param, calculated_volatility_fee);
+        test_utils::assert_eq(current_volatility_timestamp, current_volatility_timestamp);
+    }
+
+    #[test]
+    /// Case in which
+    /// * a sufficiently volatile price change occurs within `TAU` seconds since the last
+    ///   volatility check, and
+    /// * the most recently calculated volatility parameter is younger than `TAU` seconds, and
+    /// * the calculated volatility parameter exceeds this most recently stored
+    ///   parameter.
+    ///
+    /// Corresponds to case 2.1.3.
+    fun compute_volatility_fee_case_2_1_3() {
+        let previous_price: u256 = 1050;
+        let previous_price_timestamp: u256 = 0;
+        // the price drops by 10%, which exceeds the previous 5%
+        let new_price: u256 = 945;
+        // the new price is obtained over `TAU` seconds after the previous
+        let new_price_timestamp: u256 = 60;
+        // 0.05, or 5%
+        let stored_volatility_param: &mut u256 = &mut 50_000_000_000;
+        let stored_volatility_timestamp: &mut u256 = &mut 45;
+
+        let _previous_volatility_param: u256 = *stored_volatility_param;
+        let _previous_volatility_timestamp: u256 = *stored_volatility_timestamp;
+
+        let calculated_volatility_fee: u256 = ramm_math::compute_volatility_fee(
+            previous_price,
+            previous_price_timestamp,
+            new_price,
+            new_price_timestamp,
+            stored_volatility_param,
+            stored_volatility_timestamp,
+            PRECISION_DECIMAL_PLACES,
+            MAX_PRECISION_DECIMAL_PLACES,
+            ONE,
+            MU,
+            BASE_FEE,
+            TAU
+        );
+
+        let current_volatility_param: u256 = *stored_volatility_param;
+        let current_volatility_timestamp: u256 = *stored_volatility_timestamp;
+
+        test_utils::assert_eq(calculated_volatility_fee, 100_000_000_000);
+        test_utils::assert_eq(current_volatility_param, calculated_volatility_fee);
+        test_utils::assert_eq(current_volatility_timestamp, new_price_timestamp);
     }
 }

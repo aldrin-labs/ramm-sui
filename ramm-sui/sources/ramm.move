@@ -54,7 +54,8 @@ module ramm_sui::ramm {
     const MAX_PRECISION_DECIMAL_PLACES: u8 = 25;
     /// Decimal places that LP tokens will be using; may yet change.
     const LP_TOKENS_DECIMAL_PLACES: u8 = 9;
-
+    /// Factor to apply to LP token amounts during calculations.
+    const FACTOR_LPT: u256 = 1_000_000_000_000 / 1_000_000_000; // FACTOR_LPT = 10**(PRECISION_DECIMAL_PLACES-LP_TOKENS_DECIMAL_PLACES)
     /// Value of `1` using `PRECISION_DECIMAL_PLACES`; useful to scale other values to
     /// the baseline precision.
     ///
@@ -62,39 +63,35 @@ module ramm_sui::ramm {
     /// `ONE` will need to be hardcoded.
     const ONE: u256 = 1_000_000_000_000;
 
+    /// Miguel's note:
+    ///
+    /// * Maximum permitted deviation of the imbalance ratios from 1.0.
+    /// * 2 decimal places are considered.
+    ///
+    /// Hence, DELTA=25 is interpreted as 0.25
+    const DELTA: u256 = 25 * 1_000_000_000_000 / 100; // DELTA = _DELTA * 10**(PRECISION_DECIMAL_PLACES-2)
     /// Value mu \in ]0, 1[ that dictates the maximum size a trade can have.
     /// Here, mu = 0.05, meaning trades cannot use more than 5% of the RAMM's balances at once.
     const MU: u256 = 5 * 1_000_000_000_000 / 100; // _MU * 10**(PRECISION_DECIMAL_PLACES-2)
-
     /// Value, in seconds, of the maximum permitted difference between oracle price information
     /// that will trigger a volatility parameter update.
     const TAU: u256 = 60;
-
-    /// Base fee in basis points:
+    /// Leverage in the RAMM serves to offer better prices to trade(r)s that help rebalance the
+    /// pool's balances than to those that further unbalance it.
     ///
-    /// A value of 10 means 0.001 or 0.1%
-    const BASE_FEE: u256 = 10 * 1_000_000_000_000 / 10000; // _BASE_FEE * 10**(PRECISION_DECIMAL_PLACES-4)
+    /// A value of `100` for the base leverage means 100% of the theoretically expected liquidity
+    /// for a given trade will be used - this is then used to calculate the trade's dynamic leverage.
+    const BASE_LEVERAGE: u256 = 100 * 1_000_000_000_000; // BASE_LEVERAGE = _BASE_LEVERAGE * ONE
 
+    /// Base fee in basis points: a value of 10 means 0.001 or 0.1%
+    const BASE_FEE: u256 = 10 * 1_000_000_000_000 / 10000; // _BASE_FEE * 10**(PRECISION_DECIMAL_PLACES-4)
     /// Liquidity withdrawal fee; a value of 40 means 0.004, or 0.4%.
+    ///
     /// This will be a protocol fee, meaning that the amount charged will not go to the pool, but 
     /// instead will be kept aside for the protocol owners.
     const LIQ_WTHDRWL_FEE: u256 = 40 * 1_000_000_000_000 / 10000; // _LIQ_WTHDRWL_FEE * 10**(PRECISION_DECIMAL_PLACES-4)
-
-    // BASE_LEVERAGE = _BASE_LEVERAGE * ONE
-    const BASE_LEVERAGE: u256 = 100 * 1_000_000_000_000;
-
     /// 30% of collected base fees go to the RAMM.
     const PROTOCOL_FEE: u256 = 30 * 1_000_000_000_000 / 100; // PROTOCOL_FEE = _PROTOCOL_FEE*10**(PRECISION_DECIMAL_PLACES-2)
-
-    /// Miguel's note:
-    /// Maximum permitted deviation of the imbalance ratios from 1.0.
-    /// 2 decimal places are considered.
-    ///
-    /// Hence DELTA=25 is interpreted as 0.25
-    const DELTA: u256 = 25 * 1_000_000_000_000 / 100; // DELTA = _DELTA * 10**(PRECISION_DECIMAL_PLACES-2)
-
-    // FACTOR_LPT = 10**(PRECISION_DECIMAL_PLACES-LP_TOKENS_DECIMAL_PLACES)
-    const FACTOR_LPT: u256 = 1_000_000_000_000 / 1_000_000_000;
 
     /// ---------------------
     /// End of math constants
@@ -1460,15 +1457,12 @@ module ramm_sui::ramm {
         new_price_timestamp: u256
     ): u256 {
         ramm_math::compute_volatility_fee(
-            asset_index,
             get_prev_prc(self, asset_index),
             get_prev_prc_tmstmp(self, asset_index),
             new_price,
             new_price_timestamp,
-            get_vol_ix(self, asset_index),
-            get_vol_tmstmp(self, asset_index),
-            &mut self.volatility_indices,
-            &mut self.volatility_timestamps,
+            vec_map::get_mut(&mut self.volatility_indices, &asset_index),
+            vec_map::get_mut(&mut self.volatility_timestamps, &asset_index),
             PRECISION_DECIMAL_PLACES,
             MAX_PRECISION_DECIMAL_PLACES,
             ONE,

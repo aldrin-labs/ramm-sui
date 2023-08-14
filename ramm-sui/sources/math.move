@@ -447,15 +447,15 @@ module ramm_sui::math {
     /// The value will represent a percentage i.e. a value between `0` and `one`, where
     /// `one` is the value `1` with `prec` decimal places.
     public(friend) fun compute_volatility_fee(
-        asset_index: u8,
         previous_price: u256,
         previous_price_timestamp: u256,
         new_price: u256,
         new_price_timestamp: u256,
-        current_volatility_param: u256,
-        current_volatility_timestamp: u256,
-        volatility_params: &mut VecMap<u8, u256>,
-        volatility_timestamps: &mut VecMap<u8, u256>,
+        // mutable reference to most recently stored volatility parameter for given asset
+        stored_volatility_param: &mut u256,
+        // mutable reference to timestamp of most recently stored volatility parameter for
+        // given asset
+        stored_volatility_timestamp: &mut u256,
         prec: u8,
         max_prec: u8,
         one: u256,
@@ -465,6 +465,9 @@ module ramm_sui::math {
         // length of sliding window in seconds, `const` defined in main module
         tau: u256
     ): u256 {
+        let current_volatility_param: u256 = *stored_volatility_param;
+        let current_volatility_timestamp: u256 = *stored_volatility_timestamp;
+
         // A price change of roughly 0.17% should be enough to trigger a volatility fee.
         let maximum_tolerable_change: u256 =
             mul3(
@@ -501,8 +504,8 @@ module ramm_sui::math {
                     volat_param_updated = 0;
                 };
                 if (price_change_param >= volat_param_updated) {
-                    *vec_map::get_mut(volatility_params, &asset_index) = price_change_param;
-                    *vec_map::get_mut(volatility_timestamps, &asset_index) = new_price_timestamp;
+                    *stored_volatility_param = price_change_param;
+                    *stored_volatility_timestamp = new_price_timestamp;
                     price_change_param
                 } else {
                     volat_param_updated
