@@ -70,10 +70,25 @@ module ramm_sui::interface2 {
         // of locking the oracle object only to have the tx abort anyway.
         ramm::check_trade_amount_in<AssetIn>(self, (coin::value(&amount_in) as u256));
 
-        let asset_prices = vec_map::empty<u8, u256>();
+        let new_asset_prices = vec_map::empty<u8, u256>();
         let factors_for_prices = vec_map::empty<u8, u256>();
-        ramm::check_feed_and_get_price(self, i, feed_in, &mut asset_prices, &mut factors_for_prices);
-        ramm::check_feed_and_get_price(self, o, feed_out, &mut asset_prices, &mut factors_for_prices);
+        let new_price_timestamps = vec_map::empty<u8, u64>();
+        ramm::check_feed_and_get_price(
+            self,
+            i,
+            feed_in,
+            &mut new_asset_prices,
+            &mut factors_for_prices,
+            &mut new_price_timestamps
+        );
+        ramm::check_feed_and_get_price(
+            self,
+            o,
+            feed_out,
+            &mut new_asset_prices,
+            &mut factors_for_prices,
+            &mut new_price_timestamps
+        );
 
         let amount_in_u64: u64 = coin::value(&amount_in);
         let trade: TradeOutput = ramm::trade_i<AssetIn, AssetOut>(
@@ -81,8 +96,9 @@ module ramm_sui::interface2 {
             i,
             o,
             (amount_in_u64 as u256),
-            asset_prices,
-            factors_for_prices
+            new_asset_prices,
+            factors_for_prices,
+            &new_price_timestamps
         );
 
         let amount_out_u256: u256 = ramm::amount(&trade);
@@ -176,17 +192,32 @@ module ramm_sui::interface2 {
         // of locking the oracle object only to have the tx abort anyway.
         ramm::check_trade_amount_out<AssetOut>(self, (amount_out as u256));
 
-        let asset_prices = vec_map::empty<u8, u256>();
+        let new_asset_prices = vec_map::empty<u8, u256>();
         let factors_for_prices = vec_map::empty<u8, u256>();
-        ramm::check_feed_and_get_price(self, i, feed_in, &mut asset_prices, &mut factors_for_prices);
-        ramm::check_feed_and_get_price(self, o, feed_out, &mut asset_prices, &mut factors_for_prices);
+        let new_price_timestamps = vec_map::empty<u8, u64>();
+        ramm::check_feed_and_get_price(
+            self,
+            i,
+            feed_in,
+            &mut new_asset_prices,
+            &mut factors_for_prices,
+            &mut new_price_timestamps
+        );
+        ramm::check_feed_and_get_price(
+            self,
+            o,
+            feed_out,
+            &mut new_asset_prices,
+            &mut factors_for_prices,
+            &mut new_price_timestamps
+        );
 
         let trade: TradeOutput = ramm::trade_o<AssetIn, AssetOut>(
             self,
             i,
             o,
             amount_out,
-            asset_prices,
+            new_asset_prices,
             factors_for_prices
         );
 
@@ -279,12 +310,27 @@ module ramm_sui::interface2 {
 
         let oth = ramm::get_asset_index<Other>(self);
 
-        let asset_prices = vec_map::empty<u8, u256>();
+        let new_asset_prices = vec_map::empty<u8, u256>();
         let factors_for_prices = vec_map::empty<u8, u256>();
-        ramm::check_feed_and_get_price(self, i, feed_in, &mut asset_prices, &mut factors_for_prices);
-        ramm::check_feed_and_get_price(self, oth, other, &mut asset_prices, &mut factors_for_prices);
+        let new_price_timestamps = vec_map::empty<u8, u64>();
+        ramm::check_feed_and_get_price(
+            self,
+            i,
+            feed_in,
+            &mut new_asset_prices,
+            &mut factors_for_prices,
+            &mut new_price_timestamps
+        );
+        ramm::check_feed_and_get_price(
+            self,
+            oth,
+            other,
+            &mut new_asset_prices,
+            &mut factors_for_prices,
+            &mut new_price_timestamps
+        );
 
-        let lpt: u64 = ramm::liq_dep<AssetIn>(self, i, coin::value(&amount_in), asset_prices, factors_for_prices);
+        let lpt: u64 = ramm::liq_dep<AssetIn>(self, i, coin::value(&amount_in), new_asset_prices, factors_for_prices);
 
         if (lpt == 0) {
             let amount_in_u64: u64 = coin::value(&amount_in);
@@ -347,10 +393,25 @@ module ramm_sui::interface2 {
         // be specified, and the type of the outgoing asset as well, separately.
         let o   = ramm::get_asset_index<AssetOut>(self);
 
-        let asset_prices = vec_map::empty<u8, u256>();
+        let new_asset_prices = vec_map::empty<u8, u256>();
         let factors_for_prices = vec_map::empty<u8, u256>();
-        ramm::check_feed_and_get_price(self, fst, feed1, &mut asset_prices, &mut factors_for_prices);
-        ramm::check_feed_and_get_price(self, snd, feed2, &mut asset_prices, &mut factors_for_prices);
+        let new_price_timestamps = vec_map::empty<u8, u64>();
+        ramm::check_feed_and_get_price(
+            self,
+            fst,
+            feed1,
+            &mut new_asset_prices,
+            &mut factors_for_prices,
+            &mut new_price_timestamps
+        );
+        ramm::check_feed_and_get_price(
+            self,
+            snd,
+            feed2,
+            &mut new_asset_prices,
+            &mut factors_for_prices,
+            &mut new_price_timestamps
+        );
 
         let lpt_u64: u64 = coin::value(&lp_token);
         let factor_o: u256 = ramm::get_fact_for_bal(self, o);
@@ -359,7 +420,7 @@ module ramm_sui::interface2 {
                 self,
                 o,
                 lpt_u64,
-                asset_prices,
+                new_asset_prices,
                 factors_for_prices,
             );
 

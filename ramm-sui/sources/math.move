@@ -45,11 +45,17 @@ module ramm_sui::math {
         res
     }
 
-    /// Convert an `switchboard::aggregator::SwitchboardDecimal` to a `u256`.
+    /// Given a `switchboard::aggregator::SwitchboardDecimal`, returns:
+    /// * the price as a `u256`
+    /// * the scaling factor by which the price can be multiplied in order to bring it to `prec`
+    ///   decimal places of precision
     ///
     /// # Aborts
     ///
-    /// If the `SwitchboardDecimal`'s `neg`ative flag was set to `true`.
+    /// * If the `SwitchboardDecimal`'s `neg`ative flag was set to `true`.
+    /// * If the `SwitchboardDecimal`'s `scaling_factor` is more than `prec`; in practice
+    ///   this will not happen because it can be at most `9`; see documentation for
+    ///   `SwitchboardDecimal`
     public(friend) fun sbd_to_price_info(sbd: sb_math::SwitchboardDecimal, prec: u8): (u256, u256) {
         let (value, scaling_factor, neg) = sb_math::unpack(sbd);
         assert!(!neg, ENegativeSbD);
@@ -448,14 +454,14 @@ module ramm_sui::math {
     /// `one` is the value `1` with `prec` decimal places.
     public(friend) fun compute_volatility_fee(
         previous_price: u256,
-        previous_price_timestamp: u256,
+        previous_price_timestamp: u64,
         new_price: u256,
-        new_price_timestamp: u256,
+        new_price_timestamp: u64,
         // mutable reference to most recently stored volatility parameter for given asset
-        stored_volatility_param: &mut u256,
+        current_volatility_param: u256,
         // mutable reference to timestamp of most recently stored volatility parameter for
         // given asset
-        stored_volatility_timestamp: &mut u256,
+        current_volatility_timestamp: u64,
         prec: u8,
         max_prec: u8,
         one: u256,
@@ -463,11 +469,8 @@ module ramm_sui::math {
         mu: u256,
         base_fee: u256,
         // length of sliding window in seconds, `const` defined in main module
-        tau: u256
+        tau: u64
     ): u256 {
-        let current_volatility_param: u256 = *stored_volatility_param;
-        let current_volatility_timestamp: u256 = *stored_volatility_timestamp;
-
         // A price change of roughly 0.17% should be enough to trigger a volatility fee.
         let maximum_tolerable_change: u256 =
             mul3(
@@ -477,42 +480,82 @@ module ramm_sui::math {
                 prec,
                 max_prec
             );
-        let volatility_result: u256 = {
-            // In case the time difference between price data is above our defined
-            // threshold of 1 minute (60 seconds)
-            if (new_price_timestamp - previous_price_timestamp > tau) {
-                0
-            }
-            // In case the previous and current price data are not too far apart
-            else {
-                // Sui Move doesn't support negative numbers, so the below check is required
-                // to avoid aborting the program when performing the subtraction
-                let price_change: &mut u256 = &mut 0;
-                if (new_price >= previous_price) {
-                    *price_change = (new_price - previous_price) * one / previous_price;
-                } else {
-                    *price_change = (previous_price - new_price) * one / previous_price;
-                };
 
-                let price_change_param: u256 = 0;
-                if (*price_change > maximum_tolerable_change) {
-                    price_change_param = *price_change;
-                };
+        // In case the time difference between price data is above our defined
+        // threshold of 1 minute (60 seconds)
+        if (new_price_timestamp - previous_price_timestamp > tau) {
+            0
+        }
+        // In case the previous and current price data are not too far apart
+        else {
+            // Sui Move doesn't support negative numbers, so the below check is required
+            // to avoid aborting the program when performing the subtraction
+            let price_change: u256;
+            if (new_price >= previous_price) {
+                price_change = (new_price - previous_price) * one / previous_price;
+            } else {
+                price_change = (previous_price - new_price) * one / previous_price;
+            };
 
-                let volat_param_updated: u256 = current_volatility_param;
-                if (new_price_timestamp - current_volatility_timestamp > tau) {
-                    volat_param_updated = 0;
-                };
-                if (price_change_param >= volat_param_updated) {
-                    *stored_volatility_param = price_change_param;
-                    *stored_volatility_timestamp = new_price_timestamp;
+            let price_change_param: u256;
+            if (price_change > maximum_tolerable_change) {
+                price_change_param = price_change;
+            } else {
+                price_change_param = 0;
+            };
+
+            if (new_price_timestamp - current_volatility_timestamp > tau) {
+                price_change_param
+            } else {
+                if (price_change_param >= current_volatility_param) {
                     price_change_param
                 } else {
-                    volat_param_updated
+                    current_volatility_param
                 }
             }
+        }
+    }
+
+    public(friend) fun update_volatility_fee(
+        previous_price: u256,
+        previous_price_timestamp: u64,
+        new_price: u256,
+        new_price_timestamp: u64,
+        // mutable reference to most recently stored volatility parameter for given asset
+        stored_volatility_param: &mut u256,
+        // mutable reference to timestamp of most recently stored volatility parameter for
+        // given asset
+        stored_volatility_timestamp: &mut u64,
+        // volatility calculated from all the above parameters
+        calculated_volatility_fee: u256,
+        one: u256,
+        // length of sliding window in seconds, `const` defined in main module
+        tau: u64
+    ) {
+        let current_volatility_param: u256 = *stored_volatility_param;
+        let current_volatility_timestamp: u64 = *stored_volatility_timestamp;
+
+        let price_change: u256;
+        if (new_price >= previous_price) {
+            price_change = (new_price - previous_price) * one / previous_price;
+        } else {
+            price_change = (previous_price - new_price) * one / previous_price;
         };
 
-        volatility_result
+        // In case the time difference between price data is below our defined
+        // threshold of 1 minute (60 seconds)
+        if (new_price_timestamp - previous_price_timestamp <= tau) {
+            // if the currently recorded volatility data is older then `TAU`, then
+            // unconditionally update it
+            if (new_price_timestamp - current_volatility_timestamp > tau) {
+                *stored_volatility_param = calculated_volatility_fee;
+                *stored_volatility_timestamp = new_price_timestamp;
+            } else {
+                if (current_volatility_param <= price_change) {
+                    *stored_volatility_param = calculated_volatility_fee;
+                    *stored_volatility_timestamp = new_price_timestamp;
+                } else {};
+            }
+        }
     }
 }

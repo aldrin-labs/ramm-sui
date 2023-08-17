@@ -75,7 +75,7 @@ module ramm_sui::ramm {
     const MU: u256 = 5 * 1_000_000_000_000 / 100; // _MU * 10**(PRECISION_DECIMAL_PLACES-2)
     /// Value, in seconds, of the maximum permitted difference between oracle price information
     /// that will trigger a volatility parameter update.
-    const TAU: u256 = 60;
+    const TAU: u64 = 60;
     /// Leverage in the RAMM serves to offer better prices to trade(r)s that help rebalance the
     /// pool's balances than to those that further unbalance it.
     ///
@@ -224,13 +224,13 @@ module ramm_sui::ramm {
         // from the asset's `Aggregator`, whose address is in `aggregator_addrs`
         previous_prices: VecMap<u8, u256>,
         // map between each asset's index and the timesstamp of its most recently queried price,
-        previous_price_timestamps: VecMap<u8, u256>,
+        previous_price_timestamps: VecMap<u8, u64>,
         // map between each asset's index and the highest recorded volatility index in
         // the last `TAU` seconds.
         volatility_indices: VecMap<u8, u256>,
         // map between each asset's index and the timestamp of its highest recorded
         // volatility in the last `TAU` seconds.
-        volatility_timestamps: VecMap<u8, u256>,
+        volatility_timestamps: VecMap<u8, u64>,
 
         /*
         ------------------
@@ -418,9 +418,9 @@ module ramm_sui::ramm {
 
                 aggregator_addrs: vec_map::empty<u8, address>(),
                 previous_prices: vec_map::empty<u8, u256>(),
-                previous_price_timestamps: vec_map::empty<u8, u256>(),
+                previous_price_timestamps: vec_map::empty<u8, u64>(),
                 volatility_indices: vec_map::empty<u8, u256>(),
-                volatility_timestamps: vec_map::empty<u8, u256>(),
+                volatility_timestamps: vec_map::empty<u8, u64>(),
 
                 balances: vec_map::empty<u8, u256>(),
                 typed_balances: bag::new(ctx),
@@ -469,9 +469,9 @@ module ramm_sui::ramm {
 
         assert!(vec_map::is_empty<u8, address>(&ramm.aggregator_addrs), ERAMMInvalidInitState);
         assert!(vec_map::is_empty<u8, u256>(&ramm.previous_prices), ERAMMInvalidInitState);
-        assert!(vec_map::is_empty<u8, u256>(&ramm.previous_price_timestamps), ERAMMInvalidInitState);   
+        assert!(vec_map::is_empty<u8, u64>(&ramm.previous_price_timestamps), ERAMMInvalidInitState);
         assert!(vec_map::is_empty<u8, u256>(&ramm.volatility_indices), ERAMMInvalidInitState);
-        assert!(vec_map::is_empty<u8, u256>(&ramm.volatility_timestamps), ERAMMInvalidInitState);   
+        assert!(vec_map::is_empty<u8, u64>(&ramm.volatility_timestamps), ERAMMInvalidInitState);
 
         assert!(vec_map::is_empty<u8, u256>(&ramm.balances), ERAMMInvalidInitState);
         assert!(bag::is_empty(&ramm.typed_balances), ERAMMInvalidInitState);
@@ -911,11 +911,11 @@ module ramm_sui::ramm {
         get_prev_prc(self, ix)
     }
 
-    fun get_prev_prc_tmstmp(self: &RAMM, index: u8): u256 {
+    fun get_prev_prc_tmstmp(self: &RAMM, index: u8): u64 {
         *vec_map::get(&self.previous_price_timestamps, &index)
     }
 
-    public(friend) fun get_previous_price_timestamp<Asset>(self: &RAMM): u256 {
+    public(friend) fun get_previous_price_timestamp<Asset>(self: &RAMM): u64 {
         let ix = get_asset_index<Asset>(self);
         get_prev_prc_tmstmp(self, ix)
     }
@@ -948,12 +948,12 @@ module ramm_sui::ramm {
     /// # Aborts
     ///
     /// If the provided index does not match any existing asset's.
-    fun get_vol_tmstmp(self: &RAMM, index: u8): u256 {
+    fun get_vol_tmstmp(self: &RAMM, index: u8): u64 {
         *vec_map::get(&self.volatility_timestamps, &index)
     }
 
     /// Return the timestamp of an asset's most recent volatility index (0 if none yet exists).
-    public(friend) fun get_volatility_timestamp<Asset>(self: &RAMM): u256 {
+    public(friend) fun get_volatility_timestamp<Asset>(self: &RAMM): u64 {
         let ix = get_asset_index<Asset>(self);
         get_vol_tmstmp(self, ix)
     }
@@ -1287,29 +1287,37 @@ module ramm_sui::ramm {
     /// This function is not public, as it is NOT safe to call this *without*
     /// first checking that the aggregator's address matches the RAMM's records
     /// for the given asset.
-    public(friend) fun get_price_from_oracle(feed: &Aggregator): (u256, u256) {
+    public(friend) fun get_price_from_oracle(feed: &Aggregator): (u256, u256, u64) {
         // the timestamp can be used in the future to check for price staleness
-        let (latest_result, _latest_timestamp) = aggregator::latest_value(feed);
+        let (latest_result, latest_timestamp) = aggregator::latest_value(feed);
         // do something with the below, most likely scale it to our needs
-        ramm_math::sbd_to_price_info(latest_result, PRECISION_DECIMAL_PLACES)
+        let (price, scaling) = ramm_math::sbd_to_price_info(latest_result, PRECISION_DECIMAL_PLACES);
+
+        (price, scaling, latest_timestamp)
     }
 
     /// Verify that the address of the pricing feed for a certain asset matches the
     /// one supplied when the asset was initialized in the RAMM.
     ///
-    /// If it is, fetch its price, and add it to the mapping from asset
-    /// indexes to their prices provided as argument.
+    /// If it is, fetch its price and that price's timestamp, and add it to the mappings
+    /// * from asset indices to their prices
+    /// * from asset indices to their prices' timestamps
+    /// * from asset indices to their prices' scaling factors
+    ///
+    /// These maps are passed into the function as mutable arguments.
     public(friend) fun check_feed_and_get_price(
         self: &RAMM,
         ix: u8,
         feed: &Aggregator,
         prices: &mut VecMap<u8, u256>,
         factors_for_prices: &mut VecMap<u8, u256>,
+        price_timestamps: &mut VecMap<u8, u64>,
     ) {
         assert!(check_feed_address(self, ix, feed), EInvalidAggregator);
-        let (price, factor_for_price) = get_price_from_oracle(feed);
+        let (price, factor_for_price, price_timestamp) = get_price_from_oracle(feed);
         vec_map::insert(prices, ix, price);
         vec_map::insert(factors_for_prices, ix, factor_for_price);
+        vec_map::insert(price_timestamps, ix, price_timestamp);
     }
 
     /// ----------------------------------
@@ -1451,23 +1459,43 @@ module ramm_sui::ramm {
     /// The value will represent a percentage i.e. a value between `0` and `ONE`, where
     /// `ONE` is the value `1` with `PRECISION_DECIMAL_PLACES` decimal places.
     fun compute_volatility_fee(
-        self: &mut RAMM,
+        self: &RAMM,
         asset_index: u8,
         new_price: u256,
-        new_price_timestamp: u256
+        new_price_timestamp: u64
     ): u256 {
         ramm_math::compute_volatility_fee(
             get_prev_prc(self, asset_index),
             get_prev_prc_tmstmp(self, asset_index),
             new_price,
             new_price_timestamp,
-            vec_map::get_mut(&mut self.volatility_indices, &asset_index),
-            vec_map::get_mut(&mut self.volatility_timestamps, &asset_index),
+            *vec_map::get(&self.volatility_indices, &asset_index),
+            *vec_map::get(&self.volatility_timestamps, &asset_index),
             PRECISION_DECIMAL_PLACES,
             MAX_PRECISION_DECIMAL_PLACES,
             ONE,
             MU,
             BASE_FEE,
+            TAU
+        )
+    }
+
+    public(friend) fun update_volatility_fee(
+        self: &mut RAMM,
+        asset_index: u8,
+        new_price: u256,
+        new_price_timestamp: u64,
+        calculated_volatility_fee: u256
+    )  {
+        ramm_math::update_volatility_fee(
+            get_prev_prc(self, asset_index),
+            get_prev_prc_tmstmp(self, asset_index),
+            new_price,
+            new_price_timestamp,
+            vec_map::get_mut(&mut self.volatility_indices, &asset_index),
+            vec_map::get_mut(&mut self.volatility_timestamps, &asset_index),
+            calculated_volatility_fee,
+            ONE,
             TAU
         )
     }
