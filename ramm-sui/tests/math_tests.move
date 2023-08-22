@@ -1179,7 +1179,7 @@ module ramm_sui::math_tests {
     IMPORTANT NOTE
 
     Like above for `check_imbalance_ratios`, the domains for the functions
-    `compute_volatility_fee` and `update_volatility_fee` are divided into mutually disjoint
+    `compute_volatility_fee` and `update_volatility_data` are divided into mutually disjoint
     sets that produce different results, which should allow the functions' result/behavior to be
     exhaustively tested in each of them.
 
@@ -1195,7 +1195,7 @@ module ramm_sui::math_tests {
     The cases for `compute_volatility_fee` are as follows:
         1. The newest price information is more than `TAU` seconds away from the last
         recorded price information
-                Result: the volatility fee to be applied is 0
+            Result: the volatility fee to be applied is 0
         2. The newest price information is within `TAU` seconds from the most recently
         recorded price information
             2.1 The newest price information is within `TAU` seconds from the most recently
@@ -1472,7 +1472,7 @@ module ramm_sui::math_tests {
 
         1. The newest price information is more than `TAU` seconds away from the last
         recorded price information
-                State changes: the RAMM's internal state will not change
+            State changes: the RAMM's internal state will not change
         2. The newest price information is within `TAU` seconds from the most recently
         recorded price information
             2.1 The newest price information is within `TAU` seconds from the most recently
@@ -1505,10 +1505,10 @@ module ramm_sui::math_tests {
 
     #[test]
     /// Test for volatility fee update; corresponds to case 1 above.
-    fun update_volatility_fee_case_1() {
+    fun update_volatility_data_case_1() {
         let previous_price: u256 = 1000;
         let previous_price_timestamp: u64 = 0;
-        let new_price: u256 = 1002;
+        let new_price: u256 = 1001;
         let new_price_timestamp: u64 = 70;
         // Corresponds to 0.1%
         let stored_volatility_param: &mut u256 = &mut (1 * ONE / 1000);
@@ -1532,7 +1532,7 @@ module ramm_sui::math_tests {
             TAU
         );
 
-        ramm_math::update_volatility_fee(
+        ramm_math::update_volatility_data(
             previous_price,
             previous_price_timestamp,
             new_price,
@@ -1560,7 +1560,7 @@ module ramm_sui::math_tests {
     ///   parameter.
     ///
     /// Corresponds to case 2.1.1.
-    fun update_volatility_fee_case_2_1_1() {
+    fun update_volatility_data_case_2_1_1() {
         let previous_price: u256 = 1000;
         let previous_price_timestamp: u64 = 0;
         // the price increases by 5%, which does not exceed the previous 10%
@@ -1589,7 +1589,7 @@ module ramm_sui::math_tests {
             TAU
         );
 
-        ramm_math::update_volatility_fee(
+        ramm_math::update_volatility_data(
             previous_price,
             previous_price_timestamp,
             new_price,
@@ -1617,7 +1617,7 @@ module ramm_sui::math_tests {
     ///   parameter.
     ///
     /// Corresponds to case 2.1.2.
-    fun update_volatility_fee_case_2_1_2() {
+    fun update_volatility_data_case_2_1_2() {
         let previous_price: u256 = 1000;
         let previous_price_timestamp: u64 = 0;
         // the price increases by 5%, which equals the previously recorded 5% for this asset
@@ -1646,7 +1646,7 @@ module ramm_sui::math_tests {
             TAU
         );
 
-        ramm_math::update_volatility_fee(
+        ramm_math::update_volatility_data(
             previous_price,
             previous_price_timestamp,
             new_price,
@@ -1674,7 +1674,7 @@ module ramm_sui::math_tests {
     ///   parameter.
     ///
     /// Corresponds to case 2.1.3.
-    fun update_volatility_fee_case_2_1_3() {
+    fun update_volatility_data_case_2_1_3() {
         let previous_price: u256 = 1050;
         let previous_price_timestamp: u64 = 0;
         // the price drops by 10%, which exceeds the previous 5%
@@ -1703,7 +1703,7 @@ module ramm_sui::math_tests {
             TAU
         );
 
-        ramm_math::update_volatility_fee(
+        ramm_math::update_volatility_data(
             previous_price,
             previous_price_timestamp,
             new_price,
@@ -1732,7 +1732,7 @@ module ramm_sui::math_tests {
     /// * the calculated volatility parameter is below the most recently stored parameter.
     ///
     /// Test for volatility fee calculation; corresponds to case 2.2.1 above.
-    fun update_volatility_fee_case_2_2_1() {
+    fun update_volatility_data_case_2_2_1() {
         let previous_price: u256 = 1000;
         let previous_price_timestamp: u64 = 20;
         let new_price: u256 = 1040;
@@ -1758,7 +1758,7 @@ module ramm_sui::math_tests {
             TAU
         );
 
-        ramm_math::update_volatility_fee(
+        ramm_math::update_volatility_data(
             previous_price,
             previous_price_timestamp,
             new_price,
@@ -1786,7 +1786,7 @@ module ramm_sui::math_tests {
     /// * the calculated volatility parameter equals the most recently stored parameter.
     ///
     /// Test for volatility fee calculation; corresponds to case 2.2.2 above.
-    fun update_volatility_fee_case_2_2_2() {
+    fun update_volatility_data_case_2_2_2() {
         let previous_price: u256 = 1000;
         let previous_price_timestamp: u64 = 20;
         let new_price: u256 = 1050;
@@ -1812,7 +1812,7 @@ module ramm_sui::math_tests {
             TAU
         );
 
-        ramm_math::update_volatility_fee(
+        ramm_math::update_volatility_data(
             previous_price,
             previous_price_timestamp,
             new_price,
@@ -1841,7 +1841,7 @@ module ramm_sui::math_tests {
     /// * the calculated volatility parameter exceeds this most recently stored parameter.
     ///
     /// Corresponds to case 2.2.3.
-    fun update_volatility_fee_2_2_3() {
+    fun update_volatility_data_2_2_3() {
         let previous_price: u256 = 1000;
         let previous_price_timestamp: u64 = 20;
         let new_price: u256 = 1050;
@@ -1867,7 +1867,7 @@ module ramm_sui::math_tests {
             TAU
         );
 
-        ramm_math::update_volatility_fee(
+        ramm_math::update_volatility_data(
             previous_price,
             previous_price_timestamp,
             new_price,

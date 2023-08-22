@@ -516,7 +516,21 @@ module ramm_sui::math {
         }
     }
 
-    public(friend) fun update_volatility_fee(
+    /// Update a given asset's volatility index/timestamp.
+    ///
+    /// The two mutable references this function is passed will correspond to fields in the
+    /// RAMM structure, whose update (or not) hinges on the result of this function.
+    ///
+    /// The RAMM stores, for every asset, the following pricing data:
+    /// 1. the most recently queried oracle price (referred to as "previous"), and
+    ///     - its timestamp
+    /// 2. the most recently calculated volatility index in the last `TAU` seconds, and
+    ///     - a timestamp for this as well
+    ///
+    /// This function uses an asset's "previous"ly stored price/its timestamp, and the
+    /// most recently queried price/timestamp pair, referred to as "new", to decide whether to
+    /// update the asset's stored information.
+    public(friend) fun update_volatility_data(
         previous_price: u256,
         previous_price_timestamp: u64,
         new_price: u256,
@@ -536,10 +550,17 @@ module ramm_sui::math {
         let current_volatility_timestamp: u64 = *stored_volatility_timestamp;
 
         let price_change: u256;
-        if (new_price >= previous_price) {
-            price_change = (new_price - previous_price) * one / previous_price;
+
+        // If the previously recorded price is 0, this is the first volatility index calculation
+        // for this asset; it is undefined, so 0 is chosen.
+        if (previous_price == 0) {
+            price_change = 0;
         } else {
-            price_change = (previous_price - new_price) * one / previous_price;
+            if (new_price >= previous_price) {
+                price_change = (new_price - previous_price) * one / previous_price;
+            } else {
+                price_change = (previous_price - new_price) * one / previous_price;
+            };
         };
 
         // In case the time difference between price data is below our defined

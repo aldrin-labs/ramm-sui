@@ -902,22 +902,78 @@ module ramm_sui::ramm {
         get_aggr_addr(self, ix)
     }
 
-    fun get_prev_prc(self: &RAMM, index: u8): u256 {
+    /// Given a RAMM and the index of one of its assets, return the last previously recorded
+    /// price of the asset.
+    ///
+    /// # Aborts
+    ///
+    /// If the provided index does not match any existing asset's.
+    public(friend) fun get_prev_prc(self: &RAMM, index: u8): u256 {
         *vec_map::get(&self.previous_prices, &index)
     }
 
+    /// Given a RAMM, return the last previously recorded price of an asset.
     public(friend) fun get_previous_price<Asset>(self: &RAMM): u256 {
         let ix = get_asset_index<Asset>(self);
         get_prev_prc(self, ix)
     }
 
-    fun get_prev_prc_tmstmp(self: &RAMM, index: u8): u64 {
+    /// Given a RAMM, the index of one of its assets, and its new price queried from an aggregator,
+    /// update the RAMM's internal state.
+    ///
+    /// # Aborts
+    ///
+    /// If the provided index does not match any existing asset's.
+    fun set_prev_prc(self: &mut RAMM, ix: u8, new_price: u256) {
+        *vec_map::get_mut(&mut self.previous_prices, &ix) = new_price;
+    }
+
+    /// Given a RAMM, an asset and its new price queried from an aggregator, update the RAMM's
+    /// internal state.
+    public(friend) fun set_previous_price<Asset>(self: &mut RAMM, new_price: u256) {
+        let ix = get_asset_index<Asset>(self);
+        set_prev_prc(self, ix, new_price)
+    }
+
+    /// Given a RAMM and the index of one of its assets, return the timestamp of the last
+    /// price obtained for the asset from its `Aggregator`.
+    ///
+    /// # Aborts
+    ///
+    /// If the provided index does not match any existing asset's.
+    public(friend) fun get_prev_prc_tmstmp(self: &RAMM, index: u8): u64 {
         *vec_map::get(&self.previous_price_timestamps, &index)
     }
 
+    /// Given a RAMM, return the timestamp of the last price obtained for an asset from its
+    /// `Aggregator`.
     public(friend) fun get_previous_price_timestamp<Asset>(self: &RAMM): u64 {
         let ix = get_asset_index<Asset>(self);
         get_prev_prc_tmstmp(self, ix)
+    }
+
+    /// Given a RAMM, the index of one of its assets and a timestamp for its most recently
+    /// queried price data, update the RAMM's internal state.
+    ///
+    /// # Aborts
+    ///
+    /// If the provided index does not match any existing asset's.
+    fun set_prev_prc_tmstmp(
+        self: &mut RAMM,
+        ix: u8,
+        new_price_timestamp: u64
+    ) {
+        *vec_map::get_mut(&mut self.previous_price_timestamps, &ix) = new_price_timestamp;
+    }
+
+    /// Given a RAMM, one of its assets and a timestamp for its most recently queried price data,
+    /// update the RAMM's internal state.
+    public(friend) fun set_previous_price_timestamp<Asset>(
+        self: &mut RAMM,
+        new_price_timestamp: u64
+    ) {
+        let ix = get_asset_index<Asset>(self);
+        set_prev_prc_tmstmp(self, ix, new_price_timestamp);
     }
 
     /// Volatility indices
@@ -1266,6 +1322,21 @@ module ramm_sui::ramm {
         amount_out
     }
 
+    /// Given a RAMM, an asset, and new pricing data, namely:
+    /// * a new price queried from its `Aggregator`, and
+    /// * its timestamp,
+    ///
+    /// update that asset's data in the RAMM's internal state.
+    public(friend) fun update_pricing_data<Asset>(
+        self: &mut RAMM,
+        new_price: u256,
+        new_price_timestamp: u64
+    ) {
+        let ix: u8 = get_asset_index<Asset>(self);
+        set_prev_prc(self, ix, new_price);
+        set_prev_prc_tmstmp(self, ix, new_price_timestamp);
+    }
+
     /// ------------------------
     /// Oracle related functions
     /// ------------------------
@@ -1299,13 +1370,13 @@ module ramm_sui::ramm {
     /// Verify that the address of the pricing feed for a certain asset matches the
     /// one supplied when the asset was initialized in the RAMM.
     ///
-    /// If it is, fetch its price and that price's timestamp, and add it to the mappings
+    /// If it is, fetch its price and that price's timestamp, and add them to the mappings
     /// * from asset indices to their prices
     /// * from asset indices to their prices' timestamps
     /// * from asset indices to their prices' scaling factors
     ///
     /// These maps are passed into the function as mutable arguments.
-    public(friend) fun check_feed_and_get_price(
+    public(friend) fun check_feed_and_get_price_data(
         self: &RAMM,
         ix: u8,
         feed: &Aggregator,
@@ -1458,7 +1529,7 @@ module ramm_sui::ramm {
     ///
     /// The value will represent a percentage i.e. a value between `0` and `ONE`, where
     /// `ONE` is the value `1` with `PRECISION_DECIMAL_PLACES` decimal places.
-    fun compute_volatility_fee(
+    public(friend) fun compute_volatility_fee(
         self: &RAMM,
         asset_index: u8,
         new_price: u256,
@@ -1480,16 +1551,19 @@ module ramm_sui::ramm {
         )
     }
 
-    public(friend) fun update_volatility_fee(
+    /// Update a given asset's volatility index/timestamp.
+    public(friend) fun update_volatility_data(
         self: &mut RAMM,
         asset_index: u8,
+        previous_price: u256,
+        previous_price_timestamp: u64,
         new_price: u256,
         new_price_timestamp: u64,
         calculated_volatility_fee: u256
     )  {
-        ramm_math::update_volatility_fee(
-            get_prev_prc(self, asset_index),
-            get_prev_prc_tmstmp(self, asset_index),
+        ramm_math::update_volatility_data(
+            previous_price,
+            previous_price_timestamp,
             new_price,
             new_price_timestamp,
             vec_map::get_mut(&mut self.volatility_indices, &asset_index),
@@ -1530,31 +1604,36 @@ module ramm_sui::ramm {
         // index of outgoing token
         o: u8,
         ai: u256,
-        prices: VecMap<u8, u256>,
-        factors_for_prices: VecMap<u8, u256>
+        new_prices: VecMap<u8, u256>,
+        factors_for_prices: VecMap<u8, u256>,
+        // sum of volatility fees levied on input and output assets, calculated in the
+        // calling function
+        volatility_fee: u256,
     ): TradeOutput {
         let factor_for_price_i: u256 = *vec_map::get(&factors_for_prices, &i);
         let factor_for_price_o: u256 = *vec_map::get(&factors_for_prices, &o);
 
         let factor_i: u256 = get_fact_for_bal(self, i);
         let factor_o: u256 = get_fact_for_bal(self, o);
+
         if (get_typed_bal<AssetIn>(self, i) == 0) {
-            let num: u256 = mul3(ONE - BASE_FEE, ai * factor_i, *vec_map::get(&prices, &i) * factor_for_price_i);
-            let ao: u256 = div(num, *vec_map::get(&prices, &i) * factor_for_price_o) / factor_o;
-            let pr_fee: u256 = mul3(PROTOCOL_FEE, BASE_FEE, ai * factor_i) / factor_i;
-            let execute: bool = check_imbalance_ratios(self, &prices, i, o, ai, ao, pr_fee, &factors_for_prices);
+            let num: u256 = mul3(ONE - BASE_FEE, ai * factor_i, *vec_map::get(&new_prices, &i) * factor_for_price_i);
+            let ao: u256 = div(num, *vec_map::get(&new_prices, &i) * factor_for_price_o) / factor_o;
+            // don't forget the volatility fee
+            let pr_fee: u256 = mul3(PROTOCOL_FEE, BASE_FEE + volatility_fee, ai * factor_i) / factor_i;
+            let execute: bool = check_imbalance_ratios(self, &new_prices, i, o, ai, ao, pr_fee, &factors_for_prices);
             let message: String = check_imbalance_ratios_message(execute);
             return TradeOutput {amount: ao, protocol_fee: pr_fee, execute_trade: execute, message}
         };
 
-        let _W: VecMap<u8, u256> = weights(self, &prices, &factors_for_prices);
+        let _W: VecMap<u8, u256> = weights(self, &new_prices, &factors_for_prices);
         let wi: u256 = *vec_map::get(&_W, &i);
         let wo: u256 = *vec_map::get(&_W, &o);
         let leverage: &mut u256 = &mut BASE_LEVERAGE;
         let trading_fee: &mut u256 = &mut BASE_FEE;
 
         if (get_typed_lptok_issued<AssetOut>(self, o) != 0 && get_typed_bal<AssetIn>(self, i) != 0) {
-            let imbs = imbalance_ratios(self, &prices, &factors_for_prices);
+            let imbs = imbalance_ratios(self, &new_prices, &factors_for_prices);
             let imb_ratios_initial_o: u256 = *vec_map::get(&imbs, &o);
             if (imb_ratios_initial_o < ONE - DELTA) {
                 return TradeOutput {
@@ -1564,13 +1643,16 @@ module ramm_sui::ramm {
                     message: low_imb_ratio_trade_failure_msg()
                 }
             };
-            let (tf, l) = scaled_fee_and_leverage(self, &prices, i, o, &factors_for_prices);
+            let (tf, l) = scaled_fee_and_leverage(self, &new_prices, i, o, &factors_for_prices);
             *trading_fee = tf;
             *leverage = l;
         };
 
         let bi: u256 = mul(get_typed_bal<AssetIn>(self, i) * factor_i, *leverage);
         let bo: u256 = mul(get_typed_bal<AssetOut>(self, o) * factor_o, *leverage);
+
+        // The volatility fee must be added to the calculated trading fee percentage
+        *trading_fee = *trading_fee + volatility_fee;
 
         let base_denom: u256 = bi + mul(ONE - *trading_fee, ai * factor_i);
         let power: u256 = power(div(bi, base_denom), div(wi, wo));
@@ -1586,7 +1668,7 @@ module ramm_sui::ramm {
                 message: string::utf8(b"The trade was not executed because there is not enough balance of the out-token.")
             }
         };
-        let execute: bool = check_imbalance_ratios(self, &prices, i, o, ai, ao, pr_fee, &factors_for_prices);
+        let execute: bool = check_imbalance_ratios(self, &new_prices, i, o, ai, ao, pr_fee, &factors_for_prices);
         let message: String = check_imbalance_ratios_message(execute);
         TradeOutput {amount: ao, protocol_fee: pr_fee, execute_trade: execute, message}
     }
@@ -1604,7 +1686,10 @@ module ramm_sui::ramm {
         o: u8,
         ao: u64,
         prices: VecMap<u8, u256>,
-        factors_for_prices: VecMap<u8, u256>
+        factors_for_prices: VecMap<u8, u256>,
+        // sum of volatility fees levied on input and output assets, calculated in the
+        // calling function
+        volatility_fee: u256
     ): TradeOutput {
         let factor_for_price_i: u256 = *vec_map::get(&factors_for_prices, &i);
         let factor_for_price_o: u256 = *vec_map::get(&factors_for_prices, &o);
@@ -1620,7 +1705,7 @@ module ramm_sui::ramm {
             let num: u256 = mul(ao * factor_o, price_o * factor_for_price_o);
             let denom: u256 = mul(price_i * factor_for_price_i, ONE-BASE_FEE);
             let ai: u256 = div(num, denom) / factor_i;
-            let pr_fee: u256 = mul3(PROTOCOL_FEE, BASE_FEE, ai * factor_i) / factor_i;
+            let pr_fee: u256 = mul3(PROTOCOL_FEE, BASE_FEE + volatility_fee, ai * factor_i) / factor_i;
             let execute: bool = check_imbalance_ratios(self, &prices, i, o, ai, ao, pr_fee, &factors_for_prices);
             let message: String = check_imbalance_ratios_message(execute);
             return TradeOutput {amount: ai, protocol_fee: pr_fee, execute_trade: execute, message}
@@ -1650,6 +1735,9 @@ module ramm_sui::ramm {
 
         let bi: u256 = mul(get_typed_bal<AssetIn>(self, i) * factor_i, *leverage);
         let bo: u256 = mul(get_typed_bal<AssetOut>(self, o) * factor_o, *leverage);
+
+        // The volatility fee must be added to the calculated trading fee percentage
+        *trading_fee = *trading_fee + volatility_fee;
 
         let power: u256 = power(div(bo, bo - ao * factor_o), div(wo, wi));
         let ai: u256 = div(mul(bi, power - ONE), ONE - *trading_fee) / factor_i;
