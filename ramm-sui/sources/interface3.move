@@ -120,8 +120,8 @@ module ramm_sui::interface3 {
         let other_vol: u256 = ramm::compute_volatility_fee(
             self,
             i,
-            *vec_map::get(&new_prices, &i),
-            *vec_map::get(&new_price_timestamps, &i)
+            *vec_map::get(&new_prices, &oth),
+            *vec_map::get(&new_price_timestamps, &oth)
         );
         let calculated_volatility_fee: u256 = in_vol_fee + out_vol_fee;
 
@@ -308,8 +308,8 @@ module ramm_sui::interface3 {
         let other_vol: u256 = ramm::compute_volatility_fee(
             self,
             i,
-            *vec_map::get(&new_prices, &i),
-            *vec_map::get(&new_price_timestamps, &i)
+            *vec_map::get(&new_prices, &oth),
+            *vec_map::get(&new_price_timestamps, &oth)
         );
         let calculated_volatility_fee: u256 = in_vol_fee + out_vol_fee;
 
@@ -449,31 +449,73 @@ module ramm_sui::interface3 {
         let factors_for_prices = vec_map::empty<u8, u256>();
         let new_price_timestamps = vec_map::empty<u8, u64>();
         ramm::check_feed_and_get_price_data(
-            self,
-            i,
-            feed_in,
-            &mut new_prices,
-            &mut factors_for_prices,
-            &mut new_price_timestamps
+            self, i, feed_in, &mut new_prices, &mut factors_for_prices, &mut new_price_timestamps
         );
         ramm::check_feed_and_get_price_data(
-            self,
-            oth,
-            other,
-            &mut new_prices,
-            &mut factors_for_prices,
-            &mut new_price_timestamps
+            self, oth, other, &mut new_prices, &mut factors_for_prices, &mut new_price_timestamps
         );
         ramm::check_feed_and_get_price_data(
-            self,
-            anoth,
-            another,
-            &mut new_prices,
-            &mut factors_for_prices,
-            &mut new_price_timestamps
+            self, anoth, another, &mut new_prices, &mut factors_for_prices, &mut new_price_timestamps
         );
 
+        /*
+        Calculate volatility data to be used in trading business logic
+
+        Liquidity deposits do not levy a volatility fee, but since they access oracle data
+        they must update price/volatility data to keep it as current as possible.
+        */
+
+        let in_vol: u256 = ramm::compute_volatility_fee(
+            self,
+            i,
+            *vec_map::get(&new_prices, &i),
+            *vec_map::get(&new_price_timestamps, &i)
+        );
+        let oth_vol: u256 = ramm::compute_volatility_fee(
+            self,
+            oth,
+            *vec_map::get(&new_prices, &oth),
+            *vec_map::get(&new_price_timestamps, &oth)
+        );
+        let anoth_vol: u256 = ramm::compute_volatility_fee(
+            self,
+            anoth,
+            *vec_map::get(&new_prices, &anoth),
+            *vec_map::get(&new_price_timestamps, &anoth)
+        );
+
+        /*
+        */
+
         let lpt: u64 = ramm::liq_dep<AssetIn>(self, i, coin::value(&amount_in), new_prices, factors_for_prices);
+
+        /*
+        Update pricing and volatility data for every asset
+        */
+
+        let previous_price_i: u256 = ramm::get_prev_prc(self, i);
+        let previous_price_timestamp_i = ramm::get_prev_prc_tmstmp(self, i);
+        let previous_price_oth: u256 = ramm::get_prev_prc(self, oth);
+        let previous_price_timestamp_oth = ramm::get_prev_prc_tmstmp(self, oth);
+        let previous_price_anoth: u256 = ramm::get_prev_prc(self, anoth);
+        let previous_price_timestamp_anoth = ramm::get_prev_prc_tmstmp(self, anoth);
+
+        let new_price_i: u256 = *vec_map::get(&new_prices, &i);
+        let new_timestamp_i: u64 = *vec_map::get(&new_price_timestamps, &i);
+        let new_price_oth: u256 = *vec_map::get(&new_prices, &oth);
+        let new_timestamp_oth: u64 = *vec_map::get(&new_price_timestamps, &oth);
+        let new_price_anoth: u256 = *vec_map::get(&new_prices, &anoth);
+        let new_timestamp_anoth: u64 = *vec_map::get(&new_price_timestamps, &anoth);
+
+        ramm::update_volatility_data(self, i, previous_price_i, previous_price_timestamp_i, new_price_i, new_timestamp_i, in_vol);
+        ramm::update_volatility_data(self, oth, previous_price_oth, previous_price_timestamp_oth, new_price_oth, new_timestamp_oth, oth_vol);
+        ramm::update_volatility_data(self, anoth, previous_price_anoth, previous_price_timestamp_anoth, new_price_anoth, new_timestamp_anoth, anoth_vol);
+        ramm::update_pricing_data<AssetIn>(self, new_price_i, new_timestamp_i);
+        ramm::update_pricing_data<Other>(self, new_price_oth, new_timestamp_oth);
+        ramm::update_pricing_data<Another>(self, new_price_anoth, new_timestamp_anoth);
+
+        /*
+        */
 
         if (lpt == 0) {
             let amount_in_u64: u64 = coin::value(&amount_in);
@@ -566,6 +608,27 @@ module ramm_sui::interface3 {
             &mut new_price_timestamps
         );
 
+        /*
+        Calculate volatility data to be used when updating the RAMM's data.
+        */
+
+        let fst_vol_fee: u256 = ramm::compute_volatility_fee(
+            self, fst, *vec_map::get(&new_prices, &fst), *vec_map::get(&new_price_timestamps, &fst)
+        );
+        let snd_vol_fee: u256 = ramm::compute_volatility_fee(
+            self, snd, *vec_map::get(&new_prices, &snd), *vec_map::get(&new_price_timestamps, &snd)
+        );
+        let trd_vol_fee: u256 = ramm::compute_volatility_fee(
+            self, trd, *vec_map::get(&new_prices, &trd), *vec_map::get(&new_price_timestamps, &trd)
+        );
+
+        let volatility_fees: VecMap<u8, u256> = vec_map::empty();
+        vec_map::insert(&mut volatility_fees, fst, fst_vol_fee);
+        vec_map::insert(&mut volatility_fees, snd, snd_vol_fee);
+        vec_map::insert(&mut volatility_fees, trd, trd_vol_fee);
+        /*
+        */
+
         let lpt_u64: u64 = coin::value(&lp_token);
         let factor_o: u256 = ramm::get_fact_for_bal(self, o);
         let withdrawal_output =
@@ -575,7 +638,36 @@ module ramm_sui::interface3 {
                 lpt_u64,
                 new_prices,
                 factors_for_prices,
+                volatility_fees
             );
+
+        /*
+        Update pricing and volatility data for every asset
+        */
+
+        let previous_price_fst: u256 = ramm::get_prev_prc(self, fst);
+        let previous_price_timestamp_fst = ramm::get_prev_prc_tmstmp(self, fst);
+        let previous_price_snd: u256 = ramm::get_prev_prc(self, snd);
+        let previous_price_timestamp_snd = ramm::get_prev_prc_tmstmp(self, snd);
+        let previous_price_trd: u256 = ramm::get_prev_prc(self, trd);
+        let previous_price_timestamp_trd = ramm::get_prev_prc_tmstmp(self, trd);
+
+        let new_price_fst: u256 = *vec_map::get(&new_prices, &fst);
+        let new_timestamp_fst: u64 = *vec_map::get(&new_price_timestamps, &fst);
+        let new_price_snd: u256 = *vec_map::get(&new_prices, &snd);
+        let new_timestamp_snd: u64 = *vec_map::get(&new_price_timestamps, &snd);
+        let new_price_trd: u256 = *vec_map::get(&new_prices, &trd);
+        let new_timestamp_trd: u64 = *vec_map::get(&new_price_timestamps, &trd);
+
+        ramm::update_volatility_data(self, fst, previous_price_fst, previous_price_timestamp_fst, new_price_fst, new_timestamp_fst, fst_vol_fee);
+        ramm::update_volatility_data(self, snd, previous_price_snd, previous_price_timestamp_snd, new_price_snd, new_timestamp_snd, snd_vol_fee);
+        ramm::update_volatility_data(self, trd, previous_price_trd, previous_price_timestamp_trd, new_price_trd, new_timestamp_trd, trd_vol_fee);
+        ramm::update_pricing_data<Asset1>(self, new_price_fst, new_timestamp_fst);
+        ramm::update_pricing_data<Asset2>(self, new_price_snd, new_timestamp_snd);
+        ramm::update_pricing_data<Asset3>(self, new_price_trd, new_timestamp_trd);
+
+        /*
+        */
 
         let lpt_u256: u256 = (lpt_u64 as u256);
         let lpt_amount: &mut u256 = &mut (copy lpt_u256);

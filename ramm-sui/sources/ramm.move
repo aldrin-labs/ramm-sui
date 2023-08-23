@@ -85,11 +85,11 @@ module ramm_sui::ramm {
 
     /// Base fee in basis points: a value of 10 means 0.001 or 0.1%
     const BASE_FEE: u256 = 10 * 1_000_000_000_000 / 10000; // _BASE_FEE * 10**(PRECISION_DECIMAL_PLACES-4)
-    /// Liquidity withdrawal fee; a value of 40 means 0.004, or 0.4%.
+    /// Base liquidity withdrawal fee; a value of 40 means 0.004, or 0.4%.
     ///
     /// This will be a protocol fee, meaning that the amount charged will not go to the pool, but 
     /// instead will be kept aside for the protocol owners.
-    const LIQ_WTHDRWL_FEE: u256 = 40 * 1_000_000_000_000 / 10000; // _LIQ_WTHDRWL_FEE * 10**(PRECISION_DECIMAL_PLACES-4)
+    const BASE_WITHDRAWAL_FEE: u256 = 40 * 1_000_000_000_000 / 10000; // _BASE_WITHDRAWAL_FEE * 10**(PRECISION_DECIMAL_PLACES-4)
     /// 30% of collected base fees go to the RAMM.
     const PROTOCOL_FEE: u256 = 30 * 1_000_000_000_000 / 100; // PROTOCOL_FEE = _PROTOCOL_FEE*10**(PRECISION_DECIMAL_PLACES-2)
 
@@ -1577,10 +1577,15 @@ module ramm_sui::ramm {
     /// Given
     /// 1. a mutable reference to a liquidity withdrawal amount
     /// 2. a mutable reference to an initially empty variable,
-    /// calculate the fee (see `LIQ_WTHDRWL_FEE`), deduct it from the withdrawal amount,
-    /// and place it into the appropriate variable.
-    fun split_liq_wthdrw_fee(amount_out: &mut u256, fee_val: &mut u256) {
-        *fee_val = mul(*amount_out, LIQ_WTHDRWL_FEE);
+    /// calculate the fee, deduct it from the withdrawal amount, and place it into the appropriate
+    /// variable.
+    ///
+    /// In a liquidity withdrawal, the fee to be applied is the sum of
+    /// 1. a base withdrawal fee set in `const BASE_WITHDRAWAL_FEE`
+    /// 2. that specific asset's volatility fee, passed to this function (a percentage encoded as
+    ///    a `u256`)
+    fun split_withdrawal_fee(amount_out: &mut u256, fee_val: &mut u256, volatility_fee: u256) {
+        *fee_val = mul(*amount_out, BASE_WITHDRAWAL_FEE + volatility_fee);
         *amount_out = *amount_out - *fee_val;
     }
 
@@ -1815,6 +1820,7 @@ module ramm_sui::ramm {
         lpt: u64,
         prices: VecMap<u8, u256>,
         factors_for_prices: VecMap<u8, u256>,
+        volatility_fees: VecMap<u8, u256>
     ): WithdrawalOutput {
         let lpt: u256 = (lpt as u256);
 
@@ -1864,16 +1870,17 @@ module ramm_sui::ramm {
 
                 let amount_out_o: &mut u256 = vec_map::get_mut(&mut amounts_out, &o);
                 let fee_o: &mut u256 = vec_map::get_mut(&mut fees, &o);
+                let vol_fee_o: u256 = *vec_map::get(&volatility_fees, &o);
                 // Case 1.1.1
                 if (*ao <= *max_token_o) {
                     *amount_out_o = *amount_out_o + *ao;
-                    split_liq_wthdrw_fee(amount_out_o, fee_o);
+                    split_withdrawal_fee(amount_out_o, fee_o, vol_fee_o);
                     return WithdrawalOutput { amounts: amounts_out, fees, value: *ao, remaining: 0}
                 };
                 // Case 1.1.2
                 if (*ao > *max_token_o) {
                     *amount_out_o = *amount_out_o + *max_token_o;
-                    split_liq_wthdrw_fee(amount_out_o, fee_o);
+                    split_withdrawal_fee(amount_out_o, fee_o, vol_fee_o);
                     *a_remaining = *ao - *max_token_o;
                     let imb_ratio_o = vec_map::get_mut(&mut imb_ratios, &o);
                     // to avoid choosing token o again in the next steps
@@ -1884,14 +1891,15 @@ module ramm_sui::ramm {
                 *ao = div(bo, ro) / factor_o;
                 let amount_out_o: &mut u256 = vec_map::get_mut(&mut amounts_out, &o);
                 let fee_o: &mut u256 = vec_map::get_mut(&mut fees, &o);
+                let vol_fee_o: u256 = *vec_map::get(&volatility_fees, &o);
                 if (*ao <= get_bal(self, o)) {
                     *amount_out_o = *amount_out_o + *ao;
-                    split_liq_wthdrw_fee(amount_out_o, fee_o);
+                    split_withdrawal_fee(amount_out_o, fee_o, vol_fee_o);
                     return WithdrawalOutput { amounts: amounts_out, fees, value: *ao, remaining: 0}
                 };
                 if (*ao > get_bal(self, o)) {
                     *amount_out_o = *amount_out_o + get_bal(self, o);
-                    split_liq_wthdrw_fee(amount_out_o, fee_o);
+                    split_withdrawal_fee(amount_out_o, fee_o, vol_fee_o);
                     *a_remaining = *ao - get_bal(self, o);
                     let imb_ratio_o = vec_map::get_mut(&mut imb_ratios, &o);
                     // to avoid choosing token o again in the next steps
@@ -1935,16 +1943,17 @@ module ramm_sui::ramm {
                     let max_token_k: u256 = get_bal(self, k) - min_token_k;
                     let amount_out_k: &mut u256 = vec_map::get_mut(&mut amounts_out, &k);
                     let fee_k: &mut u256 = vec_map::get_mut(&mut fees, &k);
+                    let vol_fee_k: u256 = *vec_map::get(&volatility_fees, &k);
 
                     if (ak <= max_token_k) {
                         *amount_out_k = *amount_out_k + ak;
-                        split_liq_wthdrw_fee(amount_out_k, fee_k);
+                        split_withdrawal_fee(amount_out_k, fee_k, vol_fee_k);
                         // The liquidity provider receives `ak` units of token `k`.
                         *a_remaining = 0;
                     };
                     if (ak > max_token_k) {
                         *amount_out_k = *amount_out_k + max_token_k;
-                        split_liq_wthdrw_fee(amount_out_k, fee_k);
+                        split_withdrawal_fee(amount_out_k, fee_k, vol_fee_k);
                         // The liquidity provider receives `max_token_k` token `k`.
                         // The value of `max_token_k` in terms of token `o` is `max_token_k*prices[k]/prices[o]`
                         let value_max_token_k: u256 =
