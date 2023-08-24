@@ -34,7 +34,7 @@ module ramm_sui::math_tests {
     const MU: u256 = 5 * 1_000_000_000_000 / 100; // _MU * 10**(PRECISION_DECIMAL_PLACES-2)
     /// Value, in seconds, of the maximum permitted difference between oracle price information
     /// that will trigger a volatility parameter update.
-    const TAU: u64 = 60;
+    const TAU: u64 = 300;
 
     const BASE_FEE: u256 = 10 * 1_000_000_000_000 / 10000; // _BASE_FEE * 10**(PRECISION_DECIMAL_PLACES-4)
     const PROTOCOL_FEE: u256 = 30 * 1_000_000_000_000 / 100;
@@ -1220,9 +1220,9 @@ module ramm_sui::math_tests {
     /// Test for volatility fee calculation; corresponds to case 1 above.
     fun compute_volatility_fee_case_1() {
         let previous_price: u256 = 1000;
-        let previous_price_timestamp: u64 = 30;
-        let new_price: u256 = 1001;
-        let new_price_timestamp: u64 = 60;
+        let previous_price_timestamp: u64 = 0;
+        let new_price: u256 = 1010;
+        let new_price_timestamp: u64 = TAU + 1;
         let current_volatility_param: u256 = 0;
         let current_volatility_timestamp: u64 = 15;
 
@@ -1259,10 +1259,10 @@ module ramm_sui::math_tests {
         // the price increases by 5%, which do not exceed the previous 10%
         let new_price: u256 = 1050;
         // the new price is obtained at most `TAU` seconds after the previous
-        let new_price_timestamp: u64 = 60;
+        let new_price_timestamp: u64 = TAU;
         // 0.10, or 10%
         let current_volatility_param: u256 = 100_000_000_000;
-        let current_volatility_timestamp: u64 = 20;
+        let current_volatility_timestamp: u64 = TAU - 20;
 
         let calculated_volatility_fee: u256 = ramm_math::compute_volatility_fee(
             previous_price,
@@ -1298,10 +1298,10 @@ module ramm_sui::math_tests {
         // the price increases by 5%, which equals the previously recorded 5% for this asset
         let new_price: u256 = 1050;
         // the new price is obtained at most `TAU` seconds after the previous
-        let new_price_timestamp: u64 = 60;
+        let new_price_timestamp: u64 = TAU;
         // 0.10, or 10%
         let current_volatility_param: u256 = 50_000_000_000;
-        let current_volatility_timestamp: u64 = 20;
+        let current_volatility_timestamp: u64 = TAU - 20;
 
         let calculated_volatility_fee: u256 = ramm_math::compute_volatility_fee(
             previous_price,
@@ -1337,10 +1337,10 @@ module ramm_sui::math_tests {
         // the price drops by 10%, which exceeds the previous 5%
         let new_price: u256 = 945;
         // the new price is obtained at most `TAU` seconds after the previous
-        let new_price_timestamp: u64 = 60;
+        let new_price_timestamp: u64 = TAU;
         // 0.05, or 5%
         let current_volatility_param: u256 = 50_000_000_000;
-        let current_volatility_timestamp: u64 = 45;
+        let current_volatility_timestamp: u64 = TAU - 15;
 
         let calculated_volatility_fee: u256 = ramm_math::compute_volatility_fee(
             previous_price,
@@ -1374,7 +1374,7 @@ module ramm_sui::math_tests {
         let previous_price: u256 = 1000;
         let previous_price_timestamp: u64 = 20;
         let new_price: u256 = 1040;
-        let new_price_timestamp: u64 = 80;
+        let new_price_timestamp: u64 = TAU + 20;
         let current_volatility_param: u256 = 50_000_000_000;
         let current_volatility_timestamp: u64 = 15;
 
@@ -1409,7 +1409,7 @@ module ramm_sui::math_tests {
         let previous_price: u256 = 1000;
         let previous_price_timestamp: u64 = 20;
         let new_price: u256 = 1050;
-        let new_price_timestamp: u64 = 80;
+        let new_price_timestamp: u64 = TAU + 20;
         let current_volatility_param: u256 = 50_000_000_000;
         let current_volatility_timestamp: u64 = 15;
 
@@ -1445,7 +1445,7 @@ module ramm_sui::math_tests {
         let previous_price: u256 = 1000;
         let previous_price_timestamp: u64 = 20;
         let new_price: u256 = 1050;
-        let new_price_timestamp: u64 = 80;
+        let new_price_timestamp: u64 = TAU + 20;
         let current_volatility_param: u256 = 40_000_000_000;
         let current_volatility_timestamp: u64 = 15;
 
@@ -1509,7 +1509,7 @@ module ramm_sui::math_tests {
         let previous_price: u256 = 1000;
         let previous_price_timestamp: u64 = 0;
         let new_price: u256 = 1001;
-        let new_price_timestamp: u64 = 70;
+        let new_price_timestamp: u64 = TAU + 10;
         // Corresponds to 0.1%
         let stored_volatility_param: &mut u256 = &mut (1 * ONE / 1000);
         let stored_volatility_timestamp: &mut u64 = &mut 15;
@@ -1566,7 +1566,7 @@ module ramm_sui::math_tests {
         // the price increases by 5%, which does not exceed the previous 10%
         let new_price: u256 = 1050;
         // the new price is obtained `TAU` seconds after the previous
-        let new_price_timestamp: u64 = 60;
+        let new_price_timestamp: u64 = TAU;
         // 0.10, or 10%
         let stored_volatility_param: &mut u256 = &mut (10 * ONE / 100);
         let stored_volatility_timestamp: &mut u64 = &mut 20;
@@ -1623,10 +1623,10 @@ module ramm_sui::math_tests {
         // the price increases by 5%, which equals the previously recorded 5% for this asset
         let new_price: u256 = 1050;
         // the new price is obtained `TAU` seconds after the previous
-        let new_price_timestamp: u64 = 60;
+        let new_price_timestamp: u64 = TAU;
         // 0.10, or 10%
         let stored_volatility_param: &mut u256 = &mut 50_000_000_000;
-        let stored_volatility_timestamp: &mut u64 = &mut 20;
+        let stored_volatility_timestamp: &mut u64 = &mut (TAU - 20);
 
         let previous_volatility_param: u256 = *stored_volatility_param;
         let previous_volatility_timestamp: u64 = *stored_volatility_timestamp;
@@ -1680,10 +1680,10 @@ module ramm_sui::math_tests {
         // the price drops by 10%, which exceeds the previous 5%
         let new_price: u256 = 945;
         // the new price is obtained over `TAU` seconds after the previous
-        let new_price_timestamp: u64 = 60;
+        let new_price_timestamp: u64 = TAU;
         // 0.05, or 5%
         let stored_volatility_param: &mut u256 = &mut 50_000_000_000;
-        let stored_volatility_timestamp: &mut u64 = &mut 45;
+        let stored_volatility_timestamp: &mut u64 = &mut (TAU - 15);
 
         let previous_volatility_param: u256 = *stored_volatility_param;
         let previous_volatility_timestamp: u64 = *stored_volatility_timestamp;
@@ -1736,7 +1736,7 @@ module ramm_sui::math_tests {
         let previous_price: u256 = 1000;
         let previous_price_timestamp: u64 = 20;
         let new_price: u256 = 1040;
-        let new_price_timestamp: u64 = 80;
+        let new_price_timestamp: u64 = TAU + 20;
         let stored_volatility_param: &mut u256 = &mut 50_000_000_000;
         let stored_volatility_timestamp: &mut u64 = &mut 15;
 
@@ -1790,7 +1790,7 @@ module ramm_sui::math_tests {
         let previous_price: u256 = 1000;
         let previous_price_timestamp: u64 = 20;
         let new_price: u256 = 1050;
-        let new_price_timestamp: u64 = 80;
+        let new_price_timestamp: u64 = TAU + 20;
         let stored_volatility_param: &mut u256 = &mut 50_000_000_000;
         let stored_volatility_timestamp: &mut u64 = &mut 15;
 
@@ -1845,7 +1845,7 @@ module ramm_sui::math_tests {
         let previous_price: u256 = 1000;
         let previous_price_timestamp: u64 = 20;
         let new_price: u256 = 1050;
-        let new_price_timestamp: u64 = 80;
+        let new_price_timestamp: u64 = TAU + 20;
         let stored_volatility_param: &mut u256 = &mut 40_000_000_000;
         let stored_volatility_timestamp: &mut u64 = &mut 15;
 

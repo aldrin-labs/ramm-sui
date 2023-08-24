@@ -64,6 +64,12 @@ module ramm_sui::math {
 
     }
 
+    /// Given a `u256` value, forecefully clamp it to the range `[0, max]`.
+    public(friend) fun clamp(val: u256, max: u256): u256 {
+        if (val >= max) { return max };
+        val
+    }
+
     /// Raise a `base: u256` to the power of a `u8` `exp`onent.
     ///
     /// # Aborts
@@ -488,6 +494,13 @@ module ramm_sui::math {
         }
         // In case the previous and current price data are not too far apart
         else {
+            // The previously recorded price being zero means that no volatility indices
+            // or timestamps for this asset have yet been calculated, and that this is
+            // the first time the RAMM queries this asset's pricing oracle.
+            //
+            // As such, a sensible result is a volatility fee of simply 0%.
+            if (previous_price == 0) { return 0 };
+
             // Sui Move doesn't support negative numbers, so the below check is required
             // to avoid aborting the program when performing the subtraction
             let price_change: u256;

@@ -119,7 +119,7 @@ module ramm_sui::interface3 {
         );
         let other_vol: u256 = ramm::compute_volatility_fee(
             self,
-            i,
+            oth,
             *vec_map::get(&new_prices, &oth),
             *vec_map::get(&new_price_timestamps, &oth)
         );
@@ -307,7 +307,7 @@ module ramm_sui::interface3 {
         );
         let other_vol: u256 = ramm::compute_volatility_fee(
             self,
-            i,
+            oth,
             *vec_map::get(&new_prices, &oth),
             *vec_map::get(&new_price_timestamps, &oth)
         );

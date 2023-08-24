@@ -75,7 +75,7 @@ module ramm_sui::ramm {
     const MU: u256 = 5 * 1_000_000_000_000 / 100; // _MU * 10**(PRECISION_DECIMAL_PLACES-2)
     /// Value, in seconds, of the maximum permitted difference between oracle price information
     /// that will trigger a volatility parameter update.
-    const TAU: u64 = 60;
+    const TAU: u64 = 300;
     /// Leverage in the RAMM serves to offer better prices to trade(r)s that help rebalance the
     /// pool's balances than to those that further unbalance it.
     ///
@@ -1585,7 +1585,10 @@ module ramm_sui::ramm {
     /// 2. that specific asset's volatility fee, passed to this function (a percentage encoded as
     ///    a `u256`)
     fun split_withdrawal_fee(amount_out: &mut u256, fee_val: &mut u256, volatility_fee: u256) {
-        *fee_val = mul(*amount_out, BASE_WITHDRAWAL_FEE + volatility_fee);
+        // this value represents the percentage of a value to be levied as a fee, so it *must* be
+        // clamped to `ONE`.
+        let total_withdrawal_fee: u256 = ramm_math::clamp(BASE_WITHDRAWAL_FEE + volatility_fee, ONE);
+        *fee_val = mul(*amount_out, total_withdrawal_fee);
         *amount_out = *amount_out - *fee_val;
     }
 
@@ -1657,7 +1660,7 @@ module ramm_sui::ramm {
         let bo: u256 = mul(get_typed_bal<AssetOut>(self, o) * factor_o, *leverage);
 
         // The volatility fee must be added to the calculated trading fee percentage
-        *trading_fee = *trading_fee + volatility_fee;
+        *trading_fee = ramm_math::clamp(*trading_fee + volatility_fee, ONE);
 
         let base_denom: u256 = bi + mul(ONE - *trading_fee, ai * factor_i);
         let power: u256 = power(div(bi, base_denom), div(wi, wo));
@@ -1742,7 +1745,7 @@ module ramm_sui::ramm {
         let bo: u256 = mul(get_typed_bal<AssetOut>(self, o) * factor_o, *leverage);
 
         // The volatility fee must be added to the calculated trading fee percentage
-        *trading_fee = *trading_fee + volatility_fee;
+        *trading_fee = ramm_math::clamp(*trading_fee + volatility_fee, ONE);
 
         let power: u256 = power(div(bo, bo - ao * factor_o), div(wo, wi));
         let ai: u256 = div(mul(bi, power - ONE), ONE - *trading_fee) / factor_i;

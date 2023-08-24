@@ -221,14 +221,14 @@ module ramm_sui::test_util {
             *vec_map::get(&asset_prices, &0),
             *vec_map::get(&asset_price_scales, &0),
             false,
-            100
+            0
         );
         let aggr2_id = create_write_share_aggregator(
             scenario,
             *vec_map::get(&asset_prices, &1),
             *vec_map::get(&asset_price_scales, &1),
             false,
-            100
+            0
         );
 
         test_scenario::next_tx(scenario, sender);
@@ -331,21 +331,21 @@ module ramm_sui::test_util {
             *vec_map::get(&asset_prices, &0),
             *vec_map::get(&asset_price_scales, &0),
             false,
-            100
+            0
         );
         let aggr2_id = create_write_share_aggregator(
             scenario,
             *vec_map::get(&asset_prices, &1),
             *vec_map::get(&asset_price_scales, &1),
             false,
-            100
+            0
         );
         let aggr3_id = create_write_share_aggregator(
             scenario,
             *vec_map::get(&asset_prices, &2),
             *vec_map::get(&asset_price_scales, &2),
             false,
-            100
+            0
         );
 
         test_scenario::next_tx(scenario, sender);
