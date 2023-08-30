@@ -24,6 +24,7 @@ module ramm_sui::test_util {
     friend ramm_sui::interface2_tests;
     friend ramm_sui::interface3_safety_tests;
     friend ramm_sui::interface3_tests;
+    friend ramm_sui::volatility2_tests;
 
     /// ----------------
     /// Useful operators
@@ -37,6 +38,25 @@ module ramm_sui::test_util {
             std::debug::print(&t1);
             test_utils::print(b"is not strictly less than");
             std::debug::print(&t2);
+            abort(0)
+        }
+    }
+
+    /// Compare two `u256`s  up to a given `eps: u256`.
+    ///
+    /// If the numbers are farther apart than `eps`, the assertion fails.
+    public(friend) fun assert_eq_eps(t1: u256, t2: u256, eps: u256) {
+        let sub: u256;
+        if (t1 > t2) { sub = t1 - t2; } else { sub = t2 - t1; };
+        if (!(sub <= eps)) {
+            test_utils::print(b"Assertion failed:");
+            test_utils::print(b"t1 is:");
+            std::debug::print(&t1);
+            test_utils::print(b"t2 is:");
+            std::debug::print(&t2);
+            test_utils::print(b"eps is");
+            std::debug::print(&eps);
+            test_utils::print(b"|t1 - t2| > eps");
             abort(0)
         }
     }

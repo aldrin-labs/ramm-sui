@@ -8,7 +8,7 @@ module ramm_sui::interface2_tests {
 
     use ramm_sui::interface2;
     use ramm_sui::math;
-    use ramm_sui::ramm::{Self, LP,  RAMM, RAMMAdminCap};
+    use ramm_sui::ramm::{Self, LP, RAMM, RAMMAdminCap};
     use ramm_sui::test_util::{Self, ETH, USDT};
 
     use switchboard::aggregator::Aggregator;
@@ -80,7 +80,7 @@ module ramm_sui::interface2_tests {
             // Later in the test, when accounting for all the USDT given to liquidity providers
             // and comparing it to the pool's USDT balance, liquidity withdrawal fees count toward
             // this tally, but protocol trading fees do not - they must be removed from the count.
-            let usdt_trade_fees = ramm::get_collected_protocol_fees<USDT>(&ramm);
+            let usdt_trade_fees = 1_201_708_581;
 
             test_utils::assert_eq(ramm::get_collected_protocol_fees<ETH>(&ramm), 0);
             test_utils::assert_eq(ramm::get_collected_protocol_fees<USDT>(&ramm), usdt_trade_fees);

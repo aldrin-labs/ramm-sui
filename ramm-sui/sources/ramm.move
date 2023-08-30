@@ -27,6 +27,7 @@ module ramm_sui::ramm {
     friend ramm_sui::math_tests;
     friend ramm_sui::ramm_tests;
     friend ramm_sui::test_util;
+    friend ramm_sui::volatility2_tests;
 
     const ERAMMInvalidInitState: u64 = 0;
     const EInvalidAggregator: u64 = 1;
@@ -981,6 +982,8 @@ module ramm_sui::ramm {
     /// Given a RAMM and the index of one of its assets, return its latest calculated volatility
     /// index.
     ///
+    /// The result is a percentage encoded with `PRECISION_DECIMAL_PLACES`.
+    ///
     /// If none has yet been calculated, it'll be 0.
     ///
     /// # Aborts
@@ -991,6 +994,8 @@ module ramm_sui::ramm {
     }
 
     /// Return an asset's most recent volatility index (0 if none has yet been calculated).
+    ///
+    /// The result is a percentage encoded with `PRECISION_DECIMAL_PLACES`.
     public(friend) fun get_volatility_index<Asset>(self: &RAMM): u256 {
         let ix = get_asset_index<Asset>(self);
         get_vol_ix(self, ix)
@@ -1661,6 +1666,7 @@ module ramm_sui::ramm {
 
         // The volatility fee must be added to the calculated trading fee percentage
         *trading_fee = ramm_math::clamp(*trading_fee + volatility_fee, ONE);
+        std::debug::print(&(ONE - *trading_fee));
 
         let base_denom: u256 = bi + mul(ONE - *trading_fee, ai * factor_i);
         let power: u256 = power(div(bi, base_denom), div(wi, wo));

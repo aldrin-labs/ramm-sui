@@ -11,6 +11,7 @@ module ramm_sui::math {
     friend ramm_sui::interface3_tests;
     friend ramm_sui::math_tests;
     friend ramm_sui::test_util;
+    friend ramm_sui::volatility2_tests;
 
     const ENegativeSbD: u64 = 0;
     const EMulOverflow: u64 = 1;
