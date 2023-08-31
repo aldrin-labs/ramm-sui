@@ -478,8 +478,8 @@ module ramm_sui::test_util {
         initial_asset_liquidity: VecMap<u8, u64>
     ): (ID, ID, ID, test_scenario::Scenario) {
         let asset_prices: VecMap<u8, u128> = vec_map::empty();
-            vec_map::insert(&mut asset_prices, 0, 27802450000000);
-            vec_map::insert(&mut asset_prices, 1, 1884085000000);
+            vec_map::insert(&mut asset_prices, 0, 27800000000000);
+            vec_map::insert(&mut asset_prices, 1, 1880000000000);
         let asset_price_scales: VecMap<u8, u8> = vec_map::empty();
             vec_map::insert(&mut asset_price_scales, 0, 9);
             vec_map::insert(&mut asset_price_scales, 1, 9);

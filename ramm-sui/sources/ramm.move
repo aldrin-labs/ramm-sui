@@ -1666,7 +1666,6 @@ module ramm_sui::ramm {
 
         // The volatility fee must be added to the calculated trading fee percentage
         *trading_fee = ramm_math::clamp(*trading_fee + volatility_fee, ONE);
-        std::debug::print(&(ONE - *trading_fee));
 
         let base_denom: u256 = bi + mul(ONE - *trading_fee, ai * factor_i);
         let power: u256 = power(div(bi, base_denom), div(wi, wo));
