@@ -28,6 +28,7 @@ module ramm_sui::ramm {
     friend ramm_sui::ramm_tests;
     friend ramm_sui::test_util;
     friend ramm_sui::volatility2_tests;
+    friend ramm_sui::volatility3_tests;
 
     const ERAMMInvalidInitState: u64 = 0;
     const EInvalidAggregator: u64 = 1;
