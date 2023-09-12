@@ -293,17 +293,17 @@ module ramm_sui::interface3_safety_tests {
             let sol_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, sol_ag_id);
 
             // Recall that these test scenarios have 1000 units of each asset as starting liquidity
-            // Starting prices are 27802.45 for BTC and 1884.085 for ETH.
-            // This means 1 BTC can purchase roughly 14.75 ETH, meaning the trade below would
-            // request 147.56 ETH from the pool, much more than the allowed ~50 ETH.
-            let amount_in = coin::mint_for_testing<BTC>(10 * (test_util::btc_factor() as u64), test_scenario::ctx(scenario));
-            interface3::trade_amount_in_3<BTC, ETH, SOL>(
+            // Starting prices are 27802.45 for BTC and 20 for SOL.
+            // This means 1 BTC  can purchase roughly 1390 SOL, meaning the trade below would
+            // request about 700 SOL from the pool, more than the allowed ~500 SOL.
+            let amount_in = coin::mint_for_testing<BTC>(5 * (test_util::btc_factor() as u64) / 10, test_scenario::ctx(scenario));
+            interface3::trade_amount_in_3<BTC, SOL, ETH>(
                 &mut alice_ramm,
                 amount_in,
                 0,
                 &btc_aggr,
-                &eth_aggr,
                 &sol_aggr,
+                &eth_aggr,
                 test_scenario::ctx(scenario)
             );
 
@@ -333,7 +333,7 @@ module ramm_sui::interface3_safety_tests {
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let sol_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, sol_ag_id);
 
-            let amount_in = coin::mint_for_testing<BTC>(1 * (test_util::btc_factor() as u64), test_scenario::ctx(scenario));
+            let amount_in = coin::mint_for_testing<BTC>(1 * (test_util::btc_factor() as u64) / 10, test_scenario::ctx(scenario));
             // Recall that the type argument order here implies that BTC is inbound, SOL is outbound,
             // which should be reflected in the order of the aggregators (but is not, hence the error).
             interface3::trade_amount_in_3<BTC, SOL, ETH>(
@@ -598,12 +598,14 @@ module ramm_sui::interface3_safety_tests {
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let sol_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, sol_ag_id);
 
-            // Recall that these test scenarios have 1000 units of each asset as starting liquidity
-            // 145 / 1000 > 0.05 = MU, the maximum trade constant
-            let max_amount_in = coin::mint_for_testing<ETH>(145 * (test_util::btc_factor() as u64), test_scenario::ctx(scenario));
+            // Recall that this test scenario has 10 units of BTC, 100 of ETH and 10000 of SOL as
+            // starting liquidity; note also that
+            // * the trader requests 0.3 BTC; 1 / 10 < 0.05 = MU, the maximum trade constant
+            // * the trader provides 6 ETH, and the pool only has 100: 6 / 100 > MU
+            let max_amount_in = coin::mint_for_testing<ETH>(6 * (test_util::eth_factor() as u64), test_scenario::ctx(scenario));
             interface3::trade_amount_out_3<ETH, BTC, SOL>(
                 &mut alice_ramm,
-                (10 * test_util::btc_factor() as u64),
+                (4 * test_util::btc_factor() as u64) / 10,
                 max_amount_in,
                 &eth_aggr,
                 &btc_aggr,
@@ -678,18 +680,15 @@ module ramm_sui::interface3_safety_tests {
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let sol_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, sol_ag_id);
 
-            let amount: u64 = 1000 * (test_util::btc_factor() as u64);
-
-            let max_amount_in = coin::mint_for_testing<BTC>(amount, test_scenario::ctx(scenario));
-            // Recall that the type argument order here implies that BTC is inbound, SOL is outbound,
-            // which should be reflected in the order of the aggregators (but is not, hence the error).
-            interface3::trade_amount_out_3<BTC, SOL, ETH>(
+            let max_amount_in = coin::mint_for_testing<ETH>(100 * (test_util::eth_factor() as u64), test_scenario::ctx(scenario));
+            // Recall that the type argument order here implies that ETH is inbound, SOL is outbound
+            interface3::trade_amount_out_3<ETH, SOL, BTC>(
                 &mut alice_ramm,
-                amount,
+                10_000 * (test_util::sol_factor() as u64),
                 max_amount_in,
+                &eth_aggr,
                 &btc_aggr,
-                &eth_aggr,
-                &eth_aggr,
+                &sol_aggr,
                 test_scenario::ctx(scenario)
             );
 

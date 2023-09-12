@@ -2,6 +2,7 @@
 
 [move]
 version = 0
+manifest_digest = "3496115043F9AAE56A80558B7FA4EA48912D16BDC5194D527F3317DAA48CBFEB"
 
 dependencies = [
   { name = "MoveStdlib" },
