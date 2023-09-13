@@ -7,12 +7,6 @@ module ramm_sui::math {
 
     friend ramm_sui::ramm;
 
-    friend ramm_sui::interface2_tests;
-    friend ramm_sui::interface3_tests;
-    friend ramm_sui::math_tests;
-    friend ramm_sui::test_util;
-    friend ramm_sui::volatility2_tests;
-
     const ENegativeSbD: u64 = 0;
     const EMulOverflow: u64 = 1;
     const EDividendTooLarge: u64 = 2;
@@ -57,7 +51,7 @@ module ramm_sui::math {
     /// * If the `SwitchboardDecimal`'s `scaling_factor` is more than `prec`; in practice
     ///   this will not happen because it can be at most `9`; see documentation for
     ///   `SwitchboardDecimal`
-    public(friend) fun sbd_to_price_info(sbd: sb_math::SwitchboardDecimal, prec: u8): (u256, u256) {
+    public fun sbd_to_price_info(sbd: sb_math::SwitchboardDecimal, prec: u8): (u256, u256) {
         let (value, scaling_factor, neg) = sb_math::unpack(sbd);
         assert!(!neg, ENegativeSbD);
 
@@ -76,7 +70,7 @@ module ramm_sui::math {
     /// # Aborts
     ///
     /// If the calculation overflows.
-    public(friend) fun pow(base: u256, exp: u8): u256 {
+    public fun pow(base: u256, exp: u8): u256 {
         let res = 1;
         while (exp >= 1) {
             if (exp % 2 == 0) {
@@ -97,7 +91,7 @@ module ramm_sui::math {
     /// # Aborts
     ///
     /// * If either operand or the result overflow past `pow(10, max_prec)`.
-    public(friend) fun mul(x: u256, y: u256, prec: u8, max_prec: u8): u256 {
+    public fun mul(x: u256, y: u256, prec: u8, max_prec: u8): u256 {
         let max = pow(10u256, max_prec);
         assert!(x <= max && y <= max, EMulOverflow);
         let result = x * y / pow(10u256, prec);
@@ -113,7 +107,7 @@ module ramm_sui::math {
     ///
     /// * If any operand overflows past `pow(10, max_prec)`
     /// * If any intermediate/final results overflow past `pow(10, max_prec)`
-    public(friend) fun mul3(x: u256, y: u256, z: u256, prec: u8, max_prec: u8): u256 {
+    public fun mul3(x: u256, y: u256, z: u256, prec: u8, max_prec: u8): u256 {
         mul(x, mul(y, z, prec, max_prec), prec, max_prec)
     }
 
@@ -243,7 +237,7 @@ module ramm_sui::math {
     /// Returns a list with the weights of the tokens with respect to the given prices.
     ///
     /// The result is given in `u256` with `prec` decimal places.
-    public(friend) fun weights(
+    public fun weights(
         balances: &VecMap<u8, u256>,
         prices: &VecMap<u8, u256>,
         factor_balances: &VecMap<u8, u256>,
@@ -314,7 +308,7 @@ module ramm_sui::math {
     /// Returns a list with the imbalance ratios of the tokens.
     ///
     /// The result is given in `u256` with `prec` decimal places.
-    public(friend) fun imbalance_ratios(
+    public fun imbalance_ratios(
         balances: &VecMap<u8, u256>,
         lp_tokens_issued: &VecMap<u8, u256>,
         prices: &VecMap<u8, u256>,
@@ -365,7 +359,7 @@ module ramm_sui::math {
     /// will be constants defined in the `ramm.move` module, and passed to this function.
     ///
     /// Sui Move does not permit sharing of constants between modules.
-    public(friend) fun check_imbalance_ratios(
+    public fun check_imbalance_ratios(
         balances: &VecMap<u8, u256>,
         lp_tokens_issued: &VecMap<u8, u256>,
         prices: &VecMap<u8, u256>,
@@ -422,7 +416,7 @@ module ramm_sui::math {
 
     /// Returns the scaled base fee and leverage parameter for a trade where token `i` goes into the
     /// pool and token `o` goes out of the pool.
-    public(friend) fun scaled_fee_and_leverage(
+    public fun scaled_fee_and_leverage(
         balances: &VecMap<u8, u256>,
         lp_tokens_issued: &VecMap<u8, u256>,
         prices: &VecMap<u8, u256>,
@@ -459,7 +453,7 @@ module ramm_sui::math {
     ///
     /// The value will represent a percentage i.e. a value between `0` and `one`, where
     /// `one` is the value `1` with `prec` decimal places.
-    public(friend) fun compute_volatility_fee(
+    public fun compute_volatility_fee(
         previous_price: u256,
         previous_price_timestamp: u64,
         new_price: u256,
@@ -544,7 +538,7 @@ module ramm_sui::math {
     /// This function uses an asset's "previous"ly stored price/its timestamp, and the
     /// most recently queried price/timestamp pair, referred to as "new", to decide whether to
     /// update the asset's stored information.
-    public(friend) fun update_volatility_data(
+    public fun update_volatility_data(
         previous_price: u256,
         previous_price_timestamp: u64,
         new_price: u256,
