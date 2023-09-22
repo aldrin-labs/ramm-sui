@@ -10,7 +10,9 @@ At present, there are 2 Sui Move packages:
 ## Table of contents
 1. [RAMM in Sui Move](#ramm-sui-ramm-in-sui-move)
 2. [Testing a Switchboard price feed](#testing-a-price-feed)
-3. [Creating tokens for tests](#creating-test-coins)
+3. [Creating and funding a RAMM on the testnet](#creating-populating-and-initializing-a-ramm-to-the-testnet)
+  * [Testnet faucet](#requesting-tokens-from-the-faucet)
+  * [RAMM creation](#manually-creating-and-funding-a-ramm-on-the-testnet)
 4. [Regarding AMMs with variable numbers of assets in Sui Move](#on-supporting-variable-sized-pools-with-a-single-implementation)
 
 ## `ramm-sui`: RAMM in Sui Move
@@ -136,11 +138,11 @@ const SUI_USD: address = @0x84d2b7e435d6e6a5b137bf6f78f34b2c5515ae61cd8591d5ff6c
 cd ramm-misc
 sui move build
 sui client publish --gas-budget 20000000
-# export the above package ID to $PACKAGE
+# export the above package ID to $FAUCET_PACKAGE_ID
 
 # $AGGREGATOR_ID is an ID from https://beta.app.switchboard.xyz/sui/testnet
 sui client call \
-  --package $PACKAGE \
+  --package $FAUCET_PACKAGE_ID \
   --module switchboard_feed_parser \
   --function log_aggregator_info \
   --args $AGGREGATOR_ID \
@@ -153,11 +155,11 @@ sui client object $AGGREGATOR_INFO
 The relevant information will be in the `latest_result, latest_result_scaling_factor`
 fields.
 
-## Creating test coins
+## Manually creating and funding a RAMM on the testnet
 
 In order to create testing coins to be used to interact with the RAMM,
-`ramm-misc/sources/test_coins` offers tokens for which there exists a corresponding Switchboard
-`Aggregator` with pricing information on the Sui testnet.
+`ramm-misc/sources/test_coins` offers 5 different tokens for which there exists a corresponding
+Switchboard `Aggregator` on the Sui testnet:
 
 ### Regarding suibase
 
@@ -199,6 +201,65 @@ tsui client call --package "$FAUCET_PACKAGE_ID" \
 --type-args "$FAUCET_PACKAGE_ID"::test_coins::"$COIN" \
 --gas-budget 100000000
 ```
+
+### Creating, populating and initializing a RAMM to the testnet
+
+#### Creation
+
+In order to create a RAMM, an address for fee collection needs to be specified, for example:
+
+```bash
+export FEE_COLLECTOR=0x000000000000000000000000000000000000000000000000000000000000FACE
+```
+
+After the above:
+
+```bash
+cd ramm-sui
+tsui client publish --gas-budget 20000000 .
+# Export the package ID for `ramm_sui` created above as `$RAMM_PACKAGE_ID`
+tsui client call --package "$RAMM_PACKAGE_ID" \
+  --module ramm \
+  --function new_ramm \
+  --args "$FEE_COLLECTOR" \
+  --gas-budget 1000000000
+```
+
+#### Asset addition
+
+The previous transaction should have resulted in several newly created objects:
+1. the RAMM object, which should be `export`ed as `RAMM_ID`
+2. an admin capability object, `ADMIN_CAP_ID`
+3. a capability used to add new assets, `NEW_ASSET_CAP_ID`
+
+For an asset to be added, assuming its `Aggregator`'s ID from
+[the list of presently available testnet aggregators](https://app.switchboard.xyz/sui/testnet)
+has been `export`ed as `AGGREGATOR_ID`:
+
+```bash
+tsui client call --package "$RAMM_PACKAGE_ID" \
+  --module ramm \
+  --function add_asset_to_ramm \
+  --args "$RAMM_ID" "$AGGREGATOR_ID" $MIN_TRADE_AMNT $ASSET_DEC_PLACES "$ADMIN_CAP_ID" "$NEW_ASSET_CAP_ID" \
+  --gas-budget 1000000000
+```
+
+The values `MIN_TRADE_AMNT` and `ASSET_DEC_PLACES` are the asset's minimum trade amount, and
+its decimal places, respectively.
+
+##### Obtaining a `Coin<T>` type's decimal place count
+
+For these tests, all assets can be considered to have 8 decimal places.
+However, when using real tokens bridged from other chains into Sui, in order to obtain its decimal
+place count, do the following:
+
+1. Obtain the ID of the package containing the Sui-side version of the bridged token from
+   [the official docs](https://docs.sui.io/learn/sui-bridging); in the case of `WSOL`, it is
+  `export PACKAGE_ID=0xb7844e289a8410e50fb3ca48d69eb9cf29e27d223ef90353fe1bd8e27ff8f3f8`
+2. Use a [Sui RPC inspector](https://www.suirpc.app/method/suix_getCoinMetadata) to run the
+   `get_CoinMetadata` method on `PACKAGE_ID::coin::COIN`
+3. In the JSON response, the `decimals` field will be the decimal places the token was configured
+   with; for `WSOL`, `8`
 
 ## On supporting variable-sized pools with a single implementation
 
