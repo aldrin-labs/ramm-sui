@@ -4,8 +4,8 @@ This repository hosts an implementation of a RAMM in Sui Move.
 
 At present, there are 2 Sui Move packages:
 * `ramm-sui` contains an implementation for the RAMM, which is ongoing work.
-* `ramm-misc` has a simple demo that fetches pricing information from [Switchboard](https://beta.app.switchboard.xyz/sui/testnet) Sui oracles
-  - it also has fictional tokens to be used later when testing the RAMM
+* `ramm-misc` has a faucet with tokens useful for testnet development/testing
+  - it also has a simple demo that showcases price information querying from [Switchboard](https://beta.app.switchboard.xyz/sui/testnet) aggregators
 
 ## Table of contents
 1. [RAMM in Sui Move](#ramm-sui-ramm-in-sui-move)
@@ -27,8 +27,8 @@ The public API is split in different modules:
 * Functions that can be called on RAMMs of any size exist in `ramm_sui::ramm`
 * for 2-asset RAMMs, the module `ramm_sui::interface2` is to be used
 * for 3-asset RAMMs, use `ramm_sui::interface3`
-* any future additions of higher-order RAMMs will follow this pattern: 4-asset RAMMs => `ramm_sui::interface4`, etc.
-
+  - any future additions of higher-order RAMMs will follow this pattern: 4-asset RAMMs => `ramm_sui::interface4`, etc.
+* mathematical operators related to the RAMM protocol in `ramm_sui::math`
 
 ### RAMM Internal data
 
@@ -39,7 +39,7 @@ The structure stores information required for its management and operation, incl
 * a data structure specific to Sui (`balance::Supply`) that regulates LP token issuance for each asset
 * protocol fees collected for each asset
 
-### Capability pattern as security measure
+### Capability pattern as a security measure
 
 Some RAMM operations don't require administrative privileges - trading, liquidity deposits/withdrawals - while
 others must. Examples:
@@ -155,30 +155,50 @@ fields.
 
 ## Creating test coins
 
-In order to create testing coins to be used in the RAMM (which is WIP),
-`ramm-misc/sources/test_coins` has some modules for dummy tokens.
+In order to create testing coins to be used to interact with the RAMM,
+`ramm-misc/sources/test_coins` offers tokens for which there exists a corresponding Switchboard
+`Aggregator` with pricing information on the Sui testnet.
 
-How to create them:
-1. Publish this package
-  ```bash
-  sui client publish . --gas-budget 10000000
-  ```
-  The created objects whose ID will be necessary are:
-  - the published package's ID, which can be `export`ed as `PACKAGE`
-  - the `TreasuryCap`s for the created test currencies, which will need to be
-    `export`ed as well, e.g. `export SOL_TREASURY_CAP=...`
-2. Mint-and-transfer testing tokens:
-  ```bash
-  sui client call \
-  --package 0x2 \
-  --module coin \
-  --function mint_and_transfer \
-  --gas-budget 10000000 \
-  --args $TOKEN_TREASURY_CAP 1000 $ADDRESS \
-  --type-args $PACKAGE::token::TOKEN
-  ```
-  where `$ADDRESS` in a previously `export`ed valid Sui address.
-  Other functions are available in the `0x2::coin` module
+### Regarding suibase
+
+[Suibase](https://suibase.io/intro.html) is a tool that assists in the development, testing
+and deployment of Sui smart contracts.
+
+It provides a suite of tools and SDKs for Rust/Python that let developers easily target
+different Sui networks (e.g. devnet, testnet, main) and configure the development environment,
+e.g. by allowing the specification of an exact version of the `sui` binaries, from a forked
+repository.
+
+For the purposes of this project, it will be needed to build/test/deploy the RAMM on a given
+network, in this case the testnet.
+After installing `suibase`, optionally [setting](https://suibase.io/how-to/configure-suibase-yaml.html#change-default-repo-and-branch)
+the `sui` version to be used, and running `testnet start`, `tsui` will be ready for use in the
+user's `$PATH`.
+
+### Requesting tokens from the faucet
+
+The `ramm_sui` package has been published to the Sui testnet; its package ID, as well as
+the object ID of the `ramm_misc::faucet::Faucet` object, should be declared in a UNIX
+terminal thusly in order to follow the rest of the instructions:
+
+```bash
+export FAUCET_PACKAGE_ID=0x76a5ecf30b2cf49a342a9bd74a479702a1b321b0d45f06920618dbe7c2da52b1
+export FAUCET_ID=0xaf774e31764afcf13761111b662892d12d6998032691160e1b3f7d7f0ab039bd
+```
+
+`SUI` for gas fees can be requested in the Sui [Discord](https://discord.com/invite/sui) server.
+After this is done, a specific token, i.e. `ramm_misc::test_coins::BTC`, can be requested with
+
+```bash
+export COIN=BTC
+
+tsui client call --package "$FAUCET_PACKAGE_ID" \
+--module test_coin_faucet \
+--function mint_test_coins \
+--args $FAUCET_ID 100000000000 \
+--type-args "$FAUCET_PACKAGE_ID"::test_coins::"$COIN" \
+--gas-budget 100000000
+```
 
 ## On supporting variable-sized pools with a single implementation
 

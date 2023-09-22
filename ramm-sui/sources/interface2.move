@@ -38,6 +38,7 @@ module ramm_sui::interface2 {
     const EInvalidWithdrawal: u64 = 9;
 
     /// Trading function for a RAMM with two (2) assets.
+    ///
     /// Used to deposit a given amount of asset `T_i`, in exchange for asset `T_o`.
     ///
     /// # Aborts
