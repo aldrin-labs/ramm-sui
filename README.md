@@ -261,6 +261,23 @@ place count, do the following:
 3. In the JSON response, the `decimals` field will be the decimal places the token was configured
    with; for `WSOL`, `8`
 
+#### Initialize the RAMM
+
+Run the following
+
+```bash
+tsui client call --package "$RAMM_PACKAGE_ID" \
+  --module ramm \
+  --function initialize_ramm \
+  --args "$RAMM_ID" "$ADMIN_CAP_ID" "$NEW_ASSET_CAP_ID" \
+  --gas-budget 1000000000
+```
+
+This will delete the new asset capability associated with this RAMM whose ID is `NEW_ASSET_CAP_ID`,
+so no more assets can be added to that RAMM.
+
+Consider the RAMM's asset count before initializing it.
+
 ## On supporting variable-sized pools with a single implementation
 
 As of its release, Sui Move will not allow a single implementation of a
