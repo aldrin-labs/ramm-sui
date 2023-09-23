@@ -10,9 +10,11 @@ At present, there are 2 Sui Move packages:
 ## Table of contents
 1. [RAMM in Sui Move](#ramm-sui-ramm-in-sui-move)
 2. [Testing a Switchboard price feed](#testing-a-price-feed)
-3. [Creating and funding a RAMM on the testnet](#creating-populating-and-initializing-a-ramm-to-the-testnet)
-  * [Testnet faucet](#requesting-tokens-from-the-faucet)
-  * [RAMM creation](#manually-creating-and-funding-a-ramm-on-the-testnet)
+3. [Deploying and testing the RAMM on the testnet](#)
+  3.1. [Addresses of currently published packages and instantiated objects](#addresses-of-currently-published-packages-and-instantiated-objects)
+  3.2. [Regarding `suibase`](#regarding-suibase)
+  3.3. [Requesting tokens from the faucet](#requesting-tokens-from-the-faucet)
+  3.4. [RAMM creation/funding](#manually-creating-and-funding-a-ramm-on-the-testnet)
 4. [Regarding AMMs with variable numbers of assets in Sui Move](#on-supporting-variable-sized-pools-with-a-single-implementation)
 
 ## `ramm-sui`: RAMM in Sui Move
@@ -155,11 +157,39 @@ sui client object $AGGREGATOR_INFO
 The relevant information will be in the `latest_result, latest_result_scaling_factor`
 fields.
 
-## Manually creating and funding a RAMM on the testnet
+## Interacting with the RAMM on the testnet
 
-In order to create testing coins to be used to interact with the RAMM,
-`ramm-misc/sources/test_coins` offers 5 different tokens for which there exists a corresponding
-Switchboard `Aggregator` on the Sui testnet:
+### Addresses of currently published packages and instantiated objects
+
+The Bash variables below should be declared in a terminal/script for ease of use when running
+the example commands.
+
+The latest package IDs of
+
+* the `ramm_sui` package, which is the library to create/interact with RAMM objects, as well as the
+* `ramm_misc` package, used to create test tokens on the testnet,
+
+are the following:
+
+```bash
+export FAUCET_PACKAGE_ID=0x76a5ecf30b2cf49a342a9bd74a479702a1b321b0d45f06920618dbe7c2da52b1
+export RAMM_SUI_PACKAGE_ID=0x0adad52b9aa0a00460e47c3d5884dd4610bafdd772d62321558005387abe1174
+```
+
+The object IDs of
+
+* the most recently created `ramm_misc::faucet::Faucet` object, as well as
+* a 3-asset `BTC/ETH/SOL` RAMM,
+
+are:
+
+```bash
+export FAUCET_ID=0xaf774e31764afcf13761111b662892d12d6998032691160e1b3f7d7f0ab039bd
+export RAMM_ID=0xbee296f4efc42bb228c284c944d58c28a971d5c29c015ba9fe6b0db20b07896d
+```
+
+Verify these using `tsui client object {object-id}`.
+
 
 ### Regarding suibase
 
@@ -168,25 +198,24 @@ and deployment of Sui smart contracts.
 
 It provides a suite of tools and SDKs for Rust/Python that let developers easily target
 different Sui networks (e.g. devnet, testnet, main) and configure the development environment,
-e.g. by allowing the specification of an exact version of the `sui` binaries, from a forked
+e.g. by allowing the specification of an exact version of the `sui` binaries, and/or from a forked
 repository.
 
-For the purposes of this project, it will be needed to build/test/deploy the RAMM on a given
-network, in this case the testnet.
+For the purposes of this project, `suibase` will be needed to build/test/deploy the RAMM on a given
+network - in this case, the testnet.
+
 After installing `suibase`, optionally [setting](https://suibase.io/how-to/configure-suibase-yaml.html#change-default-repo-and-branch)
 the `sui` version to be used, and running `testnet start`, `tsui` will be ready for use in the
 user's `$PATH`.
 
 ### Requesting tokens from the faucet
 
-The `ramm_sui` package has been published to the Sui testnet; its package ID, as well as
-the object ID of the `ramm_misc::faucet::Faucet` object, should be declared in a UNIX
-terminal thusly in order to follow the rest of the instructions:
+In order to create/interact with the RAMM, fictitious tokens are required.
 
-```bash
-export FAUCET_PACKAGE_ID=0x76a5ecf30b2cf49a342a9bd74a479702a1b321b0d45f06920618dbe7c2da52b1
-export FAUCET_ID=0xaf774e31764afcf13761111b662892d12d6998032691160e1b3f7d7f0ab039bd
-```
+In order to create test coins to be used to interact with the RAMM,
+`ramm-misc/sources/test_coins` offers 5 different tokens for which there exists a corresponding
+Switchboard `Aggregator` on the Sui testnet:
+ * `BTC, ETH, SOL, USDT, USDC`
 
 `SUI` for gas fees can be requested in the Sui [Discord](https://discord.com/invite/sui) server.
 After this is done, a specific token, i.e. `ramm_misc::test_coins::BTC`, can be requested with
