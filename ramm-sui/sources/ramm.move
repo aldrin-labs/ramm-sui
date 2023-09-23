@@ -590,7 +590,6 @@ module ramm_sui::ramm {
             ERAMMInvalidInitState
         );
 
-
         let ix = 0;
         while (ix < self.asset_count) {
             set_deposit_status(self, ix, true);

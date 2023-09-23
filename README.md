@@ -5,7 +5,7 @@ This repository hosts an implementation of a RAMM in Sui Move.
 At present, there are 2 Sui Move packages:
 * `ramm-sui` contains an implementation for the RAMM, which is ongoing work.
 * `ramm-misc` has a faucet with tokens useful for testnet development/testing
-  - it also has a simple demo that showcases price information querying from [Switchboard](https://beta.app.switchboard.xyz/sui/testnet) aggregators
+  - it also has a simple demo that showcases price information querying from [Switchboard](https://app.switchboard.xyz/sui/testnet) aggregators
 
 ## Table of contents
 1. [RAMM in Sui Move](#ramm-sui-ramm-in-sui-move)
@@ -277,6 +277,40 @@ This will delete the new asset capability associated with this RAMM whose ID is 
 so no more assets can be added to that RAMM.
 
 Consider the RAMM's asset count before initializing it.
+
+#### Depositing liquidity in the RAMM
+
+Consider a concrete example of a `BTC/ETH/SOL` 3-asset RAMM.
+As the RAMM has 3 assets, the corresponding public interface must be used.
+In order to deposit liquidity for an asset in the RAMM, the following data are required:
+
+1. The previously stored `$RAMM_ID`
+2. Aggregator IDs for each of the RAMM's 3 assets, once again gotten from [here](https://app.switchboard.xyz/sui/testnet)
+  - `$BTC_AGG_ID` for `BTC`
+  - `$ETH_AGG_ID` for `ETH`, etc
+3. The coins previously requested from the faucet
+  - in this case, `$BTC_ID` is the object ID of the `Coin<$FAUCET_PACKAGE_ID::test_coins::BTC>`
+    gotten from the faucet
+4. the type information of each of the RAMM's assets
+  - in this case, `$FAUCET_PACKAGE_ID::test_coins::BTC` for `BTC`
+  - `$FAUCET_PACKAGE_ID::test_coins::ETH` for `ETH`, etc
+
+Note that:
+* the first type provided corresponds to the type of the coin object i.e. of the asset for which
+  liquidity is being deposited
+* the order in which the `Aggregator`s are provided must match the order in which the types are
+  given
+
+All of the above results in the following:
+
+```bash
+tsui client call --package "$RAMM_PACKAGE_ID" \
+  --module interface3 \
+  --function liquidity_deposit_3 \
+  --args "$RAMM_ID" "$BTC_ID" "$BTC_AGG_ID" "$ETH_AGG_ID" "$SOL_AGG_ID" \
+  --gas-budget 1000000000 \
+  --type-args "$FAUCET_PACKAGE_ID::test_coins::BTC" "$FAUCET_PACKAGE_ID::test_coins::ETH" "$FAUCET_PACKAGE_ID::test_coins::SOL"
+```
 
 ## On supporting variable-sized pools with a single implementation
 
