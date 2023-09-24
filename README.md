@@ -316,12 +316,7 @@ Note that:
 All of the above results in the following:
 
 ```bash
-tsui client call --package "$RAMM_PACKAGE_ID" \
-  --module interface3 \
-  --function liquidity_deposit_3 \
-  --args "$RAMM_ID" "$BTC_ID" "$BTC_AGG_ID" "$ETH_AGG_ID" "$SOL_AGG_ID" \
-  --gas-budget 1000000000 \
-  --type-args "$FAUCET_PACKAGE_ID::test_coins::BTC" "$FAUCET_PACKAGE_ID::test_coins::ETH" "$FAUCET_PACKAGE_ID::test_coins::SOL"
+ 
 ```
 
 #### Trading with the RAMM
@@ -384,6 +379,36 @@ tsui client call --package "$RAMM_PACKAGE_ID" \
   --args "$RAMM_ID" "$AMNT_OUT" "$BTC_ID"  "$BTC_AGG_ID" "$ETH_AGG_ID" "$SOL_AGG_ID" \
   --gas-budget 1000000000 \
   --type-args "$FAUCET_PACKAGE_ID::test_coins::BTC" "$FAUCET_PACKAGE_ID::test_coins::ETH" "$FAUCET_PACKAGE_ID::test_coins::SOL"
+```
+
+#### Executing a liquidity withdrawal
+
+Below are the data required to perform a liquidity withdrawal from the RAMM.
+This example also considers the above 3-asset `BTC/ETH/SOL` pool.
+
+1. The `$RAMM_ID` is necessary
+2. The object ID, call it `$LP_ID` of the liquidity pool (LP) `Coin`s emitted by the pool upon the
+   asset's prior deposit
+3. Aggregator IDs for each of the RAMM's 3 assets, as always taken from [here](https://app.switchboard.xyz/sui/testnet)
+4. the type information of each of the RAMM's assets, appended by the type of the asset meant to be
+   withdrawn
+   - in this case, since the pool has 3 assets, 4 type arguments are needed
+
+Note that:
+* the last type provided corresponds to
+  - the inbound LP tokens which will be burned
+  - the outbound asset
+* the order in which the `Aggregator`s are provided must match the order in which the pool's types
+  are given
+
+```bash
+tsui client call --package "$RAMM_PACKAGE_ID" \
+  --module interface3 \
+  --function liquidity_withdrawal_3 \
+  --args "$RAMM_ID" "$LP_ID" "$BTC_AGG_ID" "$ETH_AGG_ID" "$SOL_AGG_ID" \
+  --gas-budget 1000000000 \
+  --type-args "$FAUCET_PACKAGE_ID::test_coins::BTC" "$FAUCET_PACKAGE_ID::test_coins::ETH" \
+     "$FAUCET_PACKAGE_ID::test_coins::SOL" "$FAUCET_PACKAGE_ID::test_coins::BTC"
 ```
 
 ## Testing a Switchboard price feed
