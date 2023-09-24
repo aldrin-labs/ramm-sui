@@ -9,12 +9,12 @@ At present, there are 2 Sui Move packages:
 
 ## Table of contents
 1. [RAMM in Sui Move](#ramm-sui-ramm-in-sui-move)
-2. [Testing a Switchboard price feed](#testing-a-price-feed)
-3. [Deploying and testing the RAMM on the testnet](#)
-  3.1. [Addresses of currently published packages and instantiated objects](#addresses-of-currently-published-packages-and-instantiated-objects)
-  3.2. [Regarding `suibase`](#regarding-suibase)
-  3.3. [Requesting tokens from the faucet](#requesting-tokens-from-the-faucet)
-  3.4. [RAMM creation/funding](#manually-creating-and-funding-a-ramm-on-the-testnet)
+2. [Deploying and testing the RAMM on the testnet](#interacting-with-the-ramm-on-the-testnet)
+  2.1. [Addresses of currently published packages and instantiated objects](#addresses-of-currently-published-packages-and-instantiated-objects)
+  2.2. [Regarding `suibase`](#regarding-suibase)
+  2.3. [Requesting tokens from the faucet](#requesting-tokens-from-the-faucet)
+  2.4. [RAMM creation/funding](#manually-creating-and-funding-a-ramm-on-the-testnet)
+3. [Testing a Switchboard price feed](#testing-a-price-feed)
 4. [Regarding AMMs with variable numbers of assets in Sui Move](#on-supporting-variable-sized-pools-with-a-single-implementation)
 
 ## `ramm-sui`: RAMM in Sui Move
@@ -123,46 +123,14 @@ This is because if `RAMM` `has key`, then
   `sui::transfer::share_object`
 * which it *must* be, to be readable and writable by all
 
-## Testing a Switchboard price feed
-
-A Sui testnet price information feed can be found in the link above,
-and in `ramm-misc/sources/demo.move`, there exist constants with the aggregators'
-addresses; some examples which can be used below with `$AGGREGATOR_ID`:
-
-```Rust
-const BTC_USD: address = @0x7c30e48db7dfd6a2301795be6cb99d00c87782e2547cf0c63869de244cfc7e47;
-const ETH_USD: address = @0x68ed81c5dd07d12c629e5cdad291ca004a5cd3708d5659cb0b6bfe983e14778c;
-const SOL_USD: address = @0x35c7c241fa2d9c12cd2e3bcfa7d77192a58fd94e9d6f482465d5e3c8d91b4b43;
-const SUI_USD: address = @0x84d2b7e435d6e6a5b137bf6f78f34b2c5515ae61cd8591d5ff6cd121a21aa6b7;
-```
-
-```bash
-cd ramm-misc
-sui move build
-sui client publish --gas-budget 20000000
-# export the above package ID to $FAUCET_PACKAGE_ID
-
-# $AGGREGATOR_ID is an ID from https://beta.app.switchboard.xyz/sui/testnet
-sui client call \
-  --package $FAUCET_PACKAGE_ID \
-  --module switchboard_feed_parser \
-  --function log_aggregator_info \
-  --args $AGGREGATOR_ID \
-  --gas-budget 10000000 \
-# export the resulting object ID to AGGREGATOR_INFO
-
-sui client object $AGGREGATOR_INFO
-```
-
-The relevant information will be in the `latest_result, latest_result_scaling_factor`
-fields.
-
 ## Interacting with the RAMM on the testnet
 
 ### Addresses of currently published packages and instantiated objects
 
 The Bash variables below should be declared in a terminal/script for ease of use when running
 the example commands.
+
+#### Package IDs
 
 The latest package IDs of
 
@@ -172,9 +140,11 @@ The latest package IDs of
 are the following:
 
 ```bash
-export FAUCET_PACKAGE_ID=0x76a5ecf30b2cf49a342a9bd74a479702a1b321b0d45f06920618dbe7c2da52b1
+export FAUCET_PACKAGE_ID=0x76a5ecf30b2cf49a342a9bd74a479702a1b321b0d45f06920618dbe7c2da52b1 \
 export RAMM_SUI_PACKAGE_ID=0x0adad52b9aa0a00460e47c3d5884dd4610bafdd772d62321558005387abe1174
 ```
+
+# Object IDs / Addresses
 
 The object IDs of
 
@@ -184,12 +154,24 @@ The object IDs of
 are:
 
 ```bash
-export FAUCET_ID=0xaf774e31764afcf13761111b662892d12d6998032691160e1b3f7d7f0ab039bd
+export FAUCET_ID=0xaf774e31764afcf13761111b662892d12d6998032691160e1b3f7d7f0ab039bd \
 export RAMM_ID=0xbee296f4efc42bb228c284c944d58c28a971d5c29c015ba9fe6b0db20b07896d
 ```
 
 Verify these using `tsui client object {object-id}`.
 
+The object IDs of the six Switchboard `Aggregators` presently on the Sui testnet, for
+* `BTC, ETH, SOL, SUI, USDT, USDC`
+are:
+
+```bash
+export BTC_AGG_ID=0x7c30e48db7dfd6a2301795be6cb99d00c87782e2547cf0c63869de244cfc7e47 \
+export ETH_AGG_ID=0x68ed81c5dd07d12c629e5cdad291ca004a5cd3708d5659cb0b6bfe983e14778c \
+export SOL_AGG_ID=0x35c7c241fa2d9c12cd2e3bcfa7d77192a58fd94e9d6f482465d5e3c8d91b4b43 \
+export SUI_AGG_ID=0x84d2b7e435d6e6a5b137bf6f78f34b2c5515ae61cd8591d5ff6cd121a21aa6b7 \
+export USDT_AGG_ID=0xe8a09db813c07b0a30c9026b3ff7d5617d2505a097f1a90a06a941d34bee9585 \
+export USDC_AGG_ID=0xde58993e6aabe1248a9956557ba744cb930b61437f94556d0380b87913d5ef47
+```
 
 ### Regarding suibase
 
@@ -279,6 +261,7 @@ its decimal places, respectively.
 ##### Obtaining a `Coin<T>` type's decimal place count
 
 For these tests, all assets can be considered to have 8 decimal places.
+
 However, when using real tokens bridged from other chains into Sui, in order to obtain its decimal
 place count, do the following:
 
@@ -314,12 +297,12 @@ As the RAMM has 3 assets, the corresponding public interface must be used.
 In order to deposit liquidity for an asset in the RAMM, the following data are required:
 
 1. The previously stored `$RAMM_ID`
-2. Aggregator IDs for each of the RAMM's 3 assets, once again gotten from [here](https://app.switchboard.xyz/sui/testnet)
-  - `$BTC_AGG_ID` for `BTC`
-  - `$ETH_AGG_ID` for `ETH`, etc
-3. The coins previously requested from the faucet
+2. The coins previously requested from the faucet
   - in this case, `$BTC_ID` is the object ID of the `Coin<$FAUCET_PACKAGE_ID::test_coins::BTC>`
     gotten from the faucet
+3. Aggregator IDs for each of the RAMM's 3 assets, once again gotten from [here](https://app.switchboard.xyz/sui/testnet)
+  - `$BTC_AGG_ID` for `BTC`
+  - `$ETH_AGG_ID` for `ETH`, etc
 4. the type information of each of the RAMM's assets
   - in this case, `$FAUCET_PACKAGE_ID::test_coins::BTC` for `BTC`
   - `$FAUCET_PACKAGE_ID::test_coins::ETH` for `ETH`, etc
@@ -341,6 +324,69 @@ tsui client call --package "$RAMM_PACKAGE_ID" \
   --type-args "$FAUCET_PACKAGE_ID::test_coins::BTC" "$FAUCET_PACKAGE_ID::test_coins::ETH" "$FAUCET_PACKAGE_ID::test_coins::SOL"
 ```
 
+#### Trading with the RAMM
+
+The examples below assume a 3-asset `BTC/ETH/SOL` RAMM with existing initial liquidity.
+
+##### Depositing a specific amount of an asset
+
+In order to eg. deposit exactly 20 ETH into the RAMM, the following data are required:
+
+1. `$RAMM_ID`
+2. The ID of the `Coin<$FAUCET_PACKAGE_ID::test_coins::ETH>` previously requested from the faucet
+3. The minimum amount of the outbound asset the trader expects to receive, which can be `export`ed
+   as `MIN_AMNT_OUT`.
+   - Recall that all test coins are created to have 8 decimal places, so e.g. 1 unit of `BTC` should
+     be `100000000`
+4. Aggregator IDs for each of the RAMM's 3 assets, as always taken from [here](https://app.switchboard.xyz/sui/testnet)
+5. the type information of each of the RAMM's assets
+   - in this case, `$FAUCET_PACKAGE_ID::test_coins::BTC` for `BTC`
+   - `$FAUCET_PACKAGE_ID::test_coins::ETH` for `ETH`, etc
+
+Note that:
+* the first type provided corresponds to the inbound asset, as well as the type of the coin object
+* the second type provided corresponds to outbound asset
+* the order in which the `Aggregator`s are provided must match the order in which the types are
+  given
+
+```bash
+tsui client call --package "$RAMM_PACKAGE_ID" \
+  --module interface3 \
+  --function trade_amount_in_3 \
+  --args "$RAMM_ID" "$ETH_ID" "$MIN_AMNT_OUT" "$ETH_AGG_ID" "$BTC_AGG_ID" "$SOL_AGG_ID" \
+  --gas-budget 1000000000 \
+  --type-args "$FAUCET_PACKAGE_ID::test_coins::ETH" "$FAUCET_PACKAGE_ID::test_coins::BTC" "$FAUCET_PACKAGE_ID::test_coins::SOL"
+```
+
+## Testing a Switchboard price feed
+
+A list of price information feeds currently available on the test Sui testnet can be found
+[here](https://app.switchboard.xyz/sui/testnet).
+
+In order to test a price feed from the CLI using the `ramm_misc` package, perform the following
+actions:
+
+```bash
+cd ramm-misc
+sui move build
+sui client publish --gas-budget 20000000
+# export the above package ID to $FAUCET_PACKAGE_ID
+
+# $AGGREGATOR_ID is an ID from https://app.switchboard.xyz/sui/testnet
+sui client call \
+  --package $FAUCET_PACKAGE_ID \
+  --module switchboard_feed_parser \
+  --function log_aggregator_info \
+  --args $AGGREGATOR_ID \
+  --gas-budget 10000000 \
+# export the resulting object ID to AGGREGATOR_INFO
+
+sui client object $AGGREGATOR_INFO
+```
+
+The relevant information will be in the `latest_result, latest_result_scaling_factor`
+fields.
+
 ## On supporting variable-sized pools with a single implementation
 
 As of its release, Sui Move will not allow a single implementation of a
@@ -360,7 +406,8 @@ of testing tokens, and inserts them in a [`sui::bag::Bag`](https://github.com/My
 
 ### Goal
 
-The goal is to perform a trivial operation: add all of the testing tokens' amounts.
+The goal of this experiment is to perform a trivial operation: add all of the testing tokens'
+amounts.
 Doing this requires fully instantiating the types of all the involved tokens, which
 by consequence prevents a fully generic RAMM from being implemented in Sui Move (as of its release).
 The reasoning supporting this conclusion will be below.
