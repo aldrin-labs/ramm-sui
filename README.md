@@ -340,8 +340,7 @@ In order to eg. deposit exactly 20 ETH into the RAMM, the following data are req
      be `100000000`
 4. Aggregator IDs for each of the RAMM's 3 assets, as always taken from [here](https://app.switchboard.xyz/sui/testnet)
 5. the type information of each of the RAMM's assets
-   - in this case, `$FAUCET_PACKAGE_ID::test_coins::BTC` for `BTC`
-   - `$FAUCET_PACKAGE_ID::test_coins::ETH` for `ETH`, etc
+   - in this case, `$FAUCET_PACKAGE_ID::test_coins::BTC` for `BTC`, etc
 
 Note that:
 * the first type provided corresponds to the inbound asset, as well as the type of the coin object
@@ -356,6 +355,35 @@ tsui client call --package "$RAMM_PACKAGE_ID" \
   --args "$RAMM_ID" "$ETH_ID" "$MIN_AMNT_OUT" "$ETH_AGG_ID" "$BTC_AGG_ID" "$SOL_AGG_ID" \
   --gas-budget 1000000000 \
   --type-args "$FAUCET_PACKAGE_ID::test_coins::ETH" "$FAUCET_PACKAGE_ID::test_coins::BTC" "$FAUCET_PACKAGE_ID::test_coins::SOL"
+```
+
+##### Withdrawing an exact amount of an asset
+
+In order to e.g. withdraw exactly 1 BTC from the RAMM, the following data are required:
+
+1. `$RAMM_ID`
+2. The amount of the outbound asset the trader wishes to receive, which can be `export`ed
+   as `AMNT_OUT`.
+   - Recall that all test coins are created to have 8 decimal places, so e.g. 1 unit of `BTC` should
+     be `100000000`
+3. The ID of the coin object previously requested from the faucet
+4. Aggregator IDs for each of the RAMM's 3 assets, as always taken from [here](https://app.switchboard.xyz/sui/testnet)
+5. the type information of each of the RAMM's assets
+   - in this case, `$FAUCET_PACKAGE_ID::test_coins::BTC` for `BTC`, etc
+
+Note that:
+* the first type provided corresponds to the inbound asset, as well as the type of the coin object
+* the second type provided corresponds to outbound asset
+* the order in which the `Aggregator`s are provided must match the order in which the types are
+  given
+
+```bash
+tsui client call --package "$RAMM_PACKAGE_ID" \
+  --module interface3 \
+  --function trade_amount_out_3 \
+  --args "$RAMM_ID" "$AMNT_OUT" "$BTC_ID"  "$BTC_AGG_ID" "$ETH_AGG_ID" "$SOL_AGG_ID" \
+  --gas-budget 1000000000 \
+  --type-args "$FAUCET_PACKAGE_ID::test_coins::BTC" "$FAUCET_PACKAGE_ID::test_coins::ETH" "$FAUCET_PACKAGE_ID::test_coins::SOL"
 ```
 
 ## Testing a Switchboard price feed
