@@ -10,10 +10,10 @@ At present, there are 2 Sui Move packages:
 ## Table of contents
 1. [RAMM in Sui Move](#ramm-sui-ramm-in-sui-move)
 2. [Deploying and testing the RAMM on the testnet](#interacting-with-the-ramm-on-the-testnet)
-  2.1. [Addresses of currently published packages and instantiated objects](#addresses-of-currently-published-packages-and-instantiated-objects)
-  2.2. [Regarding `suibase`](#regarding-suibase)
-  2.3. [Requesting tokens from the faucet](#requesting-tokens-from-the-faucet)
-  2.4. [RAMM creation/funding](#manually-creating-and-funding-a-ramm-on-the-testnet)
+   - 2.1. [Addresses of currently published packages and instantiated objects](#addresses-of-currently-published-packages-and-instantiated-objects)
+   - 2.2. [Regarding `suibase`](#regarding-suibase)
+   - 2.3. [Requesting tokens from the faucet](#requesting-tokens-from-the-faucet)
+   - 2.4. [RAMM creation/funding](#manually-creating-and-funding-a-ramm-on-the-testnet)
 3. [Testing a Switchboard price feed](#testing-a-price-feed)
 4. [Regarding AMMs with variable numbers of assets in Sui Move](#on-supporting-variable-sized-pools-with-a-single-implementation)
 
@@ -326,7 +326,7 @@ tsui client call --package "$RAMM_PACKAGE_ID" \
 This will delete the new asset capability associated with this RAMM whose ID is `NEW_ASSET_CAP_ID`,
 so no more assets can be added to that RAMM.
 
-Consider the RAMM's asset count before initializing it.
+Carefully consider the RAMM's desired asset count before initializing it.
 
 #### Depositing liquidity in the RAMM
 
@@ -336,14 +336,14 @@ In order to deposit liquidity for an asset in the RAMM, the following data are r
 
 1. The previously stored `$RAMM_ID`
 2. The coins previously requested from the faucet
-  - in this case, `$BTC_ID` is the object ID of the `Coin<$FAUCET_PACKAGE_ID::test_coins::BTC>`
-    gotten from the faucet
+   - in this case, `$BTC_ID` is the object ID of the `Coin<$FAUCET_PACKAGE_ID::test_coins::BTC>`
+     gotten from the faucet
 3. Aggregator IDs for each of the RAMM's 3 assets, once again gotten from [here](https://app.switchboard.xyz/sui/testnet)
-  - `$BTC_AGG_ID` for `BTC`
-  - `$ETH_AGG_ID` for `ETH`, etc
+   - `$BTC_AGG_ID` for `BTC`
+   - `$ETH_AGG_ID` for `ETH`, etc
 4. the type information of each of the RAMM's assets
-  - in this case, `$FAUCET_PACKAGE_ID::test_coins::BTC` for `BTC`
-  - `$FAUCET_PACKAGE_ID::test_coins::ETH` for `ETH`, etc
+   - in this case, `$FAUCET_PACKAGE_ID::test_coins::BTC` for `BTC`
+   - `$FAUCET_PACKAGE_ID::test_coins::ETH` for `ETH`, etc
 
 Note that:
 * the first type provided corresponds to the type of the coin object i.e. of the asset for which
