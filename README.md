@@ -165,6 +165,22 @@ export ADMIN_CAP_ID=0xaacbaebf49380e6b5587ce0a26dc54dc4576045ff9c6e3a8aab30e2b48
 export NEW_ASSET_CAP_ID=0xb7bcf12b4984e0ea6b11a969b4bc2fa11efa3d488b6ba6696c43425c886d2915
 ```
 
+The object IDs of
+
+* a 2-asset `ETH/USDC` RAMM, and
+  - its fee collection address (can be changed)
+  - its admin capability, and
+  - its new asset capability (since deleted with its initialization)
+
+are
+
+```bash
+export RAMM_ID=0x14cd5b0a0fdb09ca16959ed8b30ac674521fed8ed0089ff4a3d321f3295668ef \
+export FEE_COLLECTOR=0x1fad963ac9311c5f99685bc430dc022a5b0d36f6860603495ca0a0e3a46dd120 \
+export ADMIN_CAP_ID=0x0c4baabcfe4b9fcfe7c45c5bf5f639e54ab948be0794d8cc9246545edcb8f49a \
+export NEW_ASSET_CAP_ID=0xf3d8e8f21e84d4220cec2edb1e30bb3667a57d390d6298e68bbeef2b202e105e
+```
+
 Verify these using `tsui client object {object-id}`.
 
 The object IDs of the six Switchboard `Aggregators` presently on the Sui testnet, for
