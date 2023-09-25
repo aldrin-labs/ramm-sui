@@ -149,13 +149,20 @@ export RAMM_SUI_PACKAGE_ID=0x0adad52b9aa0a00460e47c3d5884dd4610bafdd772d62321558
 The object IDs of
 
 * the most recently created `ramm_misc::faucet::Faucet` object, as well as
-* a 3-asset `BTC/ETH/SOL` RAMM,
+* a 3-asset `BTC/ETH/SOL` RAMM, and
+  - its fee collection address (can be changed)
+  - its admin capability, and
+  - its new asset capability (since deleted with its initialization)
 
 are:
 
 ```bash
 export FAUCET_ID=0xaf774e31764afcf13761111b662892d12d6998032691160e1b3f7d7f0ab039bd \
-export RAMM_ID=0xbee296f4efc42bb228c284c944d58c28a971d5c29c015ba9fe6b0db20b07896d
+
+export RAMM_ID=0xbee296f4efc42bb228c284c944d58c28a971d5c29c015ba9fe6b0db20b07896d \
+export FEE_COLLECTOR=0x1fad963ac9311c5f99685bc430dc022a5b0d36f6860603495ca0a0e3a46dd120 \
+export ADMIN_CAP_ID=0xaacbaebf49380e6b5587ce0a26dc54dc4576045ff9c6e3a8aab30e2b48e81ecd \
+export NEW_ASSET_CAP_ID=0xb7bcf12b4984e0ea6b11a969b4bc2fa11efa3d488b6ba6696c43425c886d2915
 ```
 
 Verify these using `tsui client object {object-id}`.
@@ -220,8 +227,6 @@ After these data are set as variables, a specific token, i.e. `ramm_misc::test_c
 requested with
 
 ```bash
-export COIN=BTC
-
 tsui client call --package "$FAUCET_PACKAGE_ID" \
 --module test_coin_faucet \
 --function mint_test_coins \
@@ -249,23 +254,21 @@ place count, do the following:
 
 #### Creation
 
-In order to create a RAMM, an address for fee collection needs to be specified, for example:
+In order to create a RAMM, the following data are necessary:
+1. The previously stored `RAMM_PACKAGE_ID`, and
+2.  an address for fee collection needs to be specified, e.g. as `FEE_COLLECTOR`.
 
-```bash
-export FEE_COLLECTOR=0x000000000000000000000000000000000000000000000000000000000000FACE
-```
+See [above](#addresses-of-currently-published-packages-and-instantiated-objects) for the addresses
+of currently published RAMMs.
 
 After the above:
 
 ```bash
-cd ramm-sui
-tsui client publish --gas-budget 20000000 .
-# Export the package ID for `ramm_sui` created above as `$RAMM_PACKAGE_ID`
 tsui client call --package "$RAMM_PACKAGE_ID" \
-  --module ramm \
-  --function new_ramm \
-  --args "$FEE_COLLECTOR" \
-  --gas-budget 1000000000
+--module ramm \
+--function new_ramm \
+--args "$FEE_COLLECTOR" \
+--gas-budget 1000000000
 ```
 
 #### Asset addition
@@ -276,7 +279,7 @@ The previous transaction should have resulted in several newly created objects:
 3. a capability used to add new assets, `NEW_ASSET_CAP_ID`
 
 For an asset to be added, assuming its `Aggregator`'s ID from
-[the list of presently available testnet aggregators](https://app.switchboard.xyz/sui/testnet)
+[the list of presently available testnet aggregators](#addresses-of-currently-published-packages-and-instantiated-objects)
 has been `export`ed as `AGGREGATOR_ID`:
 
 ```bash
@@ -335,7 +338,12 @@ Note that:
 All of the above results in the following:
 
 ```bash
- 
+tsui client call --package "$RAMM_PACKAGE_ID" \
+  --module interface3 \
+  --function liquidity_deposit_3 \
+  --args "$RAMM_ID" "$BTC_ID" "$BTC_AGG_ID" "$ETH_AGG_ID" "$SOL_AGG_ID" \
+  --gas-budget 1000000000 \
+  --type-args "$FAUCET_PACKAGE_ID::test_coins::BTC" "$FAUCET_PACKAGE_ID::test_coins::ETH" "$FAUCET_PACKAGE_ID::test_coins::SOL" 
 ```
 
 #### Trading with the RAMM
