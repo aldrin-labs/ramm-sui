@@ -194,13 +194,30 @@ user's `$PATH`.
 
 In order to create/interact with the RAMM, fictitious tokens are required.
 
-In order to create test coins to be used to interact with the RAMM,
+Then, for the purpose of creating test coins to be used to interact with the RAMM,
 `ramm-misc/sources/test_coins` offers 5 different tokens for which there exists a corresponding
 Switchboard `Aggregator` on the Sui testnet:
  * `BTC, ETH, SOL, USDT, USDC`
 
 `SUI` for gas fees can be requested in the Sui [Discord](https://discord.com/invite/sui) server.
-After this is done, a specific token, i.e. `ramm_misc::test_coins::BTC`, can be requested with
+
+To interact with the faucet, the following data are required:
+1. The ID of the `ramm_misc` package, which contains the faucet: it may be `export`ed as
+   `FAUCET_PACKAGE_ID`
+   - See [above](#addresses-of-currently-published-packages-and-instantiated-objects) a list of
+     currently published package IDs
+2. The ID of a `ramm_misc::faucet::Faucet` that is currently instantiated on the testnet,
+   may it be called `FAUCET_ID`
+   - See [above](#addresses-of-currently-published-packages-and-instantiated-objects)
+3. The amount of the token to be minted, `COIN_AMNT`.
+   - See [below](#obtaining-a-coint-types-decimal-place-count) for a note on how many decimal
+     places each fictitious asset has
+4. A type argument specifying the specific asset to be requested, `export`ed as `COIN`
+   - In the case of e.g. `ETH`, it'll be `"$FAUCET_PACKAGE_ID"::test_coins::"$COIN`, which will
+     expand to `"$FAUCET_PACKAGE_ID"::test_coins::ETH`
+
+After these data are set as variables, a specific token, i.e. `ramm_misc::test_coins::BTC`, can be
+requested with
 
 ```bash
 export COIN=BTC
@@ -208,10 +225,25 @@ export COIN=BTC
 tsui client call --package "$FAUCET_PACKAGE_ID" \
 --module test_coin_faucet \
 --function mint_test_coins \
---args $FAUCET_ID 100000000000 \
+--args "$FAUCET_ID" "$COIN_AMNT" \
 --type-args "$FAUCET_PACKAGE_ID"::test_coins::"$COIN" \
 --gas-budget 100000000
 ```
+
+#### Obtaining a `Coin<T>` type's decimal place count
+
+For these tests, all assets can be considered to have 8 decimal places.
+
+However, when using real tokens bridged from other chains into Sui, in order to obtain its decimal
+place count, do the following:
+
+1. Obtain the ID of the package containing the Sui-side version of the bridged token from
+   [the official docs](https://docs.sui.io/learn/sui-bridging); in the case of `WSOL`, it is
+  `export PACKAGE_ID=0xb7844e289a8410e50fb3ca48d69eb9cf29e27d223ef90353fe1bd8e27ff8f3f8`
+2. Use a [Sui RPC inspector](https://www.suirpc.app/method/suix_getCoinMetadata) to run the
+   `get_CoinMetadata` method on `PACKAGE_ID::coin::COIN`
+3. In the JSON response, the `decimals` field will be the decimal places the token was configured
+   with; for `WSOL`, `8`
 
 ### Creating, populating and initializing a RAMM to the testnet
 
@@ -257,21 +289,8 @@ tsui client call --package "$RAMM_PACKAGE_ID" \
 
 The values `MIN_TRADE_AMNT` and `ASSET_DEC_PLACES` are the asset's minimum trade amount, and
 its decimal places, respectively.
-
-##### Obtaining a `Coin<T>` type's decimal place count
-
-For these tests, all assets can be considered to have 8 decimal places.
-
-However, when using real tokens bridged from other chains into Sui, in order to obtain its decimal
-place count, do the following:
-
-1. Obtain the ID of the package containing the Sui-side version of the bridged token from
-   [the official docs](https://docs.sui.io/learn/sui-bridging); in the case of `WSOL`, it is
-  `export PACKAGE_ID=0xb7844e289a8410e50fb3ca48d69eb9cf29e27d223ef90353fe1bd8e27ff8f3f8`
-2. Use a [Sui RPC inspector](https://www.suirpc.app/method/suix_getCoinMetadata) to run the
-   `get_CoinMetadata` method on `PACKAGE_ID::coin::COIN`
-3. In the JSON response, the `decimals` field will be the decimal places the token was configured
-   with; for `WSOL`, `8`
+See the note [above](#obtaining-a-coint-types-decimal-place-count) to know how many decimal places
+each test token has.
 
 #### Initialize the RAMM
 
