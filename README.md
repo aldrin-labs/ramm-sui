@@ -106,6 +106,7 @@ the fast-tracking of transactions that occurs in contexts of in sole object owne
 
 In order to obtain current information on asset pricing, the RAMM requires the use of oracles.
 In Sui, at present, there are only two alternatives: Pyth Network, and Switchboard.
+
 Switchboard was chosen over Pyth due to its simplicity - Pyth [requires](https://docs.pyth.network/pythnet-price-feeds/sui)
 attested off-chain data to be provided in each price request, while Switchboard does not.
 
@@ -114,7 +115,8 @@ Sui's object model prevents interaction via an `address` alone, and as such:
 
 > Switchboard's `Aggregator`s cannot be stored in the RAMM object.
 
-This is because if `RAMM` `has key`, then
+This is because the RAMM must be a (shared) object; whereby it must have the `key` ability.
+If `RAMM has key`, then
 * all its fields must have `store`
 * in particular, `vector<Aggregator>` must have store
   - so `Aggregator` must have `store`
