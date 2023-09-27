@@ -27,12 +27,31 @@ they must interact with a `RAMM` object through the contract APIs in the `interf
 
 ### Structure of `ramm-sui` package and modules
 
-The public API is split in different modules:
+#### Library
+
+The public API, in `ramm_sui/sources`, is split in different modules:
 * Functions that can be called on RAMMs of any size exist in `ramm_sui::ramm`
 * for 2-asset RAMMs, the module `ramm_sui::interface2` is to be used
 * for 3-asset RAMMs, use `ramm_sui::interface3`
   - any future additions of higher-order RAMMs will follow this pattern: 4-asset RAMMs => `ramm_sui::interface4`, etc.
 * mathematical operators related to the RAMM protocol in `ramm_sui::math`
+
+#### Tests
+
+The `ramm_sui/tests/` directory has an extensive suite of tests for the RAMM's functionality.
+Among them:
+* Utilities used to create non-trivial test scenarios, and avoid boilerplate when setting up test
+  environments in `test_util.move`
+* Tests to the basic mathematical operators required to implement the RAMM, in `math_tests.move`
+* Basic unit-tests for RAMM creation and initialization, in `ramm_tests.move`
+* Safety tests for each of the sized RAMM's interfaces: `interface2_safety_tests.move` for 2-asset
+  RAMMs, and so on; these safety tests include:
+    * checking that priviledged RAMM operations performed with an incorrect `Cap` object fail
+    * providing an incorrect `Aggregator` to trading functions will promptly fail
+* End-to-end tests in `interface{n}_tests.move` that use the functionality present in
+  `sui::test_scenario` to flow from RAMM and `Aggregator` creation, all the way to liquidity
+  deposits, withdrawals and trading with the RAMM
+* Tests to the RAMM's volatility fee in `volatility{n}_tests.move`
 
 ### RAMM Internal data
 
