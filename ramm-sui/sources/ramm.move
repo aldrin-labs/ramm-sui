@@ -154,7 +154,7 @@ module ramm_sui::ramm {
         //   - the field must be `Some` before initialization
         // * After initialization, no more assets can be added.
         //   - thenceforth and until the RAMM object is deleted, the field will be `None`
-        new_asset_cap_id: Option<ID>,
+        new_asset_cap_id_opt: Option<ID>,
 
         /*
         --------------
@@ -378,24 +378,49 @@ module ramm_sui::ramm {
     /// `impl RAMM`
     /// -----------
 
+    struct NewRAMMIDs has copy, drop {
+        ramm_id: ID,
+        admin_cap_id: ID,
+        new_asset_cap_id: ID,
+    }
+
     /// Create a new RAMM structure, without any asset.
     ///
     /// A RAMM needs to have assets added to it before it can be initialized,
     /// after which it can be used.
-    public entry fun new_ramm(
+    ///
+    /// # Return value:
+    ///
+    /// A triple `(ramm_id, admin_cap_id, new_asset_cap_id): (ID, ID, ID)`, where
+    /// * `ramm_id` is the `ID` of the newly created and publicly `share`d RAMM object
+    /// * `admin_cap_id` is the `ID` of the `RAMMAdminCap` required to perform priviledged operations
+    ///   on the RAMM
+    /// * `new_asset_cap_id` is the `ID` of the `RAMMNewAssetCap` object required to add assets
+    ///   into an uninitialized RAMM
+    ///
+    /// In order to write a specification in MSL asserting that these objects were indeed created,
+    /// this intermediate function is used, which returns `ID`s to write
+    /// `spec new_ramm_internal` with.
+    fun new_ramm_internal(
         fee_collector: address,
         ctx: &mut TxContext
-    ) {
-        let admin_cap = RAMMAdminCap { id: object::new(ctx) };
-        let admin_cap_id = object::id(&admin_cap);
-        let new_asset_cap = RAMMNewAssetCap { id: object::new(ctx) };
-        let new_asset_cap_id = option::some(object::id(&new_asset_cap));
+    ): NewRAMMIDs {
+        let admin_cap_uid: UID = object::new(ctx);
+        let admin_cap_id: ID = object::uid_to_inner(&admin_cap_uid);
+        let admin_cap: RAMMAdminCap = RAMMAdminCap { id: admin_cap_uid };
 
+        let new_asset_cap_uid: UID = object::new(ctx);
+        let new_asset_cap_id: ID = object::uid_to_inner(&new_asset_cap_uid);
+        let new_asset_cap: RAMMNewAssetCap = RAMMNewAssetCap { id: new_asset_cap_uid };
+        let new_asset_cap_id_opt: Option<ID> = option::some(new_asset_cap_id);
+
+        let ramm_uid: UID = object::new(ctx);
+        let ramm_id: ID = object::uid_to_inner(&ramm_uid);
         let ramm_init = RAMM {
-                id: object::new(ctx),
+                id: ramm_uid,
 
                 admin_cap_id,
-                new_asset_cap_id,
+                new_asset_cap_id_opt,
 
                 collected_protocol_fees: bag::new(ctx),
                 fee_collector,
@@ -422,6 +447,39 @@ module ramm_sui::ramm {
         transfer::transfer(admin_cap, tx_context::sender(ctx));
         transfer::transfer(new_asset_cap, tx_context::sender(ctx));
         transfer::share_object(ramm_init);
+
+        NewRAMMIDs {
+            ramm_id,
+            admin_cap_id,
+            new_asset_cap_id
+        }
+    }
+
+     spec new_ramm_internal {
+        ensures [abstract] exists<object::Ownership>(object::id_to_address(result.ramm_id));
+        ensures [abstract] exists<object::Ownership>(object::id_to_address(result.admin_cap_id));
+        ensures [abstract] exists<object::Ownership>(object::id_to_address(result.new_asset_cap_id));
+    }
+
+    spec new_ramm_internal {
+        ensures global<object::Ownership>(object::id_to_address(result.ramm_id)).status == SHARED;
+
+        ensures global<object::Ownership>(object::id_to_address(result.admin_cap_id)).status == OWNED;
+        ensures global<object::Ownership>(object::id_to_address(result.admin_cap_id)).owner == tx_context::sender(ctx);
+
+        ensures global<object::Ownership>(object::id_to_address(result.new_asset_cap_id)).status == OWNED;
+        ensures global<object::Ownership>(object::id_to_address(result.new_asset_cap_id)).owner == tx_context::sender(ctx);
+    }
+
+    /// Create a new RAMM structure, without any asset.
+    ///
+    /// A RAMM needs to have assets added to it before it can be initialized,
+    /// after which it can be used.
+    public entry fun new_ramm(
+        fee_collector: address,
+        ctx: &mut TxContext
+    ) {
+        new_ramm_internal(fee_collector, ctx);
     }
 
     #[test]
@@ -446,7 +504,7 @@ module ramm_sui::ramm {
         let na = test_scenario::take_from_address<RAMMNewAssetCap>(scenario, admin);
 
         assert!(ramm.admin_cap_id == object::id(&a), ERAMMInvalidInitState);
-        assert!(ramm.new_asset_cap_id == option::some(object::id(&na)), ERAMMInvalidInitState);
+        assert!(ramm.new_asset_cap_id_opt == option::some(object::id(&na)), ERAMMInvalidInitState);
 
         assert!(ramm.fee_collector == admin, ERAMMInvalidInitState);
         assert!(bag::is_empty(&ramm.collected_protocol_fees), ERAMMInvalidInitState);
@@ -500,7 +558,7 @@ module ramm_sui::ramm {
         na: &RAMMNewAssetCap,
     ) {
         assert!(self.admin_cap_id == object::id(a), ENotAdmin);
-        assert!(self.new_asset_cap_id == option::some(object::id(na)), EWrongNewAssetCap);
+        assert!(self.new_asset_cap_id_opt == option::some(object::id(na)), EWrongNewAssetCap);
 
         let type_name = type_name::get<Asset>();
         let type_index = self.asset_count;
