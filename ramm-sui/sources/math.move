@@ -20,24 +20,40 @@ module ramm_sui::math {
     /// Operators
     /// ---------
 
-    /// Raise a `base: u256` to the power of a `u8` `exp`onent.
-    ///
-    /// # Aborts
-    ///
-    /// If the calculation overflows.
-    public(friend) fun pow_u256(base: u256, exp: u8): u256 {
-        let res = 1;
-        while (exp >= 1) {
-            if (exp % 2 == 0) {
-                base = base * base;
-                exp = exp / 2;
-            } else {
-                res = res * base;
-                exp = exp - 1;
-            }
-        };
+    fun sbd_data_to_info(value: u128, scaling_factor: u8, neg: bool, prec: u8): (u256, u256) {
+        assert!(!neg, ENegativeSbD);
 
-        res
+        ((value as u256), pow(10u256, prec - scaling_factor))
+    }
+
+    /// This isn't a mistake - several spec blocks are required in order to
+    /// 1. Specify all possible aborts for this function
+    /// 2. Specify all (or some of the) conditions in which they occur
+    ///
+    /// Overflows can occur in two distinct locations:
+    /// 1. in `pow`, and
+    /// 2. when calculating `prec - scaling_factor`
+    ///
+    /// The first cannot be encoded without exponentiation specified in the MSL.
+    /// That means an `aborts_if` clause for it cannot be written, which is unnecessary
+    /// if all the specification asserts in which kinds of aborts occur, not how.
+    ///
+    /// A partial specification for how they can occur is below.
+    spec sbd_data_to_info {
+        aborts_with ENegativeSbD, EXECUTION_FAILURE;
+    }
+
+    spec sbd_data_to_info {
+        pragma verify = true;
+
+        // In order to have the below set to false, it'd be necessary to specify the behavior of
+        // `pow`, which is not possible at the moment.
+        //
+        // As such, it is not possible to cover aborts caused by that function's overflow.
+        pragma aborts_if_is_partial = true;
+
+        aborts_if neg with ENegativeSbD;
+        aborts_if scaling_factor > prec with EXECUTION_FAILURE;
     }
 
     /// Given a `switchboard::aggregator::SwitchboardDecimal`, returns:
@@ -53,10 +69,8 @@ module ramm_sui::math {
     ///   `SwitchboardDecimal`
     public fun sbd_to_price_info(sbd: sb_math::SwitchboardDecimal, prec: u8): (u256, u256) {
         let (value, scaling_factor, neg) = sb_math::unpack(sbd);
-        assert!(!neg, ENegativeSbD);
 
-        ((value as u256), pow_u256(10u256, prec - scaling_factor))
-
+        sbd_data_to_info(value, scaling_factor, neg, prec)
     }
 
     /// Given a `u256` value, forecefully clamp it to the range `[0, max]`.
