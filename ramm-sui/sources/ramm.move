@@ -605,6 +605,23 @@ module ramm_sui::ramm {
         assert!(n == bag::length(&self.typed_lp_tokens_issued), ERAMMNewAssetFailure);
     }
 
+/*
+    spec add_asset_to_ramm {
+        pragma aborts_if_is_partial = true;
+        aborts_with ENotAdmin, EWrongNewAssetCap, ERAMMNewAssetFailure, EXECUTION_FAILURE;
+    }
+ */
+
+    spec add_asset_to_ramm {
+        pragma aborts_if_is_partial = true;
+
+        aborts_if self.admin_cap_id != object::id(a);
+        aborts_if self.new_asset_cap_id_opt != option::spec_some(object::id(na));
+
+        ensures self.asset_count == old(self).asset_count + 1;
+        ensures option::is_some(self.new_asset_cap_id_opt);
+    }
+
     /// Initialize a RAMM pool.
     ///
     /// Its `RAMMNewAssetCap`ability must be passed in by value so that it is destroyed,
@@ -618,16 +635,17 @@ module ramm_sui::ramm {
     ///   - the number of held assets differs from the number of LP token issuers.
     public entry fun initialize_ramm(
         self: &mut RAMM,
-        a: &RAMMAdminCap,
-        cap: RAMMNewAssetCap,
+        admin_cap: &RAMMAdminCap,
+        new_asset_cap: RAMMNewAssetCap,
     ) {
-        assert!(self.admin_cap_id == object::id(a), ENotAdmin);
-        assert!(self.new_asset_cap_id == option::some(object::id(&cap)), EWrongNewAssetCap);
+        assert!(self.admin_cap_id == object::id(admin_cap), ENotAdmin);
+        assert!(self.new_asset_cap_id_opt == option::some(object::id(&new_asset_cap)), EWrongNewAssetCap);
         assert!(self.asset_count > 0, ENoAssetsInRAMM);
 
         let index_map_size = vec_map::size(&self.types_to_indexes);
         assert!(
             index_map_size > 0 &&
+            self.asset_count == (index_map_size as u8) &&
             index_map_size == bag::length(&self.collected_protocol_fees) &&
 
             index_map_size == vec_map::size(&self.deposits_enabled) &&
