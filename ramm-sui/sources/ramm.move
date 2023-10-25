@@ -677,6 +677,8 @@ work well together
 
         let ix = 0;
         while ({
+            // This loop invariant is trivial, but it is needed to prove below that
+            // if this function terminates, it does not change the RAMM's asset count.
             spec {
                 invariant self.asset_count == old(self).asset_count;
             };
@@ -692,7 +694,28 @@ work well together
         let _ = option::extract(&mut self.new_asset_cap_id_opt);
     }
 
+    ///
+    /// Important note
+    ///
+    /// Regarding `aborts_if_is_partial`
+    ///
+    /// In MSL, a function has several individual abort conditions, named `a_1, a_2, ..., a_i`.
+    /// Let the `or`-ed condition be called its combined abort condition `A`:
+    ///
+    /// `A <==> a_1 || a_2 || ... || a_i`
+    ///
+    /// Consider this function's complete abort condition, `A`.
+    /// The meaning of the `aborts_if_is_partial` pragma is as follows:
+    ///
+    /// 1. If set to `true`, then `A ==>` the function aborts
+    /// 2. If set to `false` (the default), then `A <==>` the function aborts.
+    ///
+    /// Since aborts resulting from `VecMap` operations are not yet codified in the Sui stdlib,
+    /// the pragma must be set here, as its current combined aborts condition cannot express every
+    /// possible abort that the prover's Z3 solver will be able to find.
     spec initialize_ramm {
+        pragma opaque = true;
+
         pragma aborts_if_is_partial = true;
 
         aborts_if self.admin_cap_id != object::id(admin_cap);
