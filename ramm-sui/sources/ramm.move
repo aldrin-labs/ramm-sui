@@ -606,6 +606,14 @@ module ramm_sui::ramm {
     }
 
 /*
+TODO
+
+This doesn't work until
+* `pragma aborts_if_is_partial = true`
+* `aborts_if ... with`, and
+* `aborts_with`
+work well together
+
     spec add_asset_to_ramm {
         pragma aborts_if_is_partial = true;
         aborts_with ENotAdmin, EWrongNewAssetCap, ERAMMNewAssetFailure, EXECUTION_FAILURE;
