@@ -32,6 +32,8 @@ module ramm_sui::ramm {
     /// A trade's outbound amount exceeded the set maximum (MU).
     const ETradeExcessAmountOut: u64 = 9;
 
+    const ERAMMAlreadyInitialized: u64 = 10;
+
     /// --------------
     /// RAMM Constants
     /// --------------
@@ -650,6 +652,7 @@ work well together
         assert!(self.admin_cap_id == object::id(admin_cap), ENotAdmin);
         assert!(self.new_asset_cap_id_opt == option::some(object::id(&new_asset_cap)), EWrongNewAssetCap);
         assert!(self.asset_count > 0, ENoAssetsInRAMM);
+        assert!(option::is_some(&self.new_asset_cap_id_opt), ERAMMAlreadyInitialized);
 
         let index_map_size = vec_map::size(&self.types_to_indexes);
         assert!(
@@ -714,19 +717,43 @@ work well together
     /// the pragma must be set here, as its current combined aborts condition cannot express every
     /// possible abort that the prover's Z3 solver will be able to find.
     spec initialize_ramm {
+        // Required due to `[abstract]` properties below.
+        // See [this](https://github.com/move-language/move/blob/main/language/move-prover/doc/user/spec-lang.md#abstract-specifications)
         pragma opaque = true;
-
+        // As before, this is needed because abort conditions involving `VecMap`s are not yet
+        // codifiable in MSL.
         pragma aborts_if_is_partial = true;
+
+        // ----------------
+        // Abort conditions
+        // ----------------
 
         aborts_if self.admin_cap_id != object::id(admin_cap);
         aborts_if self.new_asset_cap_id_opt != option::spec_some(object::id(new_asset_cap));
-
         // Verify that executing this entry function on a RAMM with 0 assets will *always* raise
         // an abort.
         aborts_if self.asset_count == 0;
+        aborts_if option::is_none(self.new_asset_cap_id_opt);
 
-        requires self.asset_count > 0;
+        // --------------------------------------
+        // Post-conditions of RAMM initialization
+        // --------------------------------------
+
+        ensures self.asset_count > 0;
+        // A RAMM's initialization does change its asset count
         ensures self.asset_count == old(self).asset_count;
+
+        ensures option::is_some(old(self).new_asset_cap_id_opt);
+        // After initialization, the RAMM's `Option<ID>` with the ID of its new asset capability
+        // has been `extract`ed to `none`.
+        ensures option::is_none(self.new_asset_cap_id_opt);
+
+        ensures !is_initialized(old(self));
+        ensures is_initialized(self);
+
+        // ------------------
+        // Storage properties
+        // ------------------
 
         // Verify that the admin cap's ownership status and owner do not change with initialization
         ensures [abstract] global<object::Ownership>(object::id_address(admin_cap)).status == OWNED;
@@ -738,7 +765,6 @@ work well together
         // global storage, and that the RAMM's `Option<ID>` field reflects this.
         modifies [abstract] global<object::Ownership>(object::id_address(new_asset_cap));
         ensures [abstract] !exists<object::Ownership>(object::id_address(new_asset_cap));
-        ensures option::is_none(self.new_asset_cap_id_opt);
     }
 
     /// -------------------------
