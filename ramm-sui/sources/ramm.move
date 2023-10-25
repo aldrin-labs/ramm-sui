@@ -7,6 +7,7 @@ module ramm_sui::ramm {
     use sui::balance::{Self, Balance, Supply};
     use sui::coin::{Self, Coin};
     use sui::object::{Self, ID, UID};
+    use sui::prover::{OWNED, SHARED};
     use sui::transfer;
     use sui::tx_context::{Self, TxContext};
     use sui::vec_map::{Self, VecMap};
@@ -675,15 +676,46 @@ work well together
         );
 
         let ix = 0;
-        while (ix < self.asset_count) {
+        while ({
+            spec {
+                invariant self.asset_count == old(self).asset_count;
+            };
+            (ix < self.asset_count)
+        }) {
             set_deposit_status(self, ix, true);
             ix = ix + 1;
         };
 
-        let RAMMNewAssetCap { id: uid } = cap;
+        let RAMMNewAssetCap { id: uid } = new_asset_cap;
         object::delete(uid);
 
-        let _ = option::extract(&mut self.new_asset_cap_id);
+        let _ = option::extract(&mut self.new_asset_cap_id_opt);
+    }
+
+    spec initialize_ramm {
+        pragma aborts_if_is_partial = true;
+
+        aborts_if self.admin_cap_id != object::id(admin_cap);
+        aborts_if self.new_asset_cap_id_opt != option::spec_some(object::id(new_asset_cap));
+
+        // Verify that executing this entry function on a RAMM with 0 assets will *always* raise
+        // an abort.
+        aborts_if self.asset_count == 0;
+
+        requires self.asset_count > 0;
+        ensures self.asset_count == old(self).asset_count;
+
+        // Verify that the admin cap's ownership status and owner do not change with initialization
+        ensures [abstract] global<object::Ownership>(object::id_address(admin_cap)).status == OWNED;
+        ensures [abstract]
+            global<object::Ownership>(object::id_address(admin_cap)).owner ==
+            old(global<object::Ownership>(object::id_address(admin_cap)).owner);
+
+        // Verify that the capability used to add new assets into the RAMM is truly removed from
+        // global storage, and that the RAMM's `Option<ID>` field reflects this.
+        modifies [abstract] global<object::Ownership>(object::id_address(new_asset_cap));
+        ensures [abstract] !exists<object::Ownership>(object::id_address(new_asset_cap));
+        ensures option::is_none(self.new_asset_cap_id_opt);
     }
 
     /// -------------------------
@@ -784,7 +816,7 @@ work well together
     ///    the RAMM has already been initialized
     /// * `option::none()` if the RAMM has already been initialized.
     public fun get_new_asset_cap_id(self: &RAMM): Option<ID> {
-        self.new_asset_cap_id
+        self.new_asset_cap_id_opt
     }
 
     /*
