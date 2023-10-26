@@ -645,10 +645,15 @@ work well together
     spec add_asset_to_ramm {
         pragma aborts_if_is_partial = true;
 
-        aborts_if self.admin_cap_id != object::id(a);
-        aborts_if self.new_asset_cap_id_opt != option::spec_some(object::id(na));
+        aborts_if self.admin_cap_id != object::id(admin_cap);
+        aborts_if self.new_asset_cap_id_opt != option::spec_some(object::id(new_asset_cap));
 
+        // Ensure that the asset count is correctly updated
         ensures self.asset_count == old(self).asset_count + 1;
+        // Verify that adding an asset to the RAMM does not change its initialization status.
+        ensures !is_initialized(old(self));
+        ensures !is_initialized(self);
+        ensures option::is_some(old(self).new_asset_cap_id_opt);
         ensures option::is_some(self.new_asset_cap_id_opt);
     }
 
@@ -776,14 +781,15 @@ work well together
 
         // Verify that the admin cap's ownership status and owner do not change with initialization
         ensures [abstract] global<object::Ownership>(object::id_address(admin_cap)).status == OWNED;
-        ensures [abstract]
+        ensures
             global<object::Ownership>(object::id_address(admin_cap)).owner ==
             old(global<object::Ownership>(object::id_address(admin_cap)).owner);
 
         // Verify that the capability used to add new assets into the RAMM is truly removed from
         // global storage, and that the RAMM's `Option<ID>` field reflects this.
-        modifies [abstract] global<object::Ownership>(object::id_address(new_asset_cap));
-        ensures [abstract] !exists<object::Ownership>(object::id_address(new_asset_cap));
+        modifies global<RAMMNewAssetCap>(object::id_address(new_asset_cap));
+        modifies global<object::Ownership>(object::id_address(new_asset_cap));
+        ensures !exists<object::Ownership>(object::id_address(new_asset_cap));
     }
 
     /// -------------------------
@@ -907,9 +913,15 @@ work well together
     /// # Aborts
     ///
     /// If called with the wrong admin capability object.
-    public fun set_fee_collector(self: &mut RAMM, a: &RAMMAdminCap, new_fee_addr: address) {
-        assert!(self.admin_cap_id == object::id(a), ENotAdmin);
+    public fun set_fee_collector(self: &mut RAMM, admin_cap: &RAMMAdminCap, new_fee_addr: address) {
+        assert!(self.admin_cap_id == object::id(admin_cap), ENotAdmin);
         self.fee_collector = new_fee_addr;
+    }
+
+    spec set_fee_collector {
+        aborts_if self.admin_cap_id != object::id(admin_cap) with ENotAdmin;
+
+        ensures self.fee_collector == new_fee_addr;
     }
 
     /// Obtain the untyped (`u64`) value of fees collected by the RAMM for a certain asset.
@@ -984,13 +996,19 @@ work well together
     /// * If the RAMM does not have an asset with the provided type.
     public fun set_minimum_trade_amount<Asset>(
         self: &mut RAMM,
-        a: &RAMMAdminCap,
+        admin_cap: &RAMMAdminCap,
         new_min: u64
     ) {
-        assert!(self.admin_cap_id == object::id(a), ENotAdmin);
+        assert!(self.admin_cap_id == object::id(admin_cap), ENotAdmin);
 
         let ix = get_asset_index<Asset>(self);
         *vec_map::get_mut(&mut self.minimum_trade_amounts, &ix) = new_min
+    }
+
+    spec set_minimum_trade_amount {
+        pragma aborts_if_is_partial = true;
+
+        aborts_if self.admin_cap_id != object::id(admin_cap);
     }
 
     /// Deposit status
@@ -1018,12 +1036,18 @@ work well together
     /// * If called with the wrong admin capability object
     /// * If the RAMM has not been initialized
     /// * If the RAMM does not have an asset with the provided type
-    public fun enable_deposits<Asset>(self: &mut RAMM, a: &RAMMAdminCap) {
-        assert!(self.admin_cap_id == object::id(a), ENotAdmin);
+    public fun enable_deposits<Asset>(self: &mut RAMM, admin_cap: &RAMMAdminCap) {
+        assert!(self.admin_cap_id == object::id(admin_cap), ENotAdmin);
         assert!(is_initialized(self), ENotInitialized);
 
         let ix = get_asset_index<Asset>(self);
         set_deposit_status(self, ix, true)
+    }
+
+    spec enable_deposits {
+        pragma aborts_if_is_partial = true;
+
+        aborts_if self.admin_cap_id != object::id(admin_cap);
     }
 
     /// Function that allows a RAMM's admin to disable deposits for an asset.
@@ -1032,12 +1056,18 @@ work well together
     /// * If called with the wrong admin capability object
     /// * If the RAMM has not been initialized
     /// * If the RAMM does not have an asset with the provided type
-    public fun disable_deposits<Asset>(self: &mut RAMM, a: &RAMMAdminCap) {
-        assert!(self.admin_cap_id == object::id(a), ENotAdmin);
+    public fun disable_deposits<Asset>(self: &mut RAMM, admin_cap: &RAMMAdminCap) {
+        assert!(self.admin_cap_id == object::id(admin_cap), ENotAdmin);
         assert!(is_initialized(self), ENotInitialized);
 
         let ix = get_asset_index<Asset>(self);
         set_deposit_status(self, ix, false)
+    }
+
+    spec disable_deposits {
+        pragma aborts_if_is_partial = true;
+
+        aborts_if self.admin_cap_id != object::id(admin_cap);
     }
 
     /// Given an asset, return a `bool` representing the RAMM's deposit status for that
