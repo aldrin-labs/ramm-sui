@@ -458,18 +458,37 @@ module ramm_sui::ramm {
         }
     }
 
+    /// From the [MSL manual](https://github.com/move-language/move/blob/main/language/move-prover/doc/user/spec-lang.md#assume-and-assert-conditions-in-code):
+    ///
+    /// > The [abstract] property allow to specify a function such that an abstract semantics is
+    /// > used at the caller side which is different from the actual implementation.
+    /// >
+    /// > This is useful if the implementation is too complex for verification, and an abstract semantics
+    /// > is sufficient for verification goals.
+    /// >
+    /// > The soundness of the abstraction is the **responsibility** of the specifier, and
+    /// > **not verified** by the prover.
+    ///
      spec new_ramm_internal {
-        ensures [abstract] exists<object::Ownership>(object::id_to_address(result.ramm_id));
-        ensures [abstract] exists<object::Ownership>(object::id_to_address(result.admin_cap_id));
-        ensures [abstract] exists<object::Ownership>(object::id_to_address(result.new_asset_cap_id));
-    }
+        pragma opaque = true;
 
-    spec new_ramm_internal {
+        ensures [abstract] get_asset_count(global<RAMM>(object::id_to_address(result.ramm_id))) == 0;
+        ensures [abstract] !is_initialized(global<RAMM>(object::id_to_address(result.ramm_id)));
+
+        // Verify that the RAMM is created
+        ensures exists<object::Ownership>(object::id_to_address(result.ramm_id));
+        // Verify that the RAMM is indeed made a shared object
         ensures global<object::Ownership>(object::id_to_address(result.ramm_id)).status == SHARED;
 
+        // Verify that the admin cap is created
+        ensures exists<object::Ownership>(object::id_to_address(result.admin_cap_id));
+        // Verify that the RAMM's admin cap is transferred to the RAMM creator
         ensures global<object::Ownership>(object::id_to_address(result.admin_cap_id)).status == OWNED;
         ensures global<object::Ownership>(object::id_to_address(result.admin_cap_id)).owner == tx_context::sender(ctx);
 
+        // Verify that the new asset cap is created
+        ensures exists<object::Ownership>(object::id_to_address(result.new_asset_cap_id));
+        // Verify that the RAMM's new asset cap is transferred to the RAMM creator
         ensures global<object::Ownership>(object::id_to_address(result.new_asset_cap_id)).status == OWNED;
         ensures global<object::Ownership>(object::id_to_address(result.new_asset_cap_id)).owner == tx_context::sender(ctx);
     }
@@ -503,11 +522,11 @@ module ramm_sui::ramm {
 
         assert!(test_scenario::has_most_recent_for_address<RAMMAdminCap>(admin), ERAMMInvalidInitState);
         let ramm = test_scenario::take_shared<RAMM>(scenario);
-        let a = test_scenario::take_from_address<RAMMAdminCap>(scenario, admin);
-        let na = test_scenario::take_from_address<RAMMNewAssetCap>(scenario, admin);
+        let admin_cap = test_scenario::take_from_address<RAMMAdminCap>(scenario, admin);
+        let new_asset_cap = test_scenario::take_from_address<RAMMNewAssetCap>(scenario, admin);
 
-        assert!(ramm.admin_cap_id == object::id(&a), ERAMMInvalidInitState);
-        assert!(ramm.new_asset_cap_id_opt == option::some(object::id(&na)), ERAMMInvalidInitState);
+        assert!(ramm.admin_cap_id == object::id(&admin_cap), ERAMMInvalidInitState);
+        assert!(ramm.new_asset_cap_id_opt == option::some(object::id(&new_asset_cap)), ERAMMInvalidInitState);
 
         assert!(ramm.fee_collector == admin, ERAMMInvalidInitState);
         assert!(bag::is_empty(&ramm.collected_protocol_fees), ERAMMInvalidInitState);
@@ -530,8 +549,8 @@ module ramm_sui::ramm {
         assert!(vec_map::is_empty<u8, u256>(&ramm.lp_tokens_issued), ERAMMInvalidInitState);
         assert!(bag::is_empty(&ramm.typed_lp_tokens_issued), ERAMMInvalidInitState);
 
-        test_scenario::return_to_address<RAMMAdminCap>(admin, a);
-        test_scenario::return_to_address<RAMMNewAssetCap>(admin, na);
+        test_scenario::return_to_address<RAMMAdminCap>(admin, admin_cap);
+        test_scenario::return_to_address<RAMMNewAssetCap>(admin, new_asset_cap);
         test_scenario::return_shared<RAMM>(ramm);
 
         test_scenario::end(scenario_val);
@@ -557,11 +576,11 @@ module ramm_sui::ramm {
         feed: &Aggregator,
         min_trade_amnt: u64,
         asset_decimal_places: u8,
-        a: &RAMMAdminCap,
-        na: &RAMMNewAssetCap,
+        admin_cap: &RAMMAdminCap,
+        new_asset_cap: &RAMMNewAssetCap,
     ) {
-        assert!(self.admin_cap_id == object::id(a), ENotAdmin);
-        assert!(self.new_asset_cap_id_opt == option::some(object::id(na)), EWrongNewAssetCap);
+        assert!(self.admin_cap_id == object::id(admin_cap), ENotAdmin);
+        assert!(self.new_asset_cap_id_opt == option::some(object::id(new_asset_cap)), EWrongNewAssetCap);
 
         let type_name = type_name::get<Asset>();
         let type_index = self.asset_count;
