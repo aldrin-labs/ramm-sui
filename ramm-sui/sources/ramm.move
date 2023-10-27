@@ -1,5 +1,4 @@
 module ramm_sui::ramm {
-    use std::option::{Self, Option};
     use std::string::{Self, String};
     use std::type_name::{Self, TypeName};
 
@@ -45,8 +44,10 @@ module ramm_sui::ramm {
     const PRECISION_DECIMAL_PLACES: u8 = 12;
     /// Maximum permissible places of precision, may yet be subject to change
     const MAX_PRECISION_DECIMAL_PLACES: u8 = 25;
+
     /// Decimal places that LP tokens will be using; may yet change.
-    const LP_TOKENS_DECIMAL_PLACES: u8 = 9;
+    //const LP_TOKENS_DECIMAL_PLACES: u8 = 9;
+
     /// Factor to apply to LP token amounts during calculations.
     const FACTOR_LPT: u256 = 1_000_000_000_000 / 1_000_000_000; // FACTOR_LPT = 10**(PRECISION_DECIMAL_PLACES-LP_TOKENS_DECIMAL_PLACES)
     /// Value of `1` using `PRECISION_DECIMAL_PLACES`; useful to scale other values to
@@ -151,13 +152,14 @@ module ramm_sui::ramm {
         // Not storing this field means any admin of any RAMM can affect any
         // other - not good.
         admin_cap_id: ID,
-        // `Option` with the ID of the cap used to add new assets.
-        // Used to flag whether a RAMM has been initialized or not:
+        // ID of the cap used to add new assets.
+        // Used to flag whether a RAMM has been initialized or not.
+        new_asset_cap_id: ID,
         // * Before initialization, deposits cannot be made, and cannot be enabled.
-        //   - the field must be `Some` before initialization
+        //   - the field must be `false` before initialization
         // * After initialization, no more assets can be added.
-        //   - thenceforth and until the RAMM object is deleted, the field will be `None`
-        new_asset_cap_id_opt: Option<ID>,
+        //   - thenceforth and until the RAMM object is deleted, the field will be `true`
+        is_initialized: bool,
 
         /*
         --------------
@@ -415,7 +417,6 @@ module ramm_sui::ramm {
         let new_asset_cap_uid: UID = object::new(ctx);
         let new_asset_cap_id: ID = object::uid_to_inner(&new_asset_cap_uid);
         let new_asset_cap: RAMMNewAssetCap = RAMMNewAssetCap { id: new_asset_cap_uid };
-        let new_asset_cap_id_opt: Option<ID> = option::some(new_asset_cap_id);
 
         let ramm_uid: UID = object::new(ctx);
         let ramm_id: ID = object::uid_to_inner(&ramm_uid);
@@ -423,7 +424,8 @@ module ramm_sui::ramm {
                 id: ramm_uid,
 
                 admin_cap_id,
-                new_asset_cap_id_opt,
+                new_asset_cap_id,
+                is_initialized: false,
 
                 collected_protocol_fees: bag::new(ctx),
                 fee_collector,
@@ -472,8 +474,8 @@ module ramm_sui::ramm {
      spec new_ramm_internal {
         pragma opaque = true;
 
-        ensures [abstract] get_asset_count(global<RAMM>(object::id_to_address(result.ramm_id))) == 0;
-        ensures [abstract] !is_initialized(global<RAMM>(object::id_to_address(result.ramm_id)));
+        ensures [abstract] global<RAMM>(object::id_to_address(result.ramm_id)).asset_count == 0;
+        ensures [abstract] !global<RAMM>(object::id_to_address(result.ramm_id)).is_initialized;
 
         // Verify that the RAMM is created
         ensures exists<object::Ownership>(object::id_to_address(result.ramm_id));
@@ -526,7 +528,8 @@ module ramm_sui::ramm {
         let new_asset_cap = test_scenario::take_from_address<RAMMNewAssetCap>(scenario, admin);
 
         assert!(ramm.admin_cap_id == object::id(&admin_cap), ERAMMInvalidInitState);
-        assert!(ramm.new_asset_cap_id_opt == option::some(object::id(&new_asset_cap)), ERAMMInvalidInitState);
+        assert!(ramm.new_asset_cap_id == object::id(&new_asset_cap), ERAMMInvalidInitState);
+        assert!(!ramm.is_initialized, ERAMMInvalidInitState);
 
         assert!(ramm.fee_collector == admin, ERAMMInvalidInitState);
         assert!(bag::is_empty(&ramm.collected_protocol_fees), ERAMMInvalidInitState);
@@ -580,7 +583,8 @@ module ramm_sui::ramm {
         new_asset_cap: &RAMMNewAssetCap,
     ) {
         assert!(self.admin_cap_id == object::id(admin_cap), ENotAdmin);
-        assert!(self.new_asset_cap_id_opt == option::some(object::id(new_asset_cap)), EWrongNewAssetCap);
+        assert!(self.new_asset_cap_id == object::id(new_asset_cap), EWrongNewAssetCap);
+        assert!(!self.is_initialized, ERAMMAlreadyInitialized);
 
         let type_name = type_name::get<Asset>();
         let type_index = self.asset_count;
@@ -640,21 +644,20 @@ work well together
         pragma aborts_if_is_partial = true;
         aborts_with ENotAdmin, EWrongNewAssetCap, ERAMMNewAssetFailure, EXECUTION_FAILURE;
     }
- */
+*/
 
     spec add_asset_to_ramm {
         pragma aborts_if_is_partial = true;
 
         aborts_if self.admin_cap_id != object::id(admin_cap);
-        aborts_if self.new_asset_cap_id_opt != option::spec_some(object::id(new_asset_cap));
+        aborts_if self.new_asset_cap_id != object::id(new_asset_cap);
+        aborts_if self.is_initialized;
 
         // Ensure that the asset count is correctly updated
         ensures self.asset_count == old(self).asset_count + 1;
         // Verify that adding an asset to the RAMM does not change its initialization status.
-        ensures !is_initialized(old(self));
-        ensures !is_initialized(self);
-        ensures option::is_some(old(self).new_asset_cap_id_opt);
-        ensures option::is_some(self.new_asset_cap_id_opt);
+        //ensures !old(self).is_initialized;
+        ensures !self.is_initialized;
     }
 
     /// Initialize a RAMM pool.
@@ -674,9 +677,9 @@ work well together
         new_asset_cap: RAMMNewAssetCap,
     ) {
         assert!(self.admin_cap_id == object::id(admin_cap), ENotAdmin);
-        assert!(self.new_asset_cap_id_opt == option::some(object::id(&new_asset_cap)), EWrongNewAssetCap);
+        assert!(self.new_asset_cap_id == object::id(&new_asset_cap), EWrongNewAssetCap);
         assert!(self.asset_count > 0, ENoAssetsInRAMM);
-        assert!(option::is_some(&self.new_asset_cap_id_opt), ERAMMAlreadyInitialized);
+        assert!(!self.is_initialized, ERAMMAlreadyInitialized);
 
         let index_map_size = vec_map::size(&self.types_to_indexes);
         assert!(
@@ -718,7 +721,7 @@ work well together
         let RAMMNewAssetCap { id: uid } = new_asset_cap;
         object::delete(uid);
 
-        let _ = option::extract(&mut self.new_asset_cap_id_opt);
+        self.is_initialized = true;
     }
 
     ///
@@ -753,11 +756,11 @@ work well together
         // ----------------
 
         aborts_if self.admin_cap_id != object::id(admin_cap);
-        aborts_if self.new_asset_cap_id_opt != option::spec_some(object::id(new_asset_cap));
+        aborts_if self.new_asset_cap_id != object::id(new_asset_cap);
         // Verify that executing this entry function on a RAMM with 0 assets will *always* raise
         // an abort.
         aborts_if self.asset_count == 0;
-        aborts_if option::is_none(self.new_asset_cap_id_opt);
+        aborts_if self.is_initialized;
 
         // --------------------------------------
         // Post-conditions of RAMM initialization
@@ -767,13 +770,10 @@ work well together
         // A RAMM's initialization does change its asset count
         ensures self.asset_count == old(self).asset_count;
 
-        ensures option::is_some(old(self).new_asset_cap_id_opt);
+        ensures !old(self).is_initialized;
         // After initialization, the RAMM's `Option<ID>` with the ID of its new asset capability
         // has been `extract`ed to `none`.
-        ensures option::is_none(self.new_asset_cap_id_opt);
-
-        ensures !is_initialized(old(self));
-        ensures is_initialized(self);
+        ensures self.is_initialized;
 
         // ------------------
         // Storage properties
@@ -787,7 +787,6 @@ work well together
 
         // Verify that the capability used to add new assets into the RAMM is truly removed from
         // global storage, and that the RAMM's `Option<ID>` field reflects this.
-        modifies global<RAMMNewAssetCap>(object::id_address(new_asset_cap));
         modifies global<object::Ownership>(object::id_address(new_asset_cap));
         ensures !exists<object::Ownership>(object::id_address(new_asset_cap));
     }
@@ -889,8 +888,8 @@ work well together
     /// * `option::some(id)`, where `id: ID` is the ID of the RAMM's new asset capability, *if*
     ///    the RAMM has already been initialized
     /// * `option::none()` if the RAMM has already been initialized.
-    public fun get_new_asset_cap_id(self: &RAMM): Option<ID> {
-        self.new_asset_cap_id_opt
+    public fun get_new_asset_cap_id(self: &RAMM): ID {
+        self.new_asset_cap_id
     }
 
     /*
@@ -1458,7 +1457,24 @@ work well together
     /// After it, assets can no longer be added and deposits can be enabled/disabled at
     /// will by the admin.
     public fun is_initialized(self: &RAMM): bool {
-        option::is_none(&self.new_asset_cap_id)
+        self.is_initialized
+    }
+
+    spec is_initialized {
+        pragma opaque = true;
+
+        // this function never aborts
+        aborts_if false;
+
+        // Verify that a zero-asset RAMM is *always* uninitialized
+        ensures self.asset_count == 0 ==> !result;
+        // Verify that if a RAMM is initialized, it can never have 0 assets
+        ensures result ==> self.asset_count > 0;
+        // Verify that if a RAMM is uninitialized, then it still has a new asset capability ID field
+        ensures [abstract] !result ==> exists<object::Ownership>(object::id_to_address(self.new_asset_cap_id));
+        // Verify that if a RAMM has been initialized, its new asset capability ID is deleted from
+        // the structure.
+        ensures [abstract] result ==> !exists<object::Ownership>(object::id_to_address(self.new_asset_cap_id));
     }
 
     /// Given the type of asset in the RAMM, return the index used internally

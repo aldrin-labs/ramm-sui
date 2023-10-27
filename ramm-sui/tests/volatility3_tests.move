@@ -22,7 +22,6 @@ module ramm_sui::volatility3_tests {
 
     const ETraderShouldHaveAsset: u64 = 0;
     const ETraderShouldNotHaveAsset: u64 = 0;
-    const EFeeCollectionError: u64 = 2;
 
     #[test]
     /// Given a 3-asset ETH/MATIC/USDT RAMM, with initial prices of 1800/1.2/1 in terms of USDT,

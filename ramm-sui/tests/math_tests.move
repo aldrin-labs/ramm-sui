@@ -11,13 +11,11 @@ module ramm_sui::math_tests {
     use ramm_sui::test_util;
     use ramm_sui::math as ramm_math;
 
-    const EIncorrectMath: u64 = 0;
-    const EInvalidImbalanceRatios: u64 = 1;
+    const EInvalidImbalanceRatios: u64 = 0;
 
     /// Number of decimal places of precision.
     const PRECISION_DECIMAL_PLACES: u8 = 12;
     const MAX_PRECISION_DECIMAL_PLACES: u8 = 25;
-    const LP_TOKENS_DECIMAL_PLACES: u8 = 9;
     // FACTOR = 10**(PRECISION_DECIMAL_PLACES-LP_TOKENS_DECIMAL_PLACES)
     const FACTOR_LPT: u256 = 1_000_000_000_000 / 1_000_000_000;
     const ONE: u256 = 1_000_000_000_000;

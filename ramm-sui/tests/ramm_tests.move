@@ -136,7 +136,8 @@ module ramm_sui::ramm_tests {
 
             // Check the RAMM's internal state after the asset has been added
             assert!(ramm::get_admin_cap_id(&ramm) == object::id(&admin_cap), ERAMMAssetAddition);
-            assert!(ramm::get_new_asset_cap_id(&ramm) == option::some(object::id(&new_asset_cap)), ERAMMAssetAddition);
+            assert!(ramm::get_new_asset_cap_id(&ramm) == object::id(&new_asset_cap), ERAMMAssetAddition);
+            assert!(!ramm::is_initialized(&ramm), ERAMMAssetAddition);
 
             assert!(ramm::get_collected_protocol_fees<BTC>(&ramm) == 0u64, ERAMMAssetAddition);
             assert!(ramm::get_fee_collector(&ramm) == ADMIN, ERAMMAssetAddition);
@@ -209,6 +210,7 @@ module ramm_sui::ramm_tests {
             );
             // Check that immediately after adding an asset, its deposits are disabled
             assert!(!ramm::get_deposit_status<BTC>(&ramm), ERAMMDepositStatus);
+            let new_asset_cap_id: ID = object::id(&new_asset_cap);
             ramm::initialize_ramm(&mut ramm, &admin_cap, new_asset_cap);
             // Check that immediately after initializing the RAMM, the asset's deposits are now enabled
             assert!(ramm::get_deposit_status<BTC>(&ramm), ERAMMDepositStatus);
@@ -223,7 +225,8 @@ module ramm_sui::ramm_tests {
             //
             // This is to make sure initialization changes nothing more than it needs to - deposit statuses.
             assert!(ramm::get_admin_cap_id(&ramm) == object::id(&admin_cap), ERAMMDepositStatus);
-            assert!(ramm::get_new_asset_cap_id(&ramm) == option::none(), ERAMMAssetAddition);
+            assert!(ramm::get_new_asset_cap_id(&ramm) == new_asset_cap_id, ERAMMAssetAddition);
+            assert!(ramm::is_initialized(&ramm), ERAMMAssetAddition);
 
             assert!(ramm::get_fee_collector(&ramm) == ADMIN, ERAMMDepositStatus);
             assert!(ramm::get_collected_protocol_fees<BTC>(&ramm) == 0u64, ERAMMDepositStatus);

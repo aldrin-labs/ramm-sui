@@ -15,7 +15,6 @@ module ramm_sui::interface2_tests {
 
     const ADMIN: address = @0xFACE;
     const ALICE: address = @0xACE;
-    const BOB: address = @0xBACE;
 
     const ETraderShouldHaveAsset: u64 = 0;
     const EFeeCollectionError: u64 = 1;

@@ -18,11 +18,9 @@ module ramm_sui::volatility2_tests {
 
     const ADMIN: address = @0xFACE;
     const ALICE: address = @0xACE;
-    const BOB: address = @0xBACE;
 
     const ETraderShouldHaveAsset: u64 = 0;
     const ETraderShouldNotHaveAsset: u64 = 0;
-    const EFeeCollectionError: u64 = 2;
 
     #[test]
     /// Given a 2-asset ETH/USDT RAMM, with an initial ETH price of 2000 USDT,
