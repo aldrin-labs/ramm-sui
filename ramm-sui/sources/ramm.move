@@ -253,6 +253,21 @@ module ramm_sui::ramm {
         typed_lp_tokens_issued: Bag,
     }
 
+    spec RAMM {
+        invariant asset_count == 0 ==> !is_initialized;
+
+        invariant is_initialized ==> asset_count > 0;
+
+/*
+These would not work:
+
+> data invariants cannot depend on global state (directly or indirectly uses a global spec var or resource storage).
+
+        invariant is_initialized <==> exists<object::Ownership>(object::id_to_address(new_asset_cap_id));
+        invariant !is_initialized <==> !exists<object::Ownership>(object::id_to_address(new_asset_cap_id));
+*/
+    }
+
     /// Result of an asset deposit/withdrawal operation by a trader.
     /// If `execute_trade` is `true`, then:
     /// * in the case of an asset deposit, the amount of the outbound asset is specified,
@@ -484,12 +499,14 @@ module ramm_sui::ramm {
 
         // Verify that the admin cap is created
         ensures exists<object::Ownership>(object::id_to_address(result.admin_cap_id));
+        ensures [abstract] exists<RAMMAdminCap>(object::id_to_address(result.admin_cap_id));
         // Verify that the RAMM's admin cap is transferred to the RAMM creator
         ensures global<object::Ownership>(object::id_to_address(result.admin_cap_id)).status == OWNED;
         ensures global<object::Ownership>(object::id_to_address(result.admin_cap_id)).owner == tx_context::sender(ctx);
 
         // Verify that the new asset cap is created
         ensures exists<object::Ownership>(object::id_to_address(result.new_asset_cap_id));
+        ensures [abstract] exists<RAMMNewAssetCap>(object::id_to_address(result.new_asset_cap_id));
         // Verify that the RAMM's new asset cap is transferred to the RAMM creator
         ensures global<object::Ownership>(object::id_to_address(result.new_asset_cap_id)).status == OWNED;
         ensures global<object::Ownership>(object::id_to_address(result.new_asset_cap_id)).owner == tx_context::sender(ctx);
