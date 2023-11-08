@@ -11,3 +11,6 @@ build/
 
 # prover artifacts
 *.bpl
+
+# cargo stuff
+target/

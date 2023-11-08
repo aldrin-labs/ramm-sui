@@ -1,0 +1,26 @@
+[package]
+name = "ramm_sui_deploy"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0"
+futures = "0.3"
+
+# Careful with the absolute path here - must reflect the machine this deployment binary will be
+# run on.
+# In the future it will be necessary to bundle `suibase` with this package.
+suibase = { path = "../../../../suibase/rust/helper" }
+
+sui-sdk = { path = "../../../../suibase/workdirs/active/sui-repo/crates/sui-sdk/" }
+sui-json-rpc-types = { path = "../../../../suibase/workdirs/active/sui-repo/crates/sui-json-rpc-types/" }
+sui-keys = { path = "../../../../suibase/workdirs/active/sui-repo/crates/sui-keys/" }
+sui-types = { path = "../../../../suibase/workdirs/active/sui-repo/crates/sui-types/" }
+shared-crypto = { path = "../../../../suibase/workdirs/active/sui-repo/crates/shared-crypto/" }
+#
+
+serde = {version = "1.0.188", features = ["derive"] }
+toml = "0.8.1"
+tokio = { version = "1", features = ["macros"] }
