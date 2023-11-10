@@ -17,6 +17,7 @@ suibase = { path = "../../../../suibase/rust/helper" }
 sui-sdk = { path = "../../../../suibase/workdirs/active/sui-repo/crates/sui-sdk/" }
 sui-json-rpc-types = { path = "../../../../suibase/workdirs/active/sui-repo/crates/sui-json-rpc-types/" }
 sui-keys = { path = "../../../../suibase/workdirs/active/sui-repo/crates/sui-keys/" }
+sui-move-build = { path = "../../../../suibase/workdirs/active/sui-repo/crates/sui-move-build/" }
 sui-types = { path = "../../../../suibase/workdirs/active/sui-repo/crates/sui-types/" }
 shared-crypto = { path = "../../../../suibase/workdirs/active/sui-repo/crates/shared-crypto/" }
 #

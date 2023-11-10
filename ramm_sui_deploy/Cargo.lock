@@ -8042,6 +8042,7 @@ dependencies = [
  "shared-crypto",
  "sui-json-rpc-types",
  "sui-keys",
+ "sui-move-build",
  "sui-sdk",
  "sui-types",
  "suibase",
