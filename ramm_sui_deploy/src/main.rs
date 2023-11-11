@@ -1,13 +1,17 @@
 use std::{default::Default, env, fs, path::PathBuf, process::ExitCode};
 
+use shared_crypto::intent::Intent;
+
 use suibase::Helper;
+
+use sui_json_rpc_types::SuiTransactionBlockResponseOptions;
+use sui_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use sui_move_build::{CompiledPackage, BuildConfig};
-use sui_sdk::{
-    types::{
-        base_types::{ObjectID, SuiAddress},
-        crypto::Signature,
-    },
-    SuiClientBuilder
+use sui_sdk::SuiClientBuilder;
+use sui_types::{
+    base_types::ObjectID,
+    transaction::Transaction,
+    quorum_driver_types::ExecuteTransactionRequestType
 };
 
 use ramm_sui_deploy::RAMMDeploymentConfig;
@@ -137,6 +141,49 @@ async fn main() -> ExitCode {
             Ok(tx) => tx,
             Err(err) => {
                 eprintln!("Failed to publish the RAMM package: {:?}", err);
+                return ExitCode::from(1)
+            }
+        };
+
+    // Get the keystore using the location given by suibase.
+    let keystore_pathname = match suibase.keystore_pathname() {
+        Ok(k_pn) => k_pn,
+        Err(err) => {
+            eprintln!("Failed to fetch keystore pathname: {:?}", err);
+            return ExitCode::from(1)
+        }
+    };
+    let keystore_pathbuf = PathBuf::from(keystore_pathname);
+    let keystore = match FileBasedKeystore::new(&keystore_pathbuf) {
+        Ok(k_pb) => Keystore::File(k_pb),
+        Err(err) => {
+            eprintln!("Failed to fetch keystore from suibase: {:?}", err);
+            return ExitCode::from(1)
+        }
+    };
+
+    // Sign the transaction
+    let signature = match keystore.sign_secure(&client_address, &publish_tx, Intent::sui_transaction()) {
+        Ok(sig) => sig,
+        Err(err) => {
+            eprintln!("Failed to sign publish tx: {:?}", err);
+            return ExitCode::from(1)
+        }
+    };
+    println!("Successfully signed publish tx");
+
+    let publish_tx = Transaction::from_data(publish_tx, Intent::sui_transaction(), vec![signature]);
+    let response = match sui_client
+        .quorum_driver_api()
+        .execute_transaction_block(
+            publish_tx,
+            SuiTransactionBlockResponseOptions::new().with_effects(),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+        )
+        .await {
+            Ok(txblock_response) => txblock_response,
+            Err(err) => {
+                eprintln!("Failed to execute block containing publish tx. Response: {}", err);
                 return ExitCode::from(1)
             }
         };
