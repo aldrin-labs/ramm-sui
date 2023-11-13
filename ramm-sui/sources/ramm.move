@@ -418,10 +418,13 @@ These would not work:
     /// * `new_asset_cap_id` is the `ID` of the `RAMMNewAssetCap` object required to add assets
     ///   into an uninitialized RAMM
     ///
-    /// In order to write a specification in MSL asserting that these objects were indeed created,
-    /// this intermediate function is used, which returns `ID`s to write
-    /// `spec new_ramm_internal` with.
-    fun new_ramm_internal(
+    /// This function returns a triples of IDS for two reasons:
+    /// 1. In order to write a specification in MSL asserting that the above objects were indeed
+    ///    created, `spec new_ramm`
+    /// 2. To allow a deployment tool using the Sui Rust SDK and PTBs to programmatically create
+    ///    a RAMM, and then access said IDs in subsequent transactions in the same block, to
+    ///    e.g. add assets to the RAMM and initialize it.
+    public fun new_ramm(
         fee_collector: address,
         ctx: &mut TxContext
     ): NewRAMMIDs {
@@ -485,8 +488,7 @@ These would not work:
     /// >
     /// > The soundness of the abstraction is the **responsibility** of the specifier, and
     /// > **not verified** by the prover.
-    ///
-     spec new_ramm_internal {
+     spec new_ramm {
         pragma opaque = true;
 
         ensures [abstract] global<RAMM>(object::id_to_address(result.ramm_id)).asset_count == 0;
@@ -510,17 +512,6 @@ These would not work:
         // Verify that the RAMM's new asset cap is transferred to the RAMM creator
         ensures global<object::Ownership>(object::id_to_address(result.new_asset_cap_id)).status == OWNED;
         ensures global<object::Ownership>(object::id_to_address(result.new_asset_cap_id)).owner == tx_context::sender(ctx);
-    }
-
-    /// Create a new RAMM structure, without any asset.
-    ///
-    /// A RAMM needs to have assets added to it before it can be initialized,
-    /// after which it can be used.
-    public entry fun new_ramm(
-        fee_collector: address,
-        ctx: &mut TxContext
-    ) {
-        new_ramm_internal(fee_collector, ctx);
     }
 
     #[test]
