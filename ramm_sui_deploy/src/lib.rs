@@ -3,8 +3,8 @@ use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
 pub struct FaucetData {
-    package_id: String,
-    module_name: String,
+    pub package_id: String,
+    pub module_name: String,
 }
 
 impl FaucetData {
@@ -28,10 +28,10 @@ impl Display for FaucetData {
 
 #[derive(Debug, Deserialize)]
 pub struct AssetConfig {
-    asset_name: String,
-    aggregator_address: String,
-    minimum_trade_amount: u64,
-    decimal_places: u8
+    pub asset_name: String,
+    pub aggregator_address: String,
+    pub minimum_trade_amount: u64,
+    pub decimal_places: u8
 }
 
 impl AssetConfig {
@@ -64,11 +64,11 @@ impl Display for AssetConfig {
 
 #[derive(Debug, Deserialize)]
 pub struct RAMMDeploymentConfig {
-    faucet_data: FaucetData,
+    pub faucet_data: FaucetData,
 
-    asset_count: u8,
-    fee_collection_address: String,
-    assets: Vec<AssetConfig>,
+    pub asset_count: u8,
+    pub fee_collection_address: String,
+    pub assets: Vec<AssetConfig>,
 }
 
 impl Display for RAMMDeploymentConfig {

@@ -4,24 +4,30 @@ use shared_crypto::intent::Intent;
 
 use suibase::Helper;
 
-use sui_json_rpc_types::SuiTransactionBlockResponseOptions;
+use sui_json_rpc_types::{ObjectChange, SuiTransactionBlockResponseOptions};
 use sui_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use sui_move_build::{CompiledPackage, BuildConfig};
 use sui_sdk::SuiClientBuilder;
 use sui_types::{
     base_types::ObjectID,
-    transaction::Transaction,
-    quorum_driver_types::ExecuteTransactionRequestType
+    Identifier,
+    transaction::{Argument, ProgrammableTransaction, Transaction, TransactionData},
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    quorum_driver_types::ExecuteTransactionRequestType,
 };
 
 use ramm_sui_deploy::RAMMDeploymentConfig;
 
+/// Name of the RAMM Move package, as written in its `Move.toml` file.
+const RAMM_PACKAGE_NAME: &str = "ramm_sui";
+
 /// This represents the gas budget (in MIST units, where 10^9 MIST is 1 SUI) to be used
 /// when publishing the RAMM package.
 ///
-/// Publishing it in the testnet in mid/late 2023 cost roughly 0.7 SUI, on average.
-const PACKAGE_PUBLICATION_GAS_BUDGET: u64 = 1_000_000_000;
+/// Publishing it in the testnet in mid/late 2023 cost roughly 0.25 SUI, on average.
+const PACKAGE_PUBLICATION_GAS_BUDGET: u64 = 500_000_000;
 
+const RAMM_PTB_GAS_BUDGET: u64 = 100_000_000;
 
 #[tokio::main]
 async fn main() -> ExitCode {
@@ -115,6 +121,7 @@ async fn main() -> ExitCode {
     Publishing the compiled Move RAMM package
     */
 
+    // 1. Fetch the sui client's active address, to use it for publishing
     let client_address = match suibase.client_sui_address("active") {
         Ok(adr) => {
             println!("Using address {} to publish the RAMM package.", adr);
@@ -126,6 +133,7 @@ async fn main() -> ExitCode {
         }
     };
 
+    // 2. Manually construct the publishing transaction
     let publish_tx = match sui_client
         .transaction_builder()
         .publish(
@@ -145,7 +153,7 @@ async fn main() -> ExitCode {
             }
         };
 
-    // Get the keystore using the location given by suibase.
+    // 3. Fetch the sui client keystore using the location given by suibase.
     let keystore_pathname = match suibase.keystore_pathname() {
         Ok(k_pn) => k_pn,
         Err(err) => {
@@ -154,6 +162,8 @@ async fn main() -> ExitCode {
         }
     };
     let keystore_pathbuf = PathBuf::from(keystore_pathname);
+
+    // 4. Sign the transaction using the found keystore, and the previously queried active address
     let keystore = match FileBasedKeystore::new(&keystore_pathbuf) {
         Ok(k_pb) => Keystore::File(k_pb),
         Err(err) => {
@@ -161,8 +171,6 @@ async fn main() -> ExitCode {
             return ExitCode::from(1)
         }
     };
-
-    // Sign the transaction
     let signature = match keystore.sign_secure(&client_address, &publish_tx, Intent::sui_transaction()) {
         Ok(sig) => sig,
         Err(err) => {
@@ -172,6 +180,7 @@ async fn main() -> ExitCode {
     };
     println!("Successfully signed publish tx");
 
+    // 5. Publish the tx
     let publish_tx = Transaction::from_data(publish_tx, Intent::sui_transaction(), vec![signature]);
     let response = match sui_client
         .quorum_driver_api()
@@ -181,12 +190,107 @@ async fn main() -> ExitCode {
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )
         .await {
-            Ok(txblock_response) => txblock_response,
+            Ok(r) => r,
             Err(err) => {
-                eprintln!("Failed to execute block containing publish tx. Response: {}", err);
+                eprintln!("Failed to execute block containing publish tx. Node response: {}", err);
                 return ExitCode::from(1)
             }
         };
+    println!("Successfully published the RAMM package");
+
+    let publish_tx_object_changes: Vec<ObjectChange> = response
+        .object_changes
+        .expect("Publish Tx *should* result in object changes");
+    let ramm_package_id: ObjectID = publish_tx_object_changes
+        .into_iter()
+        .filter(|obj_chg| matches!(*obj_chg, ObjectChange::Published {..}))
+        .collect::<Vec<ObjectChange>>()
+        .first()
+        .expect("Publish Tx *should* result in at least 1 published package")
+        .object_id();
+    println!("RAMM package ID: {ramm_package_id}");
+
+    /*
+    Create PTB to perform the following actions:
+    1. Create RAMM
+    2. Add assets specified in the RAMM deployment config
+    3. Initialize it
+    */
+
+    // we need to find the coin we will use as gas
+    let coins = match sui_client
+        .coin_read_api()
+        .get_coins(client_address, None, None, None)
+        .await {
+            Err(err) => {
+                eprintln!("Failed to fetch coin object from active address to pay for PTB. Error: {}", err);
+                return ExitCode::from(1)
+            },
+            Ok(c) => c
+        };
+    let coin = coins.data.into_iter().next().unwrap();
+    let gas_price = match sui_client.read_api().get_reference_gas_price().await {
+        Err(err) => {
+            eprintln!("Failed to fetch gas price for the PTB. Error: {}", err);
+            return ExitCode::from(1)
+        },
+        Ok(g) => g
+    };
+
+    let mut ptb = ProgrammableTransactionBuilder::new();
+    let fee_collection_address: Argument = ptb.pure(config.fee_collection_address).unwrap();
+    ptb
+        .programmable_move_call(
+            ramm_package_id,
+            Identifier::new("ramm").unwrap(),
+            Identifier::new("new_ramm").unwrap(),
+            vec![],
+            vec![fee_collection_address]
+        );
+    let pt: ProgrammableTransaction = ptb.finish();
+
+    let ptx_data = TransactionData::new_programmable(
+        client_address,
+        vec![coin.object_ref()],
+        pt,
+        RAMM_PTB_GAS_BUDGET,
+        gas_price,
+    );
+
+    let keystore = match FileBasedKeystore::new(&keystore_pathbuf) {
+        Ok(k_pb) => Keystore::File(k_pb),
+        Err(err) => {
+            eprintln!("Failed to fetch keystore from suibase: {:?}", err);
+            return ExitCode::from(1)
+        }
+    };
+    let signature = match keystore.sign_secure(&client_address, &ptx_data, Intent::sui_transaction()) {
+        Ok(sig) => sig,
+        Err(err) => {
+            eprintln!("Failed to sign PTx: {:?}", err);
+            return ExitCode::from(1)
+        }
+    };
+    println!("Successfully signed PTx");
+
+    // Submit the PTx
+    print!("Executing the transaction...");
+    let transaction_response = match sui_client
+        .quorum_driver_api()
+        .execute_transaction_block(
+            Transaction::from_data(ptx_data, Intent::sui_transaction(), vec![signature]),
+            SuiTransactionBlockResponseOptions::full_content(),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+        )
+        .await {
+            Err(err) => {
+                eprintln!("Programmable transaction failed with: {:?}", err);
+                return ExitCode::from(1)
+            },
+            Ok(r) => r
+        };
+    print!("done\n Programmable Transaction information: ");
+    println!("{:?}", transaction_response);
 
     // Success, exit
     ExitCode::SUCCESS
