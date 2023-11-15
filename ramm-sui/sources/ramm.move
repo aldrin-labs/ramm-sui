@@ -398,10 +398,26 @@ These would not work:
     /// `impl RAMM`
     /// -----------
 
+    /// Data returned after a RAMM's creation.
+    ///
+    /// These data are required to use PTBs to then interact with the created RAMM,
+    /// using the API in this module.
     struct NewRAMMIDs has copy, drop {
         ramm_id: ID,
         admin_cap_id: ID,
         new_asset_cap_id: ID,
+    }
+
+    public fun ramm_id(nrids: &NewRAMMIDs): ID {
+        nrids.ramm_id
+    }
+
+    public fun admin_cap_id(nrids: &NewRAMMIDs): ID {
+        nrids.admin_cap_id
+    }
+
+    public fun new_asset_cap_id(nrids: &NewRAMMIDs): ID {
+        nrids.new_asset_cap_id
     }
 
     /// Create a new RAMM structure, without any asset.
@@ -1918,7 +1934,7 @@ work well together
     ///
     /// This function can be used on a RAMM of any size.
     public(friend) fun trade_o<AssetIn, AssetOut>(
-        self: &mut RAMM,
+        self: &RAMM,
         // index of incoming token
         i: u8,
         // index of outgoing token
@@ -1997,7 +2013,7 @@ work well together
     ///
     /// Unlike the client-facing API, this function can be used on a RAMM of any size.
     public(friend) fun liq_dep<AssetIn>(
-        self: &mut RAMM,
+        self: &RAMM,
         i: u8,
         ai: u64,
         prices: VecMap<u8, u256>,
@@ -2049,7 +2065,7 @@ work well together
     /// In other words, by being called in the client facing modules of the package, e.g.
     /// `interface3` for 3-asset RAMMs.
     public(friend) fun liq_wthdrw<AssetOut>(
-        self: &mut RAMM,
+        self: &RAMM,
         o: u8,
         lpt: u64,
         prices: VecMap<u8, u256>,
