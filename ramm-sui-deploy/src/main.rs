@@ -4,7 +4,11 @@ use shared_crypto::intent::Intent;
 
 use suibase::Helper;
 
-use sui_json_rpc_types::{ObjectChange, SuiTransactionBlockResponseOptions};
+use sui_json_rpc_types::{
+    OwnedObjectRef,
+    SuiTransactionBlockEffectsAPI,
+    SuiTransactionBlockResponseOptions
+};
 use sui_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use sui_move_build::{CompiledPackage, BuildConfig};
 use sui_sdk::SuiClientBuilder;
@@ -12,6 +16,7 @@ use sui_types::{
     base_types::ObjectID,
     Identifier,
     transaction::{Argument, ProgrammableTransaction, Transaction, TransactionData},
+    object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
 };
@@ -196,18 +201,20 @@ async fn main() -> ExitCode {
                 return ExitCode::from(1)
             }
         };
-    println!("Successfully published the RAMM package");
+    println!("Successfully published the RAMM package. Publish Tx response: {:?}", response);
 
-    let publish_tx_object_changes: Vec<ObjectChange> = response
-        .object_changes
-        .expect("Publish Tx *should* result in object changes");
-    let ramm_package_id: ObjectID = publish_tx_object_changes
+    // 6. Get the package's ID from the tx response.
+    let ramm_package_id: ObjectID = response
+        .effects
+        .expect("Publish Tx *should* result in non-empty effects")
+        .created()
         .into_iter()
-        .filter(|obj_chg| matches!(*obj_chg, ObjectChange::Published {..}))
-        .collect::<Vec<ObjectChange>>()
+        .filter(|oor|  Owner::is_immutable(&oor.owner))
+        .collect::<Vec<&OwnedObjectRef>>()
         .first()
-        .expect("Publish Tx *should* result in at least 1 published package")
-        .object_id();
+        .expect("Publish Tx *should* result in at least 1 immutable object, i.e. the published package")
+        .reference
+        .object_id;
     println!("RAMM package ID: {ramm_package_id}");
 
     /*
@@ -217,7 +224,7 @@ async fn main() -> ExitCode {
     3. Initialize it
     */
 
-    // we need to find the coin we will use as gas
+    // 1. Find the coin object to be used as gas for the PTB
     let coins = match sui_client
         .coin_read_api()
         .get_coins(client_address, None, None, None)
@@ -237,8 +244,12 @@ async fn main() -> ExitCode {
         Ok(g) => g
     };
 
+    // 2. Build the PTB object via the `sui-sdk` builder API
     let mut ptb = ProgrammableTransactionBuilder::new();
+
+    // This is the fee collection address specified in the TOML RAMM config passed to the CLI
     let fee_collection_address: Argument = ptb.pure(config.fee_collection_address).unwrap();
+
     ptb
         .programmable_move_call(
             ramm_package_id,
@@ -247,8 +258,11 @@ async fn main() -> ExitCode {
             vec![],
             vec![fee_collection_address]
         );
+
+    // 3. Finalize the PTB object
     let pt: ProgrammableTransaction = ptb.finish();
 
+    // 4. Convert PTB into tx data to be signed and sent to the network for execution
     let ptx_data = TransactionData::new_programmable(
         client_address,
         vec![coin.object_ref()],
@@ -257,6 +271,7 @@ async fn main() -> ExitCode {
         gas_price,
     );
 
+    // 4.1 Sign the tx data with the same key used to publish the package
     let keystore = match FileBasedKeystore::new(&keystore_pathbuf) {
         Ok(k_pb) => Keystore::File(k_pb),
         Err(err) => {
@@ -273,9 +288,9 @@ async fn main() -> ExitCode {
     };
     println!("Successfully signed PTx");
 
-    // Submit the PTx
-    print!("Executing the transaction...");
-    let transaction_response = match sui_client
+    // 4.2 Submit the tx to the network, and await execution result
+    println!("\nExecuting the PTB\n");
+    let ptb_response = match sui_client
         .quorum_driver_api()
         .execute_transaction_block(
             Transaction::from_data(ptx_data, Intent::sui_transaction(), vec![signature]),
@@ -289,8 +304,7 @@ async fn main() -> ExitCode {
             },
             Ok(r) => r
         };
-    print!("done\n Programmable Transaction information: ");
-    println!("{:?}", transaction_response);
+    println!("PTB response status: {:?}", ptb_response.status_ok());
 
     // Success, exit
     ExitCode::SUCCESS
