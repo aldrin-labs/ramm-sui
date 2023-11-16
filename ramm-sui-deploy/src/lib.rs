@@ -97,7 +97,7 @@ pub struct RAMMDeploymentConfig {
     pub faucet_data: FaucetData,
 
     pub asset_count: u8,
-    pub fee_collection_address: String,
+    pub fee_collection_address: SuiAddress,
     pub assets: Vec<AssetConfig>,
 }
 
