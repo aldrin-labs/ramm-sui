@@ -1,7 +1,10 @@
 use std::fmt::Display;
-use serde::Deserialize;
 
-use sui_types::base_types::{ObjectID, SuiAddress};
+use serde::Deserialize;
+use sui_types::{
+    base_types::{ObjectID, SuiAddress},
+    TypeTag
+};
 
 /// Data required to identify the coin faucet
 /// 1. from which the RAMM's test tokens were created, and
@@ -72,6 +75,22 @@ impl AssetConfig {
         write!(f, "{}aggregator address: {}\n", padding, aggregator_address)?;
         write!(f, "{}minimum trade amount: {}\n", padding, minimum_trade_amount)?;
         write!(f, "{}decimal places: {}\n", padding, decimal_places)
+    }
+
+    /// Create a `TypeTag` to be used in a PTB via the Sui SDK, using
+    /// 1. an asset's data, and
+    /// 2. a given deployment's faucet data
+    ///
+    /// May fail if the string from which the tag will be created is malformed.
+    pub fn type_tag_from_faucet(&self, faucet: &FaucetData) -> Result<TypeTag, anyhow::Error> {
+        let type_tag_str: String = format!(
+            "{}::{}::{}",
+            faucet.package_id.to_string(),
+            faucet.module_name,
+            self.asset_name
+        );
+
+        std::str::FromStr::from_str(type_tag_str.as_str())
     }
 }
 
