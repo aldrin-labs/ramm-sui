@@ -19,12 +19,13 @@ use sui_types::{
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
+    TypeTag,
 };
 
-use ramm_sui_deploy::RAMMDeploymentConfig;
+use ramm_sui_deploy::{RAMMDeploymentConfig, AssetConfig};
 
-/// Name of the RAMM Move package, as written in its `Move.toml` file.
-const RAMM_PACKAGE_NAME: &str = "ramm_sui";
+/// Name of the module in the RAMM package that contains the API to create and initialize it.
+const RAMM_MODULE_NAME: &str = "ramm";
 
 /// This represents the gas budget (in MIST units, where 10^9 MIST is 1 SUI) to be used
 /// when publishing the RAMM package.
@@ -218,10 +219,7 @@ async fn main() -> ExitCode {
     println!("RAMM package ID: {ramm_package_id}");
 
     /*
-    Create PTB to perform the following actions:
-    1. Create RAMM
-    2. Add assets specified in the RAMM deployment config
-    3. Initialize it
+    Constructing the PTB that will create and populate the RAMM
     */
 
     // 1. Find the coin object to be used as gas for the PTB
@@ -250,7 +248,14 @@ async fn main() -> ExitCode {
     // This is the fee collection address specified in the TOML RAMM config passed to the CLI
     let fee_collection_address: Argument = ptb.pure(config.fee_collection_address).unwrap();
 
-    ptb
+    /*
+    Create PTB to perform the following actions:
+    1. Create RAMM
+    2. Add assets specified in the RAMM deployment config
+    3. Initialize it
+    */
+    // a. Create the RAMM
+    let new_ramm_ids: Argument = ptb
         .programmable_move_call(
             ramm_package_id,
             Identifier::new("ramm").unwrap(),
@@ -258,6 +263,68 @@ async fn main() -> ExitCode {
             vec![],
             vec![fee_collection_address]
         );
+
+    // b. collect the RAMM's ID, along with the the IDs of the admin and new asset caps
+    let ramm_id: Argument = ptb
+        .programmable_move_call(
+            ramm_package_id,
+            Identifier::new("ramm").unwrap(),
+            Identifier::new("ramm_id").unwrap(),
+            vec![],
+            vec![new_ramm_ids]
+        );
+    let admin_cap_id: Argument = ptb
+        .programmable_move_call(
+            ramm_package_id,
+            Identifier::new("ramm").unwrap(),
+            Identifier::new("admin_cap_id").unwrap(),
+            vec![],
+            vec![new_ramm_ids]
+        );
+    let new_asset_cap_id: Argument = ptb
+        .programmable_move_call(
+            ramm_package_id,
+            Identifier::new("ramm").unwrap(),
+            Identifier::new("new_asset_cap_id").unwrap(),
+            vec![],
+            vec![new_ramm_ids]
+        );
+
+    // c. add all of the assets specified in the TOML config
+    for ix in 0 .. (config.asset_count as usize) {
+        // `N`-th asset to be added to the RAMM
+        let asset_data: &AssetConfig = &config.assets[ix];
+
+        // Arguments for the `add_asset_to_ramm` Move call
+        let move_call_args: Vec<Argument> = vec![
+            ramm_id,
+            ptb.pure(asset_data.aggregator_address).unwrap(),
+            ptb.pure(asset_data.minimum_trade_amount).unwrap(),
+            ptb.pure(asset_data.decimal_places).unwrap(),
+            admin_cap_id,
+            new_asset_cap_id
+        ];
+
+        // Type argument to the `add_asset_to_ramm` Move call
+        let asset_type_tag: TypeTag = match asset_data.type_tag_from_faucet(&config.faucet_data) {
+            Err(err) => {
+                eprintln!("Failed to build type tag for a RAMM asset. Error: {}", err);
+                return ExitCode::from(1)
+            },
+            Ok(t) => t
+        };
+
+        ptb
+            .programmable_move_call(
+                ramm_package_id,
+                Identifier::new(RAMM_MODULE_NAME).unwrap(),
+                Identifier::new("add_asset_to_ramm").unwrap(),
+                vec![asset_type_tag],
+                move_call_args,
+            );
+    }
+
+
 
     // 3. Finalize the PTB object
     let pt: ProgrammableTransaction = ptb.finish();
