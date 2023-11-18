@@ -5,7 +5,7 @@ module ramm_sui::ramm_tests {
     use sui::test_scenario;
 
     use ramm_sui::ramm::{Self, RAMM, RAMMAdminCap, RAMMNewAssetCap};
-    use ramm_sui::test_utils::{Self, BTC, btc_dec_places};
+    use ramm_sui::test_util::{Self, BTC, btc_dec_places};
 
     use switchboard::aggregator::{Self, Aggregator};
 
@@ -44,7 +44,7 @@ module ramm_sui::ramm_tests {
 
         // Create a testing aggregator for the asset used in this test
 
-        let _aggr_id = test_utils::create_write_share_aggregator(scenario, 2780245000000, 8, false, 100);
+        let _aggr_id = test_util::create_write_share_aggregator(scenario, 2780245000000, 8, false, 100);
 
         test_scenario::next_tx(scenario, ADMIN);
 
@@ -105,7 +105,7 @@ module ramm_sui::ramm_tests {
         test_scenario::next_tx(scenario, ADMIN);
 
         // Create a test aggregator
-        let _aggr_id = test_utils::create_write_share_aggregator(scenario, 2780245000000, 8, false, 100);
+        let _aggr_id = test_util::create_write_share_aggregator(scenario, 2780245000000, 8, false, 100);
 
         test_scenario::next_tx(scenario, ADMIN);
 
@@ -133,17 +133,17 @@ module ramm_sui::ramm_tests {
             assert!(ramm::get_aggregator_address<BTC>(&ramm) == aggregator::aggregator_address(&btc_aggr), ERAMMInit);
 
             assert!(ramm::get_balance<BTC>(&ramm) == 0u256, ERAMMInit);
-            assert!(ramm::get_typed_balance<BTC>(&ramm) == 0u64, ERAMMInit);
+            assert!(ramm::get_typed_balance<BTC>(&ramm) == 0u256, ERAMMInit);
 
             assert!(ramm::get_lptokens_issued<BTC>(&ramm) == 0u256, ERAMMInit);
-            assert!(ramm::get_typed_lptokens_issued_u64<BTC>(&ramm) == 0u64, ERAMMInit);
+            assert!(ramm::get_typed_lptokens_issued<BTC>(&ramm) == 0u256, ERAMMInit);
 
             assert!(ramm::get_minimum_trade_amount<BTC>(&ramm) == min_trade_amount, ERAMMInit);
             assert!(!ramm::get_deposit_status<BTC>(&ramm), ERAMMInit);
             assert!(ramm::get_collected_protocol_fees<BTC>(&ramm) == 0u64, ERAMMInit);
 
             assert!(ramm::get_type_index<BTC>(&ramm) == 0u8, ERAMMInit);
-            assert!(ramm::get_factor_balance<BTC>(&ramm) == 10000u256, ERAMMDepositStatus);
+            assert!(ramm::get_factor_for_balance<BTC>(&ramm) == 10000u256, ERAMMDepositStatus);
 
             assert!(ramm::get_asset_count(&ramm) == 1, ERAMMInit);
 
@@ -175,7 +175,7 @@ module ramm_sui::ramm_tests {
         test_scenario::next_tx(scenario, ADMIN);
 
         // Create test aggregator
-        let _aggr_id = test_utils::create_write_share_aggregator(scenario, 2780245000000, 8, false, 100);
+        let _aggr_id = test_util::create_write_share_aggregator(scenario, 2780245000000, 8, false, 100);
 
         test_scenario::next_tx(scenario, ADMIN);
 
@@ -216,16 +216,16 @@ module ramm_sui::ramm_tests {
             assert!(ramm::get_aggregator_address<BTC>(&ramm) == aggregator::aggregator_address(&btc_aggr), ERAMMDepositStatus);
 
             assert!(ramm::get_balance<BTC>(&ramm) == 0u256, ERAMMDepositStatus);
-            assert!(ramm::get_typed_balance<BTC>(&ramm) == 0u64, ERAMMDepositStatus);
+            assert!(ramm::get_typed_balance<BTC>(&ramm) == 0u256, ERAMMDepositStatus);
 
             assert!(ramm::get_lptokens_issued<BTC>(&ramm) == 0u256, ERAMMDepositStatus);
-            assert!(ramm::get_typed_lptokens_issued_u64<BTC>(&ramm) == 0u64, ERAMMDepositStatus);
+            assert!(ramm::get_typed_lptokens_issued<BTC>(&ramm) == 0u256, ERAMMDepositStatus);
 
             assert!(ramm::get_minimum_trade_amount<BTC>(&ramm) == minimum_trade_amount, ERAMMDepositStatus);
             assert!(ramm::get_collected_protocol_fees<BTC>(&ramm) == 0u64, ERAMMDepositStatus);
 
             assert!(ramm::get_type_index<BTC>(&ramm) == 0u8, ERAMMDepositStatus);
-            assert!(ramm::get_factor_balance<BTC>(&ramm) == 10000u256, ERAMMDepositStatus);
+            assert!(ramm::get_factor_for_balance<BTC>(&ramm) == 10000u256, ERAMMDepositStatus);
 
             assert!(ramm::get_asset_count(&ramm) == 1, ERAMMDepositStatus);
 
@@ -265,7 +265,7 @@ module ramm_sui::ramm_tests {
         test_scenario::next_tx(scenario, ADMIN);
         let bob_ramm_id = option::extract<ID>(&mut test_scenario::most_recent_id_shared<RAMM>());
         // Create test aggregator
-        let _aggr_id = test_utils::create_write_share_aggregator(scenario, 2780245000000, 8, false, 100);
+        let _aggr_id = test_util::create_write_share_aggregator(scenario, 2780245000000, 8, false, 100);
         test_scenario::next_tx(scenario, ADMIN);
 
         (alice_ramm_id, bob_ramm_id, scenario_val)

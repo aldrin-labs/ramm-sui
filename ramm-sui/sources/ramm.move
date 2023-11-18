@@ -19,12 +19,11 @@ module ramm_sui::ramm {
 
     // Because of the below declarations, use the `test` flag when building or
     // creating test coverage maps: `sui move test coverage --test`.
+    friend ramm_sui::interface3_safety_tests;
     friend ramm_sui::interface3_tests;
     friend ramm_sui::math_tests;
     friend ramm_sui::ramm_tests;
-    friend ramm_sui::test_utils;
-
-    const THREE: u8 = 3;
+    friend ramm_sui::test_util;
 
     const ERAMMInvalidInitState: u64 = 0;
     const EInvalidAggregator: u64 = 1;
@@ -99,8 +98,8 @@ module ramm_sui::ramm {
     /// * adding/removing liquidity for one of its assets
     /// * trading of one of its tokens for another
     ///
-    /// For any address to be able to submit requests, the structure must
-    /// be shared, publicly available for reads and writes.
+    /// The structure is shared, so that any address is be able to submit requests.
+    /// It is, therefore, publicly available for reads and writes.
     /// As such, it must have the `key` ability, becoming a Sui
     /// Move object, and thus allowing use of `sui::transfer::share_object`.
     ///
@@ -189,6 +188,24 @@ module ramm_sui::ramm {
         factors_for_balances: VecMap<u8, u256>,
         // Total number of assets in the RAMM pool. `N` in the whitepaper.
         asset_count: u8,
+    }
+
+    struct TradeOutput has drop{
+        amount: u256,
+        protocol_fee: u256,
+        execute_trade: bool
+    }
+
+    public(friend) fun amount(to: &TradeOutput): u256 {
+        to.amount
+    }
+
+    public(friend) fun protocol_fee(to: &TradeOutput): u256 {
+        to.protocol_fee
+    }
+
+    public(friend) fun execute(to: &TradeOutput): bool {
+        to.execute_trade
     }
 
     /// --------------
@@ -439,12 +456,14 @@ module ramm_sui::ramm {
 
     /// Admin cap
     
+    /// Return the ID of the RAMM's admin capability.
     public(friend) fun get_admin_cap_id(self: &RAMM): ID {
         self.admin_cap_id
     }
 
     /// Fee collector address
 
+    /// Return the `address` to which this RAMM will send collected protocol operation fees.
     public(friend) fun get_fee_collector(self: &RAMM): address {
         self.fee_collector
     }
@@ -467,6 +486,7 @@ module ramm_sui::ramm {
         *vec_map::get(&self.aggregator_addrs, &index)
     }
 
+    /// Return the Switchboard aggregator address for a given asset.
     public(friend) fun get_aggregator_address<Asset>(self: &RAMM): address {
         let ix = get_asset_index<Asset>(self);
         get_aggr_addr(self, ix)
@@ -474,22 +494,82 @@ module ramm_sui::ramm {
 
     /// Balances
 
-    /// Get an asset's scaled balance, meaning a `u256` with the RAMM's specified decimal
-    /// places, instead of `u64/Balance<T>`.
+    /// Get an asset's typed balance, meaning the untyped, pure scalar value (`u256`) used
+    /// internally by the RAMM to represent an asset's balance.
     public(friend) fun get_bal(self: &RAMM, index: u8): u256 {
         *vec_map::get(&self.balances, &index)
     }
 
+    /// Getter for an asset's untyped balance.
+    /// The asset index is not passed in, but instead obtained through the type parameter for safety.
     public(friend) fun get_balance<Asset>(self: &RAMM): u256 {
         let ix = get_asset_index<Asset>(self);
         get_bal(self, ix)
     }
 
+    /// Getter to mutable reference to an asset's untyped balance.
+    fun get_mut_bal(self: &mut RAMM, index: u8): &mut u256 {
+        vec_map::get_mut(&mut self.balances, &index)
+    }
+
+    /// Increment an asset's untyped balance by a given amount.
+    ///
+    /// It is the caller's responsibility to ensure this change is also
+    /// reflected in, or is a reflection of, equivalent changes in the asset's typed
+    /// balance.
+    public(friend) fun join_bal(self: &mut RAMM, index: u8, bal: u256) {
+        let asset_bal: &mut u256 = get_mut_bal(self, index);
+        *asset_bal = *asset_bal + bal;
+    }
+
+    /// Decrement an asset's untyped balance by a given amount.
+    ///
+    /// It is the caller's responsibility to ensure this change is also
+    /// reflected in, or is a reflection of, equivalent changes in the asset's typed
+    /// balance.
+    public(friend) fun split_bal(self: &mut RAMM, index: u8, val: u256) {
+        let asset_bal: &mut u256 = get_mut_bal(self, index);
+        *asset_bal = *asset_bal - val;
+    }
+
     /// Typed Balances
 
-    public(friend) fun get_typed_balance<Asset>(self: &RAMM): u64 {
+    /// Internal getter for an asset's typed balance, with the asset index passed in
+    /// and not calculated.
+    fun get_typed_bal<Asset>(self: &RAMM, index: u8): u256 {
+        (balance::value(bag::borrow<u8, Balance<Asset>>(&self.typed_balances, index)) as u256)
+    }
+
+    /// Getter for an asset's typed balance.
+    /// The asset index is not passed in, but instead obtained through the type parameter for safety.
+    public(friend) fun get_typed_balance<Asset>(self: &RAMM): u256 {
         let ix = get_asset_index<Asset>(self);
-        balance::value(bag::borrow<u8, Balance<Asset>>(&self.typed_balances, ix))
+        get_typed_bal<Asset>(self, ix)
+    }
+
+    fun get_mut_typed_bal<Asset>(self: &mut RAMM, index: u8): &mut Balance<Asset> {
+        bag::borrow_mut<u8, Balance<Asset>>(&mut self.typed_balances, index)
+    }
+
+    /// Increment an asset's typed balance by a given amount.
+    ///
+    /// It is the caller's responsibility to ensure this change is also
+    /// reflected in, or is a reflection of, equivalent changes in the asset's untyped
+    /// balance.
+    public(friend) fun join_typed_bal<Asset>(self: &mut RAMM, index: u8, bal: Balance<Asset>) {
+        let asset_bal: &mut Balance<Asset> = get_mut_typed_bal(self, index);
+        balance::join(asset_bal, bal);
+    }
+
+    /// Decrement an asset's typed balance by a given amount, returning the deducted
+    /// `Balance`.
+    ///
+    /// It is the caller's responsibility to ensure this change is also
+    /// reflected in, or is a reflection of, equivalent changes in the asset's untyped
+    /// balance.
+    public(friend) fun split_typed_bal<Asset>(self: &mut RAMM, index: u8, val: u64): Balance<Asset> {
+        let asset_bal: &mut Balance<Asset> = get_mut_typed_bal(self, index);
+        balance::split(asset_bal, val)
     }
 
     /// LP Tokens Issued
@@ -503,16 +583,32 @@ module ramm_sui::ramm {
         get_lptok_issued(self, ix)
     }
 
+    fun incr_lptokens_issued<Asset>(self: &mut RAMM, minted: u64) {
+        let ix = get_asset_index<Asset>(self);
+        let lptoks = vec_map::get_mut(&mut self.lp_tokens_issued, &ix);
+        *lptoks = *lptoks + (minted as u256);
+    }
+
     /// Typed LP Tokens Issued
 
-    fun get_typed_lptokens_issued<Asset>(self: &mut RAMM): &mut Supply<LP<Asset>> {
+    fun get_lptoken_supply<Asset>(self: &mut RAMM): &mut Supply<LP<Asset>> {
         let ix = get_asset_index<Asset>(self);
         bag::borrow_mut<u8, Supply<LP<Asset>>>(&mut self.typed_lp_tokens_issued, ix)
     }
 
-    public(friend) fun get_typed_lptokens_issued_u64<Asset>(self: &RAMM): u64 {
+    fun get_typed_lptok_issued<Asset>(self: &RAMM, index: u8): u256 {
+        let supply = bag::borrow<u8, Supply<LP<Asset>>>(&self.typed_lp_tokens_issued, index);
+        (balance::supply_value(supply) as u256)
+    }
+
+    public(friend) fun get_typed_lptokens_issued<Asset>(self: &RAMM): u256 {
         let ix = get_asset_index<Asset>(self);
-        balance::supply_value(bag::borrow<u8, Supply<LP<Asset>>>(&self.typed_lp_tokens_issued, ix))
+        get_typed_lptok_issued<Asset>(self, ix)
+    }
+
+    fun mint_lp_tokens<Asset>(self: &mut RAMM, amount: u64): Balance<LP<Asset>> {
+        let supply = get_lptoken_supply<Asset>(self);
+        balance::increase_supply(supply, amount)
     }
 
     /// Minimum trading amounts
@@ -603,13 +699,22 @@ module ramm_sui::ramm {
 
     /// Collected protocol fees
 
+    fun get_fee_balance<Asset>(self: &RAMM, index: u8): &Balance<Asset> {
+        bag::borrow<u8, Balance<Asset>>(&self.collected_protocol_fees, index)
+    }
+
     fun get_fees<Asset>(self: &RAMM, index: u8): u64 {
-        balance::value(bag::borrow<u8, Balance<Asset>>(&self.collected_protocol_fees, index))
+        balance::value(get_fee_balance<Asset>(self, index))
     }
 
     public(friend) fun get_collected_protocol_fees<Asset>(self: &RAMM): u64 {
         let ix = get_asset_index<Asset>(self);
         get_fees<Asset>(self, ix)
+    }
+
+    public(friend) fun join_protocol_fees<Asset>(self: &mut RAMM, index: u8, fee: Balance<Asset>) {
+        let fee_bal = bag::borrow_mut<u8, Balance<Asset>>(&mut self.collected_protocol_fees, index);
+        balance::join(fee_bal, fee);
     }
 
     /// Type indexes
@@ -620,13 +725,13 @@ module ramm_sui::ramm {
 
     /// Asset decimal places
 
-    fun get_factor_bal(self: &RAMM, index: u8): u256 {
+    public(friend) fun get_fact_for_bal(self: &RAMM, index: u8): u256 {
         *vec_map::get(&self.factors_for_balances, &index)
     }
 
-    public(friend) fun get_factor_balance<Asset>(self: &RAMM): u256{
+    public(friend) fun get_factor_for_balance<Asset>(self: &RAMM): u256{
         let ix = get_asset_index<Asset>(self);
-        get_factor_bal(self, ix)
+        get_fact_for_bal(self, ix)
     }
 
     /// Asset count
@@ -665,7 +770,7 @@ module ramm_sui::ramm {
 
     /// For a given `Asset` in the RAMM, return how many LP tokens are in circulation.
     public(friend) fun lptok_in_circulation<Asset>(self: &RAMM, index: u8): u64 {
-        let supply: &Supply<Asset> = bag::borrow(&self.typed_lp_tokens_issued, index);
+        let supply: &Supply<LP<Asset>> = bag::borrow(&self.typed_lp_tokens_issued, index);
         balance::supply_value(supply)
     }
 
@@ -697,17 +802,17 @@ module ramm_sui::ramm {
     }
 
     /// Given a Switchboard aggregator, fetch the price data within it.
+    /// Returns a tuple with the `u256` price, and the appropriate scaling
+    /// factor to use when working with `PRECISION_DECIMAL_PLACES`.
     ///
     /// This function is not public, as it is NOT safe to call this *without*
     /// first checking that the aggregator's address matches the RAMM's records
     /// for the given asset.
-    ///
-    /// TODO: *actually* use all the fields from `aggregator::latest_value`
-    public(friend) fun get_price_from_oracle(feed: &Aggregator): u256 {
+    public(friend) fun get_price_from_oracle(feed: &Aggregator): (u256, u256) {
         // the timestamp can be used in the future to check for price staleness
         let (latest_result, _latest_timestamp) = aggregator::latest_value(feed);
         // do something with the below, most likely scale it to our needs
-        ramm_math::sbd_to_u256(latest_result)
+        ramm_math::sbd_to_price_info(latest_result, PRECISION_DECIMAL_PLACES)
     }
 
     /// Verify that the address of the pricing feed for a certain asset matches the
@@ -719,15 +824,18 @@ module ramm_sui::ramm {
         self: &RAMM,
         ix: u8,
         feed: &Aggregator,
-        prices: &mut VecMap<u8, u256>
+        prices: &mut VecMap<u8, u256>,
+        factors_for_prices: &mut VecMap<u8, u256>,
     ) {
         assert!(check_feed_address(self, ix, feed), EInvalidAggregator);
-        vec_map::insert(prices, ix, get_price_from_oracle(feed));
+        let (price, factor_for_price) = get_price_from_oracle(feed);
+        vec_map::insert(prices, ix, price);
+        vec_map::insert(factors_for_prices, ix, factor_for_price);
     }
 
-    /// ------------------------
-    /// Mathematics calculations
-    /// ------------------------
+    /// ----------------------------------
+    /// Mathematical functions for trading
+    /// ----------------------------------
 
     /// Given a RAMM, current prices and their scaling factors relative to
     /// `PRECISION_DECIMAL_PLACES`, calculate the weights of each of the pool's assets.
@@ -858,16 +966,60 @@ module ramm_sui::ramm {
     ///
     /// This function can be used on a RAMM of any size.
     public(friend) fun trade_i<AssetIn, AssetOut>(
-        _self: &mut RAMM,
+        self: &RAMM,
         // index of incoming token
-        _i: u8,
+        i: u8,
         // index of outgoing token
-        _o: u8,
-        ai: Coin<AssetIn>,
-        _prices: VecMap<u8, u256>
-    ): Coin<AssetIn> {
-        // TODO
-        ai
+        o: u8,
+        ai: u256,
+        prices: VecMap<u8, u256>,
+        factors_for_prices: VecMap<u8, u256>
+    ): TradeOutput {
+        let factor_for_price_i: u256 = *vec_map::get(&factors_for_prices, &i);
+        let factor_for_price_o: u256 = *vec_map::get(&factors_for_prices, &o);
+
+        let factor_i: u256 = get_fact_for_bal(self, i);
+        let factor_o: u256 = get_fact_for_bal(self, o);
+        if (get_typed_bal<AssetIn>(self, i) == 0) {
+            let num: u256 = mul3(ONE - BASE_FEE, ai * factor_i, *vec_map::get(&prices, &i) * factor_for_price_i);
+            let ao: u256 = div(num, *vec_map::get(&prices, &i) * factor_for_price_o) / factor_o;
+            let pr_fee: u256 = mul3(PROTOCOL_FEE, BASE_FEE, ai * factor_i) / factor_i;
+            let execute: bool = check_imbalance_ratios(self, &prices, i, o, ai, ao, pr_fee, &factors_for_prices);
+            return TradeOutput {amount: ao, protocol_fee: pr_fee, execute_trade: execute}
+        };
+
+        let _W: VecMap<u8, u256> = weights(self, &prices, &factors_for_prices);
+        let wi: u256 = *vec_map::get(&_W, &i);
+        let wo: u256 = *vec_map::get(&_W, &o);
+        let leverage: &mut u256 = &mut BASE_LEVERAGE;
+        let trading_fee: &mut u256 = &mut BASE_FEE;
+
+        if (get_typed_lptok_issued<AssetOut>(self, o) != 0 && get_typed_bal<AssetIn>(self, i) != 0) {
+            let imbs = imbalance_ratios(self, &prices, &factors_for_prices);
+            let imb_ratios_initial_o: u256 = *vec_map::get(&imbs, &o);
+            if (imb_ratios_initial_o < ONE - DELTA) {
+                return TradeOutput {amount: 0, protocol_fee: 0, execute_trade: false}
+            };
+            let (tf, l) = scaled_fee_and_leverage(self, &prices, i, o, &factors_for_prices);
+            *trading_fee = tf;
+            *leverage = l;
+        };
+
+        let bi: u256 = mul(get_typed_bal<AssetIn>(self, i) * factor_i, *leverage);
+        let bo: u256 = mul(get_typed_bal<AssetOut>(self, o) * factor_o, *leverage);
+
+        let base_denom: u256 = bi + mul(ONE - *trading_fee, ai * factor_i);
+        let power: u256 = power(div(bi, base_denom), div(wi, wo));
+        let ao: u256 = mul(bo, ONE - power) / factor_o;
+        let pr_fee: u256 = mul3(PROTOCOL_FEE, *trading_fee, ai * factor_i) / factor_i;
+        if (ao > get_typed_bal<AssetOut>(self, o) ||
+            (ao == get_typed_bal<AssetOut>(self, o) && get_typed_lptok_issued<AssetOut>(self, o) != 0)
+        ) {
+            return TradeOutput {amount: 0, protocol_fee:0, execute_trade: false}
+        };
+        let execute: bool = check_imbalance_ratios(self, &prices, i, o, ai, ao, pr_fee, &factors_for_prices);
+
+        TradeOutput {amount: ao, protocol_fee: pr_fee, execute_trade: execute}
     }
 
     /// Internal function, used by the public trading API e.g. `trade_amount_out_3`.
@@ -876,22 +1028,71 @@ module ramm_sui::ramm {
     ///
     /// This function can be used on a RAMM of any size.
     public(friend) fun trade_o<AssetIn, AssetOut>(
-        _self: &mut RAMM,
+        self: &mut RAMM,
         // index of incoming token
-        _i: u8,
+        i: u8,
         // index of outgoing token
-        _o: u8,
-        _ao: u64,
-        _prices: VecMap<u8, u256>
-    ) {
-        // TODO
+        o: u8,
+        ao: u64,
+        prices: VecMap<u8, u256>,
+        factors_for_prices: VecMap<u8, u256>
+    ): TradeOutput {
+        let factor_for_price_i: u256 = *vec_map::get(&factors_for_prices, &i);
+        let factor_for_price_o: u256 = *vec_map::get(&factors_for_prices, &o);
+
+        let factor_i: u256 = get_fact_for_bal(self, i);
+        let factor_o: u256 = get_fact_for_bal(self, o);
+
+        let price_i: u256 = *vec_map::get(&prices, &i);
+        let price_o: u256 = *vec_map::get(&prices, &o);
+
+        let ao = (ao as u256);
+        if (get_typed_bal<AssetIn>(self, i) == 0) {
+            let num: u256 = mul(ao * factor_o, price_o * factor_for_price_o);
+            let denom: u256 = mul(price_i * factor_for_price_i, ONE-BASE_FEE);
+            let ai: u256 = div(num, denom) / factor_i;
+            let pr_fee: u256 = mul3(PROTOCOL_FEE, BASE_FEE, ai * factor_i) / factor_i;
+            let execute: bool = check_imbalance_ratios(self, &prices, i, o, ai, ao, pr_fee, &factors_for_prices);
+            return TradeOutput {amount: ao, protocol_fee: pr_fee, execute_trade: execute}
+        };
+
+        let _W: VecMap<u8, u256> = weights(self, &prices, &factors_for_prices);
+        let wi: u256 = *vec_map::get(&_W, &i);
+        let wo: u256 = *vec_map::get(&_W, &o);
+        let leverage: &mut u256 = &mut BASE_LEVERAGE;
+        let trading_fee: &mut u256 = &mut BASE_FEE;
+
+        if (get_typed_lptok_issued<AssetOut>(self, o) != 0 && get_typed_bal<AssetIn>(self, i) != 0) {
+            let imbs = imbalance_ratios(self, &prices, &factors_for_prices);
+            let imb_ratios_initial_o: u256 = *vec_map::get(&imbs, &o);
+            if (imb_ratios_initial_o < ONE - DELTA) {
+                return TradeOutput {amount: 0, protocol_fee: 0, execute_trade: false}
+            };
+            let (tf, l) = scaled_fee_and_leverage(self, &prices, i, o, &factors_for_prices);
+            *trading_fee = tf;
+            *leverage = l;
+        };
+
+        let bi: u256 = mul(get_typed_bal<AssetIn>(self, i) * factor_i, *leverage);
+        let bo: u256 = mul(get_typed_bal<AssetOut>(self, o) * factor_o, *leverage);
+
+        let power: u256 = power(div(bo, bo - ao * factor_o), div(wo, wi));
+        let ai: u256 = div(mul(bi, power - ONE), ONE - *trading_fee) / factor_i;
+        let pr_fee: u256 = mul3(PROTOCOL_FEE, *trading_fee, ai * factor_i) / factor_i;
+
+        let execute: bool = check_imbalance_ratios(self, &prices, i, o, ai, ao, pr_fee, &factors_for_prices);
+        TradeOutput {amount: ai, protocol_fee: pr_fee, execute_trade: execute}
     }
 
     /// ----------------------------
     /// Liquidity deposit/withdrawal
     /// ----------------------------
 
-    /// 
+    /// Internal function used by liquidity deposit API e.g. `liquidity_deposit_3`.
+    /// Only contains business logic for the RAMM, assumes all safety checks have been made by
+    /// the caller.
+    ///
+    /// Unlike the client-facing API, this function can be used on a RAMM of any size.
     public(friend) fun single_asset_deposit<AssetIn>(
         self: &mut RAMM,
         i: u8,
@@ -907,8 +1108,8 @@ module ramm_sui::ramm {
         let new_bal = balance::join(curr_typed_bal, amount_in);
         *curr_bal = (new_bal as u256);
 
-        let lptoken_supply = get_typed_lptokens_issued<AssetIn>(self);
-        let lptoken_balance = balance::increase_supply(lptoken_supply, amount_in_u64);
+        incr_lptokens_issued<AssetIn>(self, amount_in_u64);
+        let lptoken_balance = mint_lp_tokens(self, amount_in_u64);
 
         coin::from_balance(lptoken_balance, ctx)
     }
