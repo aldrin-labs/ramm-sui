@@ -5,7 +5,7 @@ module ramm_sui::ramm_tests {
     use sui::test_scenario;
 
     use ramm_sui::ramm::{Self, RAMM, RAMMAdminCap, RAMMNewAssetCap};
-    use ramm_sui::test_utils::{Self, BTC};
+    use ramm_sui::test_utils::{Self, BTC, btc_dec_places};
 
     use switchboard::aggregator::{Self, Aggregator};
 
@@ -57,7 +57,7 @@ module ramm_sui::ramm_tests {
             let btc_aggr = test_scenario::take_shared<Aggregator>(scenario);
 
             assert!(ramm::get_asset_count(&ramm) == 0, ERAMMCreation);
-            ramm::add_asset_to_ramm<BTC>(&mut ramm, &btc_aggr, 1000, &admin_cap, &new_asset_cap);
+            ramm::add_asset_to_ramm<BTC>(&mut ramm, &btc_aggr, 1000, btc_dec_places(), &admin_cap, &new_asset_cap);
             assert!(ramm::get_asset_count(&ramm) == 1, ERAMMCreation);
 
             test_scenario::return_shared<Aggregator>(btc_aggr);
@@ -118,7 +118,14 @@ module ramm_sui::ramm_tests {
             let btc_aggr = test_scenario::take_shared<Aggregator>(scenario);
 
             let min_trade_amount: u64 = 1000;
-            ramm::add_asset_to_ramm<BTC>(&mut ramm, &btc_aggr, min_trade_amount, &admin_cap, &new_asset_cap);
+            ramm::add_asset_to_ramm<BTC>(
+                &mut ramm,
+                &btc_aggr,
+                min_trade_amount,
+                btc_dec_places(),
+                &admin_cap,
+                &new_asset_cap
+            );
 
             // Check the RAMM's internal state after the asset has been added
             assert!(ramm::get_admin_cap_id(&ramm) == object::id(&admin_cap), ERAMMInit);
@@ -136,6 +143,7 @@ module ramm_sui::ramm_tests {
             assert!(ramm::get_collected_protocol_fees<BTC>(&ramm) == 0u64, ERAMMInit);
 
             assert!(ramm::get_type_index<BTC>(&ramm) == 0u8, ERAMMInit);
+            assert!(ramm::get_factor_balance<BTC>(&ramm) == 10000u256, ERAMMDepositStatus);
 
             assert!(ramm::get_asset_count(&ramm) == 1, ERAMMInit);
 
@@ -180,7 +188,14 @@ module ramm_sui::ramm_tests {
 
             let minimum_trade_amount = 1000;
 
-            ramm::add_asset_to_ramm<BTC>(&mut ramm, &btc_aggr, minimum_trade_amount, &admin_cap, &new_asset_cap);
+            ramm::add_asset_to_ramm<BTC>(
+                &mut ramm,
+                &btc_aggr,
+                minimum_trade_amount,
+                btc_dec_places(),
+                &admin_cap,
+                &new_asset_cap
+            );
             // Check that immediately after adding an asset, its deposits are disabled
             assert!(!ramm::get_deposit_status<BTC>(&ramm), ERAMMDepositStatus);
             ramm::initialize_ramm(&mut ramm, &admin_cap, new_asset_cap);
@@ -210,6 +225,7 @@ module ramm_sui::ramm_tests {
             assert!(ramm::get_collected_protocol_fees<BTC>(&ramm) == 0u64, ERAMMDepositStatus);
 
             assert!(ramm::get_type_index<BTC>(&ramm) == 0u8, ERAMMDepositStatus);
+            assert!(ramm::get_factor_balance<BTC>(&ramm) == 10000u256, ERAMMDepositStatus);
 
             assert!(ramm::get_asset_count(&ramm) == 1, ERAMMDepositStatus);
 
@@ -271,7 +287,7 @@ module ramm_sui::ramm_tests {
             let alice_cap = test_scenario::take_from_address<RAMMNewAssetCap>(scenario, ALICE);
 
             let btc_aggr = test_scenario::take_shared<Aggregator>(scenario);
-            ramm::add_asset_to_ramm<BTC>(&mut bob_ramm, &btc_aggr, 0, &alice_admin_cap, &alice_cap);
+            ramm::add_asset_to_ramm<BTC>(&mut bob_ramm, &btc_aggr, 0, btc_dec_places(), &alice_admin_cap, &alice_cap);
 
             test_scenario::return_shared<Aggregator>(btc_aggr);
             test_scenario::return_to_address<RAMMAdminCap>(BOB, alice_admin_cap);
@@ -298,7 +314,7 @@ module ramm_sui::ramm_tests {
             let alice_cap = test_scenario::take_from_address<RAMMNewAssetCap>(scenario, ALICE);
 
             let btc_aggr = test_scenario::take_shared<Aggregator>(scenario);
-            ramm::add_asset_to_ramm<BTC>(&mut bob_ramm, &btc_aggr, 0, &bob_admin, &alice_cap);
+            ramm::add_asset_to_ramm<BTC>(&mut bob_ramm, &btc_aggr, 0, btc_dec_places(), &bob_admin, &alice_cap);
 
             test_scenario::return_shared<Aggregator>(btc_aggr);
             test_scenario::return_to_address<RAMMAdminCap>(BOB, bob_admin);
@@ -322,7 +338,7 @@ module ramm_sui::ramm_tests {
         let new_asset_cap = test_scenario::take_from_address<RAMMNewAssetCap>(scenario, sender);
         let aggr = test_scenario::take_shared<Aggregator>(scenario);
 
-        ramm::add_asset_to_ramm<Asset>(&mut ramm, &aggr, 0, &admin, &new_asset_cap);
+        ramm::add_asset_to_ramm<Asset>(&mut ramm, &aggr, 0, btc_dec_places(), &admin, &new_asset_cap);
 
         test_scenario::return_shared<Aggregator>(aggr);
         test_scenario::return_to_address<RAMMAdminCap>(sender, admin);
