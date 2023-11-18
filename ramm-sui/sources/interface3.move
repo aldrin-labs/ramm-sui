@@ -23,9 +23,13 @@ module ramm_sui::interface3 {
     const EInvalidDeposit: u64 = 2;
     const ENoLPTokensInCirculation: u64 = 3;
     const ERAMMInsufficientBalance: u64 = 4;
-    const ETradeAmountTooSmall: u64 = 5;
-    const ENotAdmin: u64 = 6;
-    const ELiqWthdrwLPTBurn: u64 = 7;
+    /// The pool may have sufficient balance to perform the trade, but doing so
+    /// would leave it unable to redeem a liquidity provider's LP tokens
+    const ERAMMInsufBalForCirculatingLPToken: u64 = 5;
+    const ETradeAmountTooSmall: u64 = 6;
+    const ENotAdmin: u64 = 7;
+    const ELiqWthdrwLPTBurn: u64 = 8;
+    const EInvalidWithdrawal: u64 = 9;
 
     /// Trading function for a RAMM with three (3) assets.
     /// Used to deposit a given amount of asset `T_i`, in exchange for asset `T_o`.
@@ -95,6 +99,8 @@ module ramm_sui::interface3 {
             let amount_in = coin::from_balance(amount_in, ctx);
             transfer::public_transfer(amount_in, tx_context::sender(ctx));
         };
+
+        ramm::check_ramm_invariants_3<AssetIn, AssetOut, Other>(self);
     }
 
     /// Trading function for a RAMM with three (3) assets.
@@ -126,7 +132,7 @@ module ramm_sui::interface3 {
         let o_bal: u64 = (ramm::get_bal(self, o) as u64);
         assert!(o_bal >= amount_out, ERAMMInsufficientBalance);
         if (amount_out == o_bal) {
-            assert!(ramm::lptok_in_circulation<AssetOut>(self, o) == 0, ERAMMInsufficientBalance)
+            assert!(ramm::lptok_in_circulation<AssetOut>(self, o) == 0, ERAMMInsufBalForCirculatingLPToken)
         };
         let oth = ramm::get_asset_index<Other>(self);
 
@@ -175,6 +181,8 @@ module ramm_sui::interface3 {
         } else {
             transfer::public_transfer(max_ai, tx_context::sender(ctx));
         };
+
+        ramm::check_ramm_invariants_3<AssetIn, AssetOut, Other>(self);
     }
 
     /// Liquidity deposit for a pool with three (3) assets.
@@ -225,8 +233,9 @@ module ramm_sui::interface3 {
             let lpt: Coin<LP<AssetIn>> = coin::from_balance(lpt, ctx);
             
             transfer::public_transfer(lpt, tx_context::sender(ctx));
-        }
+        };
 
+        ramm::check_ramm_invariants_3<AssetIn, Other, Another>(self);
     }
 
     /// Withdraw liquidity from a 3-asset RAMM.
@@ -246,6 +255,7 @@ module ramm_sui::interface3 {
         ctx: &mut TxContext
     ) {
         assert!(ramm::get_asset_count(self) == THREE, ERAMMInvalidSize);
+        assert!(coin::value(&lp_token) > 0, EInvalidWithdrawal);
 
         let fst = ramm::get_asset_index<Asset1>(self);
         let snd = ramm::get_asset_index<Asset2>(self);
@@ -293,6 +303,7 @@ module ramm_sui::interface3 {
         ramm::decr_lptokens_issued<AssetOut>(self, burn_amount);
         // Update RAMM's typed count of LP tokens for outgoing asset
         let burned: u64 = ramm::burn_lp_tokens<AssetOut>(self, burn_tokens);
+        // This cannot happen, but it's best to guard anyway.
         assert!(burned == burn_amount, ELiqWthdrwLPTBurn);
         // All of the tokens from the provider were burned, so the `Balance` can be
         // destroyed
@@ -333,6 +344,8 @@ module ramm_sui::interface3 {
             let amount_out: Coin<Asset3> = coin::from_balance(amount_out, ctx);
             transfer::public_transfer(amount_out, tx_context::sender(ctx));
         };
+
+        ramm::check_ramm_invariants_3<Asset1, Asset2, Asset3>(self);
     }
 
     /// Collect fees for a given RAMM, sending them to the fee collection address
@@ -365,5 +378,7 @@ module ramm_sui::interface3 {
         transfer::public_transfer(fst, fee_collector);
         transfer::public_transfer(snd, fee_collector);
         transfer::public_transfer(trd, fee_collector);
+
+        ramm::check_ramm_invariants_3<Asset1, Asset2, Asset3>(self);
     }
 }

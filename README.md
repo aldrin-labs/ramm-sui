@@ -15,9 +15,111 @@ At present, there are 2 Sui Move packages:
 
 ## `ramm-sui`: RAMM in Sui Move
 
-WIP
+The principal data structure in the `ramm-sui` package is the `RAMM` object.
+In order for traders to
+* deposit/withdraw liquidity
+* buy/sell assets
+they must interact with a `RAMM` object through the contract APIs in the `interface*` modules.
 
-## Testing a price feed
+### Structure of `ramm-sui` package and modules
+
+The public API is split in different modules:
+* Functions that can be called on RAMMs of any size exist in `ramm_sui::ramm`
+* for 2-asset RAMMs, the module `ramm_sui::interface2` is to be used
+* for 3-asset RAMMs, use `ramm_sui::interface3`
+* any future additions of higher-order RAMMs will follow this pattern: 4-asset RAMMs => `ramm_sui::interface4`, etc.
+
+
+### RAMM Internal data
+
+The structure stores information required for its management and operation, including datum about each of its assets:
+* the `AdminCap` required to perform gated operations e.g. fee collection; see [here](#capability-pattern-as-security-measure) for more information
+* minimum trade amounts per each asset
+* the balance of each asset (in a scalar and typed version, see below)
+* a data structure specific to Sui (`balance::Supply`) that regulates LP token issuance for each asset
+* protocol fees collected for each asset
+
+### Capability pattern as security measure
+
+Some RAMM operations don't require administrative privileges - trading, liquidity deposits/withdrawals - while
+others must. Examples:
+* add assets to an unitialized RAMM
+* initialize a RAMM, thereby freezing the number and type of its assets
+* disable/enable deposits for an asset
+* transfer collected protocol fees to a designated address
+* change the designated fee collection address
+* change the minimum trading amount for an asset
+
+In order to do this, Sui Move allows the use of the [capability pattern](https://examples.sui.io/patterns/capability.html).
+
+Upon creation, each RAMM will have 2 associated `Cap`ability objects that will be owned by whoever created the RAMM:
+
+1. A perennial `RAMMAdminCap`, required in **every** gated operation. Its `ID` will be stored
+   in the RAMM, and checked so that only the correct object unlocks the operation
+1. An ephemeral `RAMMNewAssetCap`, whose `ID` is also stored in the RAMM, in a  `new_asset_cap_id: Option<ID>` field.
+   The reason why it's ephemeral:
+    - This `Cap` is used to add assets to the RAMM, which can only be done before initialized
+    - To initialize a RAMM, its `RAMMNewAssetCap` must be passed **by value** to be destroyed, and the
+      `new_asset_cap_id` field becomes `Option::None` to mark its initialization
+    - After initialization, no more assets can then be added, which is enforced by the fact that the `RAMMNewAssetCap`
+      no longer exists
+
+### Limitations of RAMM design
+
+There are some limitations to the chosen RAMM design.
+
+#### Duplicate fields in the RAMM
+
+Because of limitations with Sui Move's type system, in order to both
+1. create RAMMs with arbitrary asset counts, and
+2. abstract over asset types
+
+and still have a degree of code reuse, it is necessary to store certain information twice:
+1. once in an untyped, scalar format e.g. `u256`, and
+2. again in a typed format, e.g. `Balance<Asset>`.
+
+This information is:
+* per-asset balance information
+* per-asset LP token `Supply` structures, which regulate LP token issuance
+
+Doing this decouples the internal RAMM functions, which can do the calculations required for trading and liquidity operations
+using scalars only - see `ramm_sui::ramm::{trade_i, trade_o}` - from the client-facing public API, that must have access
+to the asset types themselves, and their count - see `ramm_sui::interface2::trade_amount_in_2` and 
+`ramm_sui::interface3::trade_amount_in_3`.
+
+In other words, the only code that must be repeated for every class of RAMMs is the public, typed API,
+every instance of which will wrap the same typeless, scalar internal functions.
+
+#### Ownership of `RAMM` object structure
+
+In order for orders to be sent to the RAMM and affect its internal state, it must be shared, and
+thus cannot have an owner.
+
+This makes it subject to consensus in the Sui network, preventing traders' orders from benefitting from
+the fast-tracking of transactions that occurs in contexts of in sole object ownership and object immutability.
+
+#### Storing Switchboard Aggregators
+
+In order to obtain current information on asset pricing, the RAMM requires the use of oracles.
+In Sui, at present, there are only two alternatives: Pyth Network, and Switchboard.
+Switchboard was chosen over Pyth due to its simplicity - Pyth [requires](https://docs.pyth.network/pythnet-price-feeds/sui)
+attested off-chain data to be provided in each price request, while Switchboard does not.
+
+However, unlike in the EVM where the RAMM could store each oracle's address to then interact with,
+Sui's object model prevents interaction via an `address` alone, and as such:
+
+> Switchboard's `Aggregator`s cannot be stored in the RAMM object.
+
+This is because if `RAMM` `has key`, then
+* all its fields must have `store`
+* in particular, `vector<Aggregator>` must have store
+  - so `Aggregator` must have `store`
+* Which it does not, so RAMM cannot have `key`
+* Meaning it cannot be used be turned into a shared object with 
+  `sui::transfer::share_object`
+* which it *must* be, to be readable and writable by all
+
+## Testing a Switchboard price feed
 
 A Sui testnet price information feed can be found in the link above,
 and in `ramm-misc/sources/demo.move`, there exist constants with the aggregators'

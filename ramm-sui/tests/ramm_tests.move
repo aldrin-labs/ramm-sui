@@ -3,6 +3,7 @@ module ramm_sui::ramm_tests {
     use std::option;
     use sui::object::{Self, ID};
     use sui::test_scenario;
+    use sui::test_utils;
 
     use ramm_sui::ramm::{Self, RAMM, RAMMAdminCap, RAMMNewAssetCap};
     use ramm_sui::test_util::{Self, BTC, btc_dec_places};
@@ -94,6 +95,12 @@ module ramm_sui::ramm_tests {
     }
 
     #[test]
+    /// Test for RAMM asset addition.
+    ///
+    /// 1. Create a RAMM
+    /// 2. Create and populate a test asset price aggregator
+    /// 3. Add an asset (test BTC) to the RAMM
+    /// 4. Verify the RAMM's internal state after the asset addition
     fun add_asset_to_ramm_tests() {
         let scenario_val = test_scenario::begin(ADMIN);
         let scenario = &mut scenario_val;
@@ -475,6 +482,85 @@ module ramm_sui::ramm_tests {
     }
 
     #[test]
+    /// Check that setting minimum trade amounts works as intended.
+    fun set_minimum_trade_amount_test() {
+        let scenario_val = test_scenario::begin(ADMIN);
+        let scenario = &mut scenario_val;
+
+        let _aggr_id = test_util::create_write_share_aggregator(scenario, 2780245000000, 8, false, 100);
+        test_scenario::next_tx(scenario, ADMIN);
+
+        // Create the RAMM
+        {
+            ramm::new_ramm(ADMIN, test_scenario::ctx(scenario));
+        };
+        test_scenario::next_tx(scenario, ADMIN);
+
+        // Retrieve RAMM and caps from storage, and add above assets to it
+        {
+            let admin_cap = test_scenario::take_from_address<RAMMAdminCap>(scenario, ADMIN);
+            let new_asset_cap = test_scenario::take_from_address<RAMMNewAssetCap>(scenario, ADMIN);
+            let ramm = test_scenario::take_shared<RAMM>(scenario); 
+
+            let btc_aggr = test_scenario::take_shared<Aggregator>(scenario);
+
+            let minimum = 1000;
+            ramm::add_asset_to_ramm<BTC>(
+                &mut ramm,
+                &btc_aggr,
+                minimum,
+                btc_dec_places(),
+                &admin_cap,
+                &new_asset_cap
+            );
+
+            ramm::initialize_ramm(&mut ramm, &admin_cap, new_asset_cap);
+
+            test_utils::assert_eq(ramm::get_minimum_trade_amount<BTC>(&ramm), minimum);
+            ramm::set_minimum_trade_amount<BTC>(&mut ramm, &admin_cap, 2000);
+            test_utils::assert_eq(ramm::get_minimum_trade_amount<BTC>(&ramm), 2000);
+
+            test_scenario::return_to_address<RAMMAdminCap>(ADMIN, admin_cap);
+            test_scenario::return_shared<Aggregator>(btc_aggr);
+            test_scenario::return_shared<RAMM>(ramm);
+        };
+
+        test_scenario::next_tx(scenario, ADMIN);
+
+        test_scenario::end(scenario_val);
+    }
+
+    #[test]
+    /// Check that changing the fee collection address works as intended.
+    fun set_fee_collector_test() {
+        let scenario_val = test_scenario::begin(ADMIN);
+        let scenario = &mut scenario_val;
+
+        // Create the RAMM
+        {
+            ramm::new_ramm(ADMIN, test_scenario::ctx(scenario));
+        };
+        test_scenario::next_tx(scenario, ADMIN);
+
+        // Retrieve RAMM and caps from storage, and add above assets to it
+        {
+            let admin_cap = test_scenario::take_from_address<RAMMAdminCap>(scenario, ADMIN);
+            let ramm = test_scenario::take_shared<RAMM>(scenario);
+
+            test_utils::assert_eq(ramm::get_fee_collector(&ramm), ADMIN);
+            ramm::set_fee_collector(&mut ramm, &admin_cap, ALICE);
+            test_utils::assert_eq(ramm::get_fee_collector(&ramm), ALICE);
+
+            test_scenario::return_to_address<RAMMAdminCap>(ADMIN, admin_cap);
+            test_scenario::return_shared<RAMM>(ramm);
+        };
+
+        test_scenario::next_tx(scenario, ADMIN);
+
+        test_scenario::end(scenario_val);
+    }
+
+    #[test]
     #[expected_failure(abort_code = ramm::ENotAdmin)]
     /// Check that enabling deposits for an asset with the wrong `RAMMAdminCap` will fail.
     fun enable_deposits_admin_cap_mismatch() {
@@ -508,6 +594,56 @@ module ramm_sui::ramm_tests {
             test_scenario::return_to_address<RAMMAdminCap>(ALICE, alice_admin_cap);
             test_scenario::return_shared<RAMM>(bob_ramm);
         };
+
+        test_scenario::end(scenario_val);
+    }
+
+    #[test]
+    /// Check that setting (enabling/disabling) deposit status works as intended.
+    fun set_deposit_status_test() {
+        let scenario_val = test_scenario::begin(ADMIN);
+        let scenario = &mut scenario_val;
+
+        let _aggr_id = test_util::create_write_share_aggregator(scenario, 2780245000000, 8, false, 100);
+        test_scenario::next_tx(scenario, ADMIN);
+
+        // Create the RAMM
+        {
+            ramm::new_ramm(ADMIN, test_scenario::ctx(scenario));
+        };
+        test_scenario::next_tx(scenario, ADMIN);
+
+        // Retrieve RAMM and caps from storage, and add above assets to it
+        {
+            let admin_cap = test_scenario::take_from_address<RAMMAdminCap>(scenario, ADMIN);
+            let new_asset_cap = test_scenario::take_from_address<RAMMNewAssetCap>(scenario, ADMIN);
+            let ramm = test_scenario::take_shared<RAMM>(scenario);
+
+            let btc_aggr = test_scenario::take_shared<Aggregator>(scenario);
+
+            ramm::add_asset_to_ramm<BTC>(
+                &mut ramm,
+                &btc_aggr,
+                1000,
+                btc_dec_places(),
+                &admin_cap,
+                &new_asset_cap
+            );
+
+            ramm::initialize_ramm(&mut ramm, &admin_cap, new_asset_cap);
+
+            test_utils::assert_eq(ramm::get_deposit_status<BTC>(&ramm), true);
+            ramm::disable_deposits<BTC>(&mut ramm, &admin_cap);
+            test_utils::assert_eq(ramm::get_deposit_status<BTC>(&ramm), false);
+            ramm::enable_deposits<BTC>(&mut ramm, &admin_cap);
+            test_utils::assert_eq(ramm::get_deposit_status<BTC>(&ramm), true);
+
+            test_scenario::return_to_address<RAMMAdminCap>(ADMIN, admin_cap);
+            test_scenario::return_shared<Aggregator>(btc_aggr);
+            test_scenario::return_shared<RAMM>(ramm);
+        };
+
+        test_scenario::next_tx(scenario, ADMIN);
 
         test_scenario::end(scenario_val);
     }

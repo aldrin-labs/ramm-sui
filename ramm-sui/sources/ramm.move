@@ -19,6 +19,7 @@ module ramm_sui::ramm {
 
     // Because of the below declarations, use the `test` flag when building or
     // creating test coverage maps: `sui move test coverage --test`.
+    friend ramm_sui::interface2_safety_tests;
     friend ramm_sui::interface2_tests;
     friend ramm_sui::interface3_safety_tests;
     friend ramm_sui::interface3_tests;
@@ -33,11 +34,14 @@ module ramm_sui::ramm {
     const ERAMMNewAssetFailure: u64 = 4;
     const ENotInitialized: u64 = 5;
     const EWrongNewAssetCap: u64 = 6;
+    const EBrokenRAMMInvariants: u64 = 7;
 
-    /// ------------------
-    /// Constants for math
-    /// ------------------
+    /// --------------
+    /// RAMM Constants
+    /// --------------
 
+    const TWO: u8 = 2;
+    const THREE: u8 = 3;
 
     /// Number of decimal places of precision.
     const PRECISION_DECIMAL_PLACES: u8 = 12;
@@ -65,8 +69,8 @@ module ramm_sui::ramm {
     const PROTOCOL_FEE: u256 = 50 * 1_000_000_000_000 / 100; // PROTOCOL_FEE = _PROTOCOL_FEE*10**(PRECISION_DECIMAL_PLACES-2)
 
     /// Miguel's note:
-    /// Maximum permitted deviation of the imbalance ratios from 1.0. 2 decimal places
-    /// are considered.
+    /// Maximum permitted deviation of the imbalance ratios from 1.0.
+    /// 2 decimal places are considered.
     ///
     /// Hence DELTA=25 is interpreted as 0.25
     const DELTA: u256 = 25 * 1_000_000_000_000 / 100; // DELTA = _DELTA * 10**(PRECISION_DECIMAL_PLACES-2)
@@ -97,33 +101,33 @@ module ramm_sui::ramm {
 
     /// RAMM data structure, allows
     /// * adding/removing liquidity for one of its assets
-    /// * trading of one of its tokens for another
+    /// * buying an amount of one of its assets in exchange for another
+    /// * selling an amount of one of its assets in exchange for another
     ///
     /// The structure is shared, so that any address is be able to submit requests.
     /// It is, therefore, publicly available for reads and writes.
     /// As such, it must have the `key` ability, becoming a Sui
     /// Move object, and thus allowing use of `sui::transfer::share_object`.
     ///
-    /// Some limitations:
+    /// # Invariants
     ///
-    /// # Ownership of this structure
+    /// It should be possible to create a RAMM with any amount of assets, and
+    /// to abstract over the assets themselves.
     ///
-    /// In order for orders to be sent to the RAMM and affect its internal
-    /// state, it must be shared, and thus cannot have an owner.
-    /// Some operations e.g. transfer of protocol fees, must be gated behind
-    /// a capability.
+    /// Because of limitations with Sui Move's type system, in order to do this
+    /// and still have a degree of generality in the code, it is necessary to
+    /// store certain information twice, in an untyped, scalar format e.g. `u256`,
+    /// and in a typed format, e.g. `Balance<Asset>`.
     ///
-    /// # Storing Switchboard Aggregators
+    /// This information is:
+    /// * per-asset balance information
+    /// * per-asset LP token `Supply` structures
     ///
-    /// Switchboard `Aggregator`s cannot be stored in this structure.
-    /// This is because if `RAMM` `has key`, then
-    /// * all its fields must have `store`
-    /// * in particular, `vector<Aggregator>` must have store
-    ///   - so `Aggregator` must have `store`
-    /// * Which it does not, so RAMM cannot have `key`
-    /// * Meaning it cannot be used be turned into a shared object with 
-    ///   `sui::transfer::share_object`
-    /// * which it *must* be, to be readable and writable by all
+    /// It is *critical* that these mirrored fields move in lockstep; if this
+    /// invariant is broken, the RAMM has been compromised and should not process
+    /// any further operations.
+    ///
+    /// See this repository's README for more information.
     struct RAMM has key {
         id: UID,
 
@@ -174,7 +178,7 @@ module ramm_sui::ramm {
         // E.g. `SUI`'s `TypeName` is `0x2::sui::SUI`.
         // Because Sui packages are treated as immutable objects with unique IDs,
         // the function `type_name::get<T>: () -> TypeName` is a bijection between
-        // types and their `TypeName`s (which internally are `String`s).
+        // types `T` and their `TypeName`s (which internally are `String`s).
         //
         // Done for storage considerations: storing type names in every single
         // map/bag as keys is unwieldy.
@@ -203,14 +207,25 @@ module ramm_sui::ramm {
         execute_trade: bool
     }
 
+    /// Return a `TradeOutput`'s calculated amount - might be `0`, depending on the `execute`
+    /// flag.
     public(friend) fun amount(to: &TradeOutput): u256 {
         to.amount
     }
 
+    /// Return a trade's calculated protocol fees.
     public(friend) fun protocol_fee(to: &TradeOutput): u256 {
         to.protocol_fee
     }
 
+    /// Returns `true` if a trade has been greenlit by the protocol's checks, and `false` if not.
+    ///
+    /// This field can be `false` for reasons such as:
+    /// 1. not enough pool balances to execute the trade
+    /// 2. it may fail due to imbalance ratio checks
+    ///
+    /// Note that even if the field is `true`, it is possible the trade is not executed - because
+    /// the `TradeOutput`'s `amount` does not conform to the trader's slippage tolerance, for example.
     public(friend) fun execute(to: &TradeOutput): bool {
         to.execute_trade
     }
@@ -295,7 +310,7 @@ module ramm_sui::ramm {
 
     /// Create a new RAMM structure, without any asset.
     ///
-    /// This RAMM needs to have assets added to it before it can be initialized,
+    /// A RAMM needs to have assets added to it before it can be initialized,
     /// after which it can be used.
     public(friend) entry fun new_ramm(
         fee_collector: address,
@@ -451,11 +466,10 @@ module ramm_sui::ramm {
     ///
     /// # Aborts
     ///
-    /// This function will abort if the wrong admin or new asset capabilities are provided.
-    ///
-    /// This function will also abort if its internal data is inconsistent e.g.
-    /// there are no assets, or the number of held assets differs from the number
-    /// of LP token issuers.
+    /// * If the wrong admin or new asset capabilities are provided.
+    /// * if its internal data is inconsistent e.g.
+    ///   - there are no assets, or
+    ///   - the number of held assets differs from the number of LP token issuers.
     public(friend) entry fun initialize_ramm(
         self: &mut RAMM,
         a: &RAMMAdminCap,
@@ -488,9 +502,75 @@ module ramm_sui::ramm {
         let _ = option::extract(&mut self.new_asset_cap_id);
     }
 
+    /// -------------------------
+    /// RAMM structure invariants
+    /// -------------------------
+
+    /// Given a 2-asset RAMM, check that its internal invariants hold.
+    ///
+    /// This function should be used before and after operations that modify the RAMM's internal
+    /// state such as trading or liquidity deposits/withdrawals, because
+    /// * if the invariant does not hold at the start, the operation should not be performed
+    /// * if it did hold, but then failed to, the operation should be rolled back
+    public(friend) fun check_ramm_invariants_2<Asset1, Asset2>(self: &RAMM) {
+        // This invariant checking function must only be used on RAMMs with 2 assets.
+        assert!(get_asset_count(self) == TWO, EBrokenRAMMInvariants);
+
+        // First, the typed and untyped balances must never go out of sync, for any reason.
+        assert!(get_balance<Asset1>(self) == get_typed_balance<Asset1>(self), EBrokenRAMMInvariants);
+        assert!(get_balance<Asset2>(self) == get_typed_balance<Asset2>(self), EBrokenRAMMInvariants);
+
+        // Secondly, the typed and untyped counts of issued LP tokens must always match.
+        assert!(get_lptokens_issued<Asset1>(self) == get_typed_lptokens_issued<Asset1>(self), EBrokenRAMMInvariants);
+        assert!(get_lptokens_issued<Asset2>(self) == get_typed_lptokens_issued<Asset2>(self), EBrokenRAMMInvariants);
+    }
+
+    /// Given a 3-asset RAMM, check that its internal invariants hold.
+    ///
+    /// This function should be used before and after operations that modify the RAMM's internal
+    /// state such as trading or liquidity deposits/withdrawals, because
+    /// * if the invariant does not hold at the start, the operation should not be performed
+    /// * if it did hold, but then failed to, the operation should be rolled back
+    public(friend) fun check_ramm_invariants_3<Asset1, Asset2, Asset3>(self: &RAMM) {
+        // This invariant checking function must only be used on RAMMs with 3 assets.
+        assert!(get_asset_count(self) == THREE, EBrokenRAMMInvariants);
+
+        // First, the typed and untyped balances must never go out of sync, for any reason.
+        assert!(get_balance<Asset1>(self) == get_typed_balance<Asset1>(self), EBrokenRAMMInvariants);
+        assert!(get_balance<Asset2>(self) == get_typed_balance<Asset2>(self), EBrokenRAMMInvariants);
+        assert!(get_balance<Asset3>(self) == get_typed_balance<Asset3>(self), EBrokenRAMMInvariants);
+
+        // Secondly, the typed and untyped counts of issued LP tokens must always match.
+        assert!(get_lptokens_issued<Asset1>(self) == get_typed_lptokens_issued<Asset1>(self), EBrokenRAMMInvariants);
+        assert!(get_lptokens_issued<Asset2>(self) == get_typed_lptokens_issued<Asset2>(self), EBrokenRAMMInvariants);
+        assert!(get_lptokens_issued<Asset3>(self) == get_typed_lptokens_issued<Asset3>(self), EBrokenRAMMInvariants);
+    }
+
     /// --------------------------
     /// Getters/setters, accessors
     /// --------------------------
+
+    /*
+    IMPORTANT NOTE
+
+    About getters/setters
+    */
+
+    /// The RAMM object uses `u8` indexes to identify each of its assets, which are
+    /// then used to index information about that asset: balances, collected fees, etc.
+    ///
+    /// Sui's type system can be used to safely calculate asset indexes, instead of
+    /// relying on end-users/library users to provide them to functions which need them.
+    ///
+    /// As such, getter/setter functions below come in two kinds:
+    ///
+    /// * private functions used only internally that receive asset indexes by argument
+    /// * public (or `public(friend)`) functions that do not allow asset index arguments,
+    ///   and instead accept type arguments which are then used to safely obtain the asset's
+    ///   corresponding index, aborting on error
+    ///
+    /// The latter kind can then rely on the former, while only exposing a type-level API
+    /// to consumers of this module, and avoiding error-prone manual asset indexing.
 
     /// Admin cap
     
@@ -520,6 +600,12 @@ module ramm_sui::ramm {
 
     /// Aggregator addresses
 
+    /// Given a RAMM and the index of one of its assets, return the `address` of
+    /// the `Aggregator` used for pricing information for that asset.
+    ///
+    /// # Aborts
+    ///
+    /// If the provided index does not match any existing asset's.
     fun get_aggr_addr(self: &RAMM, index: u8): address {
         *vec_map::get(&self.aggregator_addrs, &index)
     }
@@ -612,10 +698,22 @@ module ramm_sui::ramm {
 
     /// LP Tokens Issued
 
+    /// Given an asset's index, return how many LP tokens for that asset are currently
+    /// in circulation.
+    ///
+    /// # Aborts
+    ///
+    /// * If the provided index matches no asset
     fun get_lptok_issued(self: &RAMM, index: u8): u256 {
         *vec_map::get(&self.lp_tokens_issued, &index)
     }
 
+    /// Given an asset, return how many LP tokens for that asset are currently
+    /// in circulation.
+    ///
+    /// # Aborts
+    ///
+    /// * If the provided asset does not exist in the RAMM.
     public(friend) fun get_lptokens_issued<Asset>(self: &RAMM): u256 {
         let ix = get_asset_index<Asset>(self);
         get_lptok_issued(self, ix)
@@ -623,7 +721,7 @@ module ramm_sui::ramm {
 
     /// Update untyped count of issued LP tokens for a given asset.
     ///
-    /// It's is the user's responsibility to ensure that there is also an
+    /// It is the user's responsibility to ensure that there is also an
     /// update to the typed count for this token.
     public(friend) fun incr_lptokens_issued<Asset>(self: &mut RAMM, minted: u64) {
         let ix = get_asset_index<Asset>(self);
@@ -633,7 +731,7 @@ module ramm_sui::ramm {
 
     /// Update untyped count of issued LP tokens for a given asset.
     ///
-    /// It's is the user's responsibility to ensure that there is also an
+    /// It is the user's responsibility to ensure that there is also an
     /// update to the typed count for this token.
     public(friend) fun decr_lptokens_issued<Asset>(self: &mut RAMM, burned: u64) {
         let ix = get_asset_index<Asset>(self);
@@ -643,16 +741,30 @@ module ramm_sui::ramm {
 
     /// Typed LP Tokens Issued
 
+    /// Given an asset, return a *mutable* reference to the `Supply` used to
+    /// tally/mint/burn the RAMM's LP tokens for that asset.
+    ///
+    /// Internal use only!
     fun get_lptoken_supply<Asset>(self: &mut RAMM): &mut Supply<LP<Asset>> {
         let ix = get_asset_index<Asset>(self);
         bag::borrow_mut<u8, Supply<LP<Asset>>>(&mut self.typed_lp_tokens_issued, ix)
     }
 
+    /// Given an asset's index, return the untyped count of issued LP tokens for that asset.
+    ///
+    /// # Aborts
+    ///
+    /// * If the index does not index any asset.
     fun get_typed_lptok_issued<Asset>(self: &RAMM, index: u8): u256 {
         let supply = bag::borrow<u8, Supply<LP<Asset>>>(&self.typed_lp_tokens_issued, index);
         (balance::supply_value(supply) as u256)
     }
 
+    /// Given an asset, return the untyped count of issued LP tokens for that asset.
+    ///
+    /// # Aborts
+    ///
+    /// * If the RAMM does not contain the provided asset
     public(friend) fun get_typed_lptokens_issued<Asset>(self: &RAMM): u256 {
         let ix = get_asset_index<Asset>(self);
         get_typed_lptok_issued<Asset>(self, ix)
@@ -715,16 +827,17 @@ module ramm_sui::ramm {
 
     /// Change deposit permission status for a single asset in the RAMM.
     ///
-    /// Private visibility, since
-    /// * this action should not be performed without a `RAMMAdminCap`
-    /// * users are not allowed to provide asset indexes themselves:
-    ///   they provide a type to the public function (below), which safely calculates
-    ///   the index and then calls this function.
+    /// Private visibility, since this action should not be performed without a
+    /// `RAMMAdminCap`
     fun set_deposit_status(self: &mut RAMM, index: u8, deposit_enabled: bool) {
         *vec_map::get_mut(&mut self.deposits_enabled, &index) = deposit_enabled
     }
 
     /// For a given asset, returns true iff its deposits are enabled.
+    ///
+    /// # Aborts
+    ///
+    /// * If no asset has the provided index
     public(friend) fun can_deposit_asset(self: &RAMM, index: u8): bool {
         *vec_map::get(&self.deposits_enabled, &index)
     }
@@ -757,43 +870,86 @@ module ramm_sui::ramm {
         set_deposit_status(self, ix, false)
     }
 
+    /// Given an asset, return a `bool` representing the RAMM's deposit status for that
+    /// asset: `true` for enabled, `false` for disabled.
+    ///
+    /// # Aborts
+    ///
+    /// If the RAMM does not contain an asset with the provided type.
     public fun get_deposit_status<Asset>(self: &RAMM): bool {
         let ix = get_asset_index<Asset>(self);
         can_deposit_asset(self, ix)
     }
 
-    /// Collected protocol fees
-
-    fun get_fee_balance<Asset>(self: &RAMM, index: u8): &Balance<Asset> {
-        bag::borrow<u8, Balance<Asset>>(&self.collected_protocol_fees, index)
-    }
-
+    /// Obtain the untyped (`u64`) value of fees collected by the RAMM for a certain asset.
+    ///
+    /// To be used only by other functions in this module.
     fun get_fees<Asset>(self: &RAMM, index: u8): u64 {
-        balance::value(get_fee_balance<Asset>(self, index))
+        let fee_balance: &Balance<Asset> = bag::borrow<u8, Balance<Asset>>(&self.collected_protocol_fees, index);
+        balance::value(fee_balance)
     }
 
+    /// Returns the untyped (`u64`) value of fees collected by the RAMM for a given asset.
     public(friend) fun get_collected_protocol_fees<Asset>(self: &RAMM): u64 {
         let ix = get_asset_index<Asset>(self);
         get_fees<Asset>(self, ix)
     }
 
+    /// Internal function to retrieve fees for an asset.
+    ///
+    /// It returns a `Balance<Asset>` with the RAMM's fees, and leaves behind a zero `Balance`
+    /// in the `Bag` the RAMM uses to store fees.
+    ///
+    /// The reason it does this:
+    ///
+    /// * The size of the bag with collected fees should always be equal to the number of assets
+    ///   in the RAMM;
+    /// * as such, instead of removing the `Balance` struct, it is mutably borrowed, and then
+    ///   `balance::split` in such a way that
+    ///   - `balance::zero<Asset>` is left in the bag
+    ///   - the original balance is returned
+    public(friend) fun get_fees_for_asset<Asset>(self: &mut RAMM, ix: u8): Balance<Asset> {
+        let mut_bal: &mut Balance<Asset> =
+            bag::borrow_mut<u8, Balance<Asset>>(&mut self.collected_protocol_fees, ix);
+        let curr_fee = balance::value(mut_bal);
+        balance::split(mut_bal, curr_fee)
+    }
+
+    /// Increase the RAMM's collected fees for a certain asset given a `Balance` of it.
     public(friend) fun join_protocol_fees<Asset>(self: &mut RAMM, index: u8, fee: Balance<Asset>) {
         let fee_bal = bag::borrow_mut<u8, Balance<Asset>>(&mut self.collected_protocol_fees, index);
         balance::join(fee_bal, fee);
     }
 
     /// Type indexes
-    
+
+    /// Given an asset, return its unique index used internally by the RAMM.
+    ///
+    /// # Aborts
+    ///
+    /// * If the RAMM does not have an asset with the provided type.
     public(friend) fun get_type_index<Asset>(self: &RAMM): u8 {
         *vec_map::get(&self.types_to_indexes, &type_name::get<Asset>())
     }
 
     /// Asset decimal places
 
+    /// Given an asset's index, return the scaling factor necessary when working with
+    /// amounts of that asset to bring it to `PRECISION_DECIMAL_PLACES`.
+    ///
+    /// # Aborts
+    ///
+    /// * If the index doesn't many any asset
     public(friend) fun get_fact_for_bal(self: &RAMM, index: u8): u256 {
         *vec_map::get(&self.factors_for_balances, &index)
     }
 
+    /// Given an asset, return the scaling factor necessary when working with
+    /// amounts of that asset to bring it to `PRECISION_DECIMAL_PLACES`.
+    ///
+    /// # Aborts
+    ///
+    /// * If the RAMM does not contain the provided asset.
     public(friend) fun get_factor_for_balance<Asset>(self: &RAMM): u256{
         let ix = get_asset_index<Asset>(self);
         get_fact_for_bal(self, ix)
@@ -801,7 +957,7 @@ module ramm_sui::ramm {
 
     /// Asset count
 
-    /// Return the number of assets in the RAMM
+    /// Return the number of assets in the RAMM.
     public(friend) fun get_asset_count(self: &RAMM): u8 {
         self.asset_count
     }
@@ -837,19 +993,6 @@ module ramm_sui::ramm {
     public(friend) fun lptok_in_circulation<Asset>(self: &RAMM, index: u8): u64 {
         let supply: &Supply<LP<Asset>> = bag::borrow(&self.typed_lp_tokens_issued, index);
         balance::supply_value(supply)
-    }
-
-    /// Internal function to retrieve fees for an asset.
-    ///
-    /// Since the size of the bag with collected fees should always be equal
-    /// to the number of assets in the RAMM, instead of removing the `Balance` struct,
-    /// it is mutably borrowed, and then `balance::split` in such a way that `balance::zero<Asset>`
-    /// is left in the bag, for the desired asset.
-    public(friend) fun get_fees_for_asset<Asset>(self: &mut RAMM, ix: u8): Balance<Asset> {
-        let mut_bal: &mut Balance<Asset> =
-            bag::borrow_mut<u8, Balance<Asset>>(&mut self.collected_protocol_fees, ix);
-        let curr_fee = balance::value(mut_bal);
-        balance::split(mut_bal, curr_fee)
     }
 
     /// ------------------------
@@ -1357,6 +1500,5 @@ module ramm_sui::ramm {
         };
 
         WithdrawalOutput {amounts: amounts_out, value: *ao, remaining: *a_remaining}
-
     }
 }

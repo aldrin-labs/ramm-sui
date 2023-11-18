@@ -624,10 +624,10 @@ module ramm_sui::math_tests {
         let i: u8 = 2;
         let o: u8 = 0;
         let old_eth = 260 * test_util::eth_factor();
-        let new_eth = 250 * test_util::eth_factor();
+        let new_eth = 252 * test_util::eth_factor();
         let ao: u256 = old_eth - new_eth;
         let old_usdt = 27_418_571 * test_util::usdt_factor() / 100;
-        let new_usdt = 29_215_918 * test_util::usdt_factor() / 100;
+        let new_usdt = 288_564_486 * test_util::usdt_factor() / 1000;
         let ai: u256 = new_usdt - old_usdt;
 
         let (balances, lp_tokens_issued, prices, factors_prices, factors_balances) =

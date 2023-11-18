@@ -33,28 +33,28 @@ module ramm_sui::interface2_tests {
 
         test_scenario::next_tx(scenario, ALICE);
 
-        {
+        let total_usdt: u256 = {
             let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
 
             // First trade: ETH in, USDT out
 
-            test_utils::assert_eq(ramm::get_balance<ETH>(&ramm), 300 * test_util::eth_factor());
-            test_utils::assert_eq(ramm::get_typed_balance<ETH>(&ramm), 300 * test_util::eth_factor());
+            test_utils::assert_eq(ramm::get_balance<ETH>(&ramm), 500 * test_util::eth_factor());
+            test_utils::assert_eq(ramm::get_typed_balance<ETH>(&ramm), 500 * test_util::eth_factor());
 
-            test_utils::assert_eq(ramm::get_balance<USDT>(&ramm), 400_000 * test_util::usdt_factor());
-            test_utils::assert_eq(ramm::get_typed_balance<USDT>(&ramm), 400_000 * test_util::usdt_factor());
+            test_utils::assert_eq(ramm::get_balance<USDT>(&ramm), 900_000 * test_util::usdt_factor());
+            test_utils::assert_eq(ramm::get_typed_balance<USDT>(&ramm), 900_000 * test_util::usdt_factor());
 
             test_utils::assert_eq(ramm::get_collected_protocol_fees<ETH>(&ramm), 0);
             test_utils::assert_eq(ramm::get_collected_protocol_fees<USDT>(&ramm), 0);
 
-            test_utils::assert_eq(ramm::get_lptokens_issued<ETH>(&ramm), 300 * test_util::eth_factor());
-            test_utils::assert_eq(ramm::get_typed_lptokens_issued<ETH>(&ramm), 300 * test_util::eth_factor());
+            test_utils::assert_eq(ramm::get_lptokens_issued<ETH>(&ramm), 500 * test_util::eth_factor());
+            test_utils::assert_eq(ramm::get_typed_lptokens_issued<ETH>(&ramm), 500 * test_util::eth_factor());
 
 
-            test_utils::assert_eq(ramm::get_lptokens_issued<USDT>(&ramm), 400_000 * test_util::usdt_factor());
-            test_utils::assert_eq(ramm::get_typed_lptokens_issued<USDT>(&ramm), 400_000 * test_util::usdt_factor());
+            test_utils::assert_eq(ramm::get_lptokens_issued<USDT>(&ramm), 900_000 * test_util::usdt_factor());
+            test_utils::assert_eq(ramm::get_typed_lptokens_issued<USDT>(&ramm), 900_000 * test_util::usdt_factor());
 
             // Recall that for this example, the price for Ether is 2000 USDT, and the trader
             // wishes to buy 20 ETH from the pool, so `trade_amount_out` is used.
@@ -68,24 +68,27 @@ module ramm_sui::interface2_tests {
                 test_scenario::ctx(scenario)
             );
 
-            test_utils::assert_eq(ramm::get_balance<ETH>(&ramm), 280 * test_util::eth_factor());
-            test_utils::assert_eq(ramm::get_typed_balance<ETH>(&ramm), 280 * test_util::eth_factor());
+            test_utils::assert_eq(ramm::get_balance<ETH>(&ramm), 480 * test_util::eth_factor());
+            test_utils::assert_eq(ramm::get_typed_balance<ETH>(&ramm), 480 * test_util::eth_factor());
 
-            test_utils::assert_eq(ramm::get_balance<USDT>(&ramm), 440053_39591632);
-            test_utils::assert_eq(ramm::get_typed_balance<USDT>(&ramm), 440053_39591632);
+            let total_usdt: u256 = 940036_92422635;
+            test_utils::assert_eq(ramm::get_balance<USDT>(&ramm), 940036_92422635);
+            test_utils::assert_eq(ramm::get_typed_balance<USDT>(&ramm), 940036_92422635);
 
             test_utils::assert_eq(ramm::get_collected_protocol_fees<ETH>(&ramm), 0);
-            test_utils::assert_eq(ramm::get_collected_protocol_fees<USDT>(&ramm), 20_03671631);
+            test_utils::assert_eq(ramm::get_collected_protocol_fees<USDT>(&ramm), 20_02847635);
 
-            test_utils::assert_eq(ramm::get_lptokens_issued<ETH>(&ramm), 300 * test_util::eth_factor());
-            test_utils::assert_eq(ramm::get_typed_lptokens_issued<ETH>(&ramm), 300 * test_util::eth_factor());
+            test_utils::assert_eq(ramm::get_lptokens_issued<ETH>(&ramm), 500 * test_util::eth_factor());
+            test_utils::assert_eq(ramm::get_typed_lptokens_issued<ETH>(&ramm), 500 * test_util::eth_factor());
 
-            test_utils::assert_eq(ramm::get_lptokens_issued<USDT>(&ramm), 400_000 * test_util::usdt_factor());
-            test_utils::assert_eq(ramm::get_typed_lptokens_issued<USDT>(&ramm), 400_000 * test_util::usdt_factor());
+            test_utils::assert_eq(ramm::get_lptokens_issued<USDT>(&ramm), 900_000 * test_util::usdt_factor());
+            test_utils::assert_eq(ramm::get_typed_lptokens_issued<USDT>(&ramm), 900_000 * test_util::usdt_factor());
 
             test_scenario::return_shared<RAMM>(ramm);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(usdt_aggr);
+
+            total_usdt
         };
 
         test_scenario::next_tx(scenario, ALICE);
@@ -106,7 +109,7 @@ module ramm_sui::interface2_tests {
             let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
 
             let lp_eth = test_scenario::take_from_address<Coin<LP<ETH>>>(scenario, ADMIN);
-            test_utils::assert_eq(coin::value(&lp_eth), (300 * test_util::eth_factor() as u64));
+            test_utils::assert_eq(coin::value(&lp_eth), (500 * test_util::eth_factor() as u64));
 
             interface2::liquidity_withdrawal_2<ETH, USDT, ETH>(
                 &mut ramm,
@@ -124,21 +127,24 @@ module ramm_sui::interface2_tests {
         test_scenario::next_tx(scenario, ADMIN);
 
         // Quick check of the funds returned to the admin after liquidity withdrawal.
-        {
+        let fst_usdt_wthdrwl: u256 = {
             let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
 
             let eth = test_scenario::take_from_address<Coin<ETH>>(scenario, ADMIN);
-            test_utils::assert_eq(coin::value(&eth), (280 * test_util::eth_factor() as u64));
+            test_utils::assert_eq(coin::value(&eth), (480 * test_util::eth_factor() as u64));
             let usdt = test_scenario::take_from_address<Coin<USDT>>(scenario, ADMIN);
-            test_utils::assert_eq(coin::value(&usdt), 40032_03754000);
+            let first_usdt_wthdrwl: u256 = 40019_43380000;
+            test_utils::assert_eq((coin::value(&usdt) as u256), first_usdt_wthdrwl);
 
             test_scenario::return_to_address(ADMIN, eth);
             test_scenario::return_to_address(ADMIN, usdt);
             test_scenario::return_shared<RAMM>(ramm);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(usdt_aggr);
+
+            first_usdt_wthdrwl
         };
 
         // Next part of the test:
@@ -152,7 +158,7 @@ module ramm_sui::interface2_tests {
             let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
 
             let lp_usdt = test_scenario::take_from_address<Coin<LP<USDT>>>(scenario, ADMIN);
-            test_utils::assert_eq(coin::value(&lp_usdt), (400_000 * test_util::usdt_factor() as u64));
+            test_utils::assert_eq(coin::value(&lp_usdt), (900_000 * test_util::usdt_factor() as u64));
 
             interface2::liquidity_withdrawal_2<ETH, USDT, USDT>(
                 &mut ramm,
@@ -168,12 +174,19 @@ module ramm_sui::interface2_tests {
         };
 
         test_scenario::next_tx(scenario, ADMIN);
-        {
+        let snd_udst_wthdrwl: u256 = {
             let usdt = test_scenario::take_from_address<Coin<USDT>>(scenario, ADMIN);
-            test_utils::assert_eq(coin::value(&usdt), 400021_35837632);
 
+            let snd_udst_wthdrwl: u256 = 900017_49042635;
+            test_utils::assert_eq((coin::value(&usdt) as u256), snd_udst_wthdrwl);
             test_scenario::return_to_address(ADMIN, usdt);
+
+            snd_udst_wthdrwl
         };
+
+        // Check that the sum of USDT amounts given to liquidity providers matches
+        // the total USDT balance of the pool after the trade.
+        test_utils::assert_eq(fst_usdt_wthdrwl + snd_udst_wthdrwl, total_usdt);
 
         test_scenario::end(scenario_val);
     }
