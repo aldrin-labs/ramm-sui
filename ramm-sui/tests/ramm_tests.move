@@ -1,0 +1,498 @@
+#[test_only]
+module ramm_sui::ramm_tests {
+    use std::option;
+    use sui::object::{Self, ID};
+    use sui::test_scenario;
+
+    use ramm_sui::ramm::{Self, RAMM, RAMMAdminCap, RAMMNewAssetCap};
+    use ramm_sui::test_utils::{Self, BTC};
+
+    use switchboard::aggregator::{Self, Aggregator};
+
+    const ADMIN: address = @0xA1;
+    const ALICE: address = @0xACE;
+    const BOB: address = @0xFACE;
+
+    const ERAMMCreation: u64 = 0;
+    const ERAMMInit: u64 = 1;
+    const ERAMMDepositStatus: u64 = 3;
+
+    #[test]
+    /// Basic flow test:
+    /// 1. Create RAMM
+    /// 2. Add assets to RAMM
+    ///   2a. Create aggregators for test assets
+    ///   2b. Share aggregator objects
+    /// 3. Initialize the RAMM
+    fun create_ramm() {
+        let scenario_val = test_scenario::begin(ADMIN);
+        let scenario = &mut scenario_val;
+
+        // Check that the RAMM and caps don't yet exist before the RAMM's creation
+        assert!(!test_scenario::has_most_recent_shared<RAMM>(), ERAMMCreation);
+        assert!(!test_scenario::has_most_recent_for_address<RAMMAdminCap>(ADMIN), ERAMMCreation);
+        assert!(!test_scenario::has_most_recent_for_address<RAMMNewAssetCap>(ADMIN), ERAMMCreation);
+        // Create the RAMM
+        {
+            ramm::new_ramm(ADMIN, test_scenario::ctx(scenario));
+        };
+        test_scenario::next_tx(scenario, ADMIN);
+        // Check that they do exist, now
+        assert!(test_scenario::has_most_recent_shared<RAMM>(), ERAMMCreation);
+        assert!(test_scenario::has_most_recent_for_address<RAMMAdminCap>(ADMIN), ERAMMCreation);
+        assert!(test_scenario::has_most_recent_for_address<RAMMNewAssetCap>(ADMIN), ERAMMCreation);
+
+        // Create a testing aggregator for the asset used in this test
+
+        let _aggr_id = test_utils::create_write_share_aggregator(scenario, 2780245000000, 8, false, 100);
+
+        test_scenario::next_tx(scenario, ADMIN);
+
+        // Retrieve RAMM and caps from storage, and add above asset to it
+         {
+            let admin_cap = test_scenario::take_from_address<RAMMAdminCap>(scenario, ADMIN);
+            let new_asset_cap = test_scenario::take_from_address<RAMMNewAssetCap>(scenario, ADMIN);
+            let ramm = test_scenario::take_shared<RAMM>(scenario);
+
+            let btc_aggr = test_scenario::take_shared<Aggregator>(scenario);
+
+            assert!(ramm::get_asset_count(&ramm) == 0, ERAMMCreation);
+            ramm::add_asset_to_ramm<BTC>(&mut ramm, &btc_aggr, 1000, &admin_cap, &new_asset_cap);
+            assert!(ramm::get_asset_count(&ramm) == 1, ERAMMCreation);
+
+            test_scenario::return_shared<Aggregator>(btc_aggr);
+            test_scenario::return_to_address<RAMMAdminCap>(ADMIN, admin_cap);
+            test_scenario::return_to_address<RAMMNewAssetCap>(ADMIN, new_asset_cap);
+            test_scenario::return_shared<RAMM>(ramm);
+        };
+        test_scenario::next_tx(scenario, ADMIN);
+
+        // 1. retrieve objects from storage again
+        // 2. initialize the RAMM, and
+        // 3. check that the new_asset_cap used to add new objects no longer exists
+        {
+            let ramm = test_scenario::take_shared<RAMM>(scenario);
+            let admin_cap = test_scenario::take_from_address<RAMMAdminCap>(scenario, ADMIN);
+            let new_asset_cap = test_scenario::take_from_address<RAMMNewAssetCap>(scenario, ADMIN);
+
+            ramm::initialize_ramm(&mut ramm, &admin_cap, new_asset_cap);
+
+            test_scenario::return_shared<RAMM>(ramm);
+            test_scenario::return_to_address<RAMMAdminCap>(ADMIN, admin_cap);
+        };
+         test_scenario::next_tx(scenario, ADMIN);
+
+        assert!(!test_scenario::has_most_recent_for_address<RAMM>(ADMIN), ERAMMCreation);
+
+        // Assert that after initialization, the new asset cap has been deleted.
+        assert!(!test_scenario::has_most_recent_for_address<RAMMNewAssetCap>(ADMIN), ERAMMCreation);
+        assert!(!test_scenario::has_most_recent_for_sender<RAMMNewAssetCap>(scenario), ERAMMCreation);
+        assert!(!test_scenario::has_most_recent_shared<RAMMNewAssetCap>(), ERAMMCreation);
+        assert!(!test_scenario::has_most_recent_immutable<RAMMNewAssetCap>(), ERAMMCreation);
+
+        test_scenario::end(scenario_val);
+    }
+
+    #[test]
+    fun add_asset_to_ramm_tests() {
+        let scenario_val = test_scenario::begin(ADMIN);
+        let scenario = &mut scenario_val;
+
+        // Create the RAMM
+        {
+            ramm::new_ramm(ADMIN, test_scenario::ctx(scenario));
+        };
+        test_scenario::next_tx(scenario, ADMIN);
+
+        // Create a test aggregator
+        let _aggr_id = test_utils::create_write_share_aggregator(scenario, 2780245000000, 8, false, 100);
+
+        test_scenario::next_tx(scenario, ADMIN);
+
+        // Retrieve RAMM and caps from storage, and add above assets to it
+         {
+            let admin_cap = test_scenario::take_from_address<RAMMAdminCap>(scenario, ADMIN);
+            let new_asset_cap = test_scenario::take_from_address<RAMMNewAssetCap>(scenario, ADMIN);
+            let ramm = test_scenario::take_shared<RAMM>(scenario);
+
+            let btc_aggr = test_scenario::take_shared<Aggregator>(scenario);
+
+            let min_trade_amount: u64 = 1000;
+            ramm::add_asset_to_ramm<BTC>(&mut ramm, &btc_aggr, min_trade_amount, &admin_cap, &new_asset_cap);
+
+            // Check the RAMM's internal state after the asset has been added
+            assert!(ramm::get_admin_cap_id(&ramm) == object::id(&admin_cap), ERAMMInit);
+            assert!(ramm::get_fee_collector(&ramm) == ADMIN, ERAMMInit);
+            assert!(ramm::get_aggregator_address<BTC>(&ramm) == aggregator::aggregator_address(&btc_aggr), ERAMMInit);
+
+            assert!(ramm::get_balance<BTC>(&ramm) == 0u256, ERAMMInit);
+            assert!(ramm::get_typed_balance<BTC>(&ramm) == 0u64, ERAMMInit);
+
+            assert!(ramm::get_lptokens_issued<BTC>(&ramm) == 0u256, ERAMMInit);
+            assert!(ramm::get_typed_lptokens_issued_u64<BTC>(&ramm) == 0u64, ERAMMInit);
+
+            assert!(ramm::get_minimum_trade_amount<BTC>(&ramm) == min_trade_amount, ERAMMInit);
+            assert!(!ramm::get_deposit_status<BTC>(&ramm), ERAMMInit);
+            assert!(ramm::get_collected_protocol_fees<BTC>(&ramm) == 0u64, ERAMMInit);
+
+            assert!(ramm::get_type_index<BTC>(&ramm) == 0u8, ERAMMInit);
+
+            assert!(ramm::get_asset_count(&ramm) == 1, ERAMMInit);
+
+            test_scenario::return_shared<Aggregator>(btc_aggr);
+
+            test_scenario::return_to_address<RAMMAdminCap>(ADMIN, admin_cap);
+            test_scenario::return_to_address<RAMMNewAssetCap>(ADMIN, new_asset_cap);
+            test_scenario::return_shared<RAMM>(ramm);
+        };
+        test_scenario::next_tx(scenario, ADMIN);
+
+        test_scenario::end(scenario_val);
+    }
+
+    #[test]
+    /// 1. Create a RAMM
+    /// 2. Add an asset to it
+    /// 3. Verify that its deposits are disabled
+    /// 4. Initialize the RAMM
+    /// 5. Verify that its deposits are now enabled, and nothing else in its internal state changed
+    fun check_deposit_status_after_init() {
+        let scenario_val = test_scenario::begin(ADMIN);
+        let scenario = &mut scenario_val;
+
+        // Create RAMM
+        {
+            ramm::new_ramm(ADMIN, test_scenario::ctx(scenario));
+        };
+        test_scenario::next_tx(scenario, ADMIN);
+
+        // Create test aggregator
+        let _aggr_id = test_utils::create_write_share_aggregator(scenario, 2780245000000, 8, false, 100);
+
+        test_scenario::next_tx(scenario, ADMIN);
+
+        {
+            let ramm = test_scenario::take_shared<RAMM>(scenario);
+            let admin_cap = test_scenario::take_from_address<RAMMAdminCap>(scenario, ADMIN);
+            let new_asset_cap = test_scenario::take_from_address<RAMMNewAssetCap>(scenario, ADMIN);
+
+            let btc_aggr = test_scenario::take_shared<Aggregator>(scenario);
+
+            let minimum_trade_amount = 1000;
+
+            ramm::add_asset_to_ramm<BTC>(&mut ramm, &btc_aggr, minimum_trade_amount, &admin_cap, &new_asset_cap);
+            // Check that immediately after adding an asset, its deposits are disabled
+            assert!(!ramm::get_deposit_status<BTC>(&ramm), ERAMMDepositStatus);
+            ramm::initialize_ramm(&mut ramm, &admin_cap, new_asset_cap);
+            // Check that immediately after initializing the RAMM, the asset's deposits are now enabled
+            assert!(ramm::get_deposit_status<BTC>(&ramm), ERAMMDepositStatus);
+
+            assert!(ramm::is_initialized(&ramm), ERAMMDepositStatus);
+
+            // Check every other field in the RAMM's internal state, after the asset has been added *and*
+            // the RAMM has been initialized.
+            //
+            // This list is the same as in the `add_asset_to_ramm_tests` test, excluding the `get_deposit_status`
+            // getter.
+            //
+            // This is to make sure initialization changes nothing more than it needs to - deposit statuses.
+            assert!(ramm::get_admin_cap_id(&ramm) == object::id(&admin_cap), ERAMMDepositStatus);
+            assert!(ramm::get_fee_collector(&ramm) == ADMIN, ERAMMDepositStatus);
+            assert!(ramm::get_aggregator_address<BTC>(&ramm) == aggregator::aggregator_address(&btc_aggr), ERAMMDepositStatus);
+
+            assert!(ramm::get_balance<BTC>(&ramm) == 0u256, ERAMMDepositStatus);
+            assert!(ramm::get_typed_balance<BTC>(&ramm) == 0u64, ERAMMDepositStatus);
+
+            assert!(ramm::get_lptokens_issued<BTC>(&ramm) == 0u256, ERAMMDepositStatus);
+            assert!(ramm::get_typed_lptokens_issued_u64<BTC>(&ramm) == 0u64, ERAMMDepositStatus);
+
+            assert!(ramm::get_minimum_trade_amount<BTC>(&ramm) == minimum_trade_amount, ERAMMDepositStatus);
+            assert!(ramm::get_collected_protocol_fees<BTC>(&ramm) == 0u64, ERAMMDepositStatus);
+
+            assert!(ramm::get_type_index<BTC>(&ramm) == 0u8, ERAMMDepositStatus);
+
+            assert!(ramm::get_asset_count(&ramm) == 1, ERAMMDepositStatus);
+
+            test_scenario::return_shared<Aggregator>(btc_aggr);
+            test_scenario::return_shared<RAMM>(ramm);
+            test_scenario::return_to_address<RAMMAdminCap>(ADMIN, admin_cap);
+        };
+
+        test_scenario::next_tx(scenario, ADMIN);
+
+        test_scenario::end(scenario_val);
+    }
+
+    /// -----------------------
+    /// `AdminCap` safety tests
+    /// -----------------------
+
+    /// Function to create two RAMMs with different accounts, and return their IDs for
+    /// easier retrieval, along with the populated scenario.
+    ///
+    /// Useful for the tests below.
+    fun double_create(): (ID, ID, test_scenario::Scenario) {
+        let scenario_val = test_scenario::begin(ALICE);
+        let scenario = &mut scenario_val;
+
+        // Create first RAMM
+        {
+            ramm::new_ramm(ALICE, test_scenario::ctx(scenario));
+        };
+        test_scenario::next_tx(scenario, BOB);
+        let alice_ramm_id = option::extract<ID>(&mut test_scenario::most_recent_id_shared<RAMM>());
+
+        // Create second RAMM
+        {
+            ramm::new_ramm(BOB, test_scenario::ctx(scenario));
+        };
+        test_scenario::next_tx(scenario, ADMIN);
+        let bob_ramm_id = option::extract<ID>(&mut test_scenario::most_recent_id_shared<RAMM>());
+        // Create test aggregator
+        let _aggr_id = test_utils::create_write_share_aggregator(scenario, 2780245000000, 8, false, 100);
+        test_scenario::next_tx(scenario, ADMIN);
+
+        (alice_ramm_id, bob_ramm_id, scenario_val)
+    }
+
+    #[test]
+    #[expected_failure(abort_code = ramm::ENotAdmin)]
+    /// Create two RAMMs whose `AdminCap`s belong to different users, and then
+    /// attempt to add an asset to one using the other's `AdminCap`.
+    ///
+    /// This *must* fail.
+    fun add_asset_mismatched_admin_cap() {
+        let (_, bob_ramm_id, scenario_val) = double_create();
+        let scenario = &mut scenario_val;
+
+        {
+            let bob_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, bob_ramm_id);
+            let alice_admin_cap = test_scenario::take_from_address<RAMMAdminCap>(scenario, ALICE);
+            let alice_cap = test_scenario::take_from_address<RAMMNewAssetCap>(scenario, ALICE);
+
+            let btc_aggr = test_scenario::take_shared<Aggregator>(scenario);
+            ramm::add_asset_to_ramm<BTC>(&mut bob_ramm, &btc_aggr, 0, &alice_admin_cap, &alice_cap);
+
+            test_scenario::return_shared<Aggregator>(btc_aggr);
+            test_scenario::return_to_address<RAMMAdminCap>(BOB, alice_admin_cap);
+            test_scenario::return_to_address<RAMMNewAssetCap>(ALICE, alice_cap);
+            test_scenario::return_shared<RAMM>(bob_ramm);
+        };
+
+        test_scenario::end(scenario_val);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = ramm::EWrongNewAssetCap)]
+    /// Create two RAMMs whose `NewAssetCap`s belong to different users, and then
+    /// attempt to add an asset to one using the other's `NewAssetCap`.
+    ///
+    /// This *must* fail.
+    fun add_asset_mismatched_new_asset_cap() {
+        let (_, bob_ramm_id, scenario_val) = double_create();
+        let scenario = &mut scenario_val;
+
+        {
+            let bob_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, bob_ramm_id);
+            let bob_admin = test_scenario::take_from_address<RAMMAdminCap>(scenario, BOB);
+            let alice_cap = test_scenario::take_from_address<RAMMNewAssetCap>(scenario, ALICE);
+
+            let btc_aggr = test_scenario::take_shared<Aggregator>(scenario);
+            ramm::add_asset_to_ramm<BTC>(&mut bob_ramm, &btc_aggr, 0, &bob_admin, &alice_cap);
+
+            test_scenario::return_shared<Aggregator>(btc_aggr);
+            test_scenario::return_to_address<RAMMAdminCap>(BOB, bob_admin);
+            test_scenario::return_to_address<RAMMNewAssetCap>(ALICE, alice_cap);
+            test_scenario::return_shared<RAMM>(bob_ramm);
+        };
+
+        test_scenario::end(scenario_val);
+    }
+
+    /// Given a RAMM's object ID and the address of its `AdminCap` owner, add an asset to
+    /// it.
+    fun add_asset_to_ramm<Asset>(
+        ramm_id: ID,
+        sender: address,
+        scenario: &mut test_scenario::Scenario
+    ) {
+        test_scenario::next_tx(scenario, sender);
+        let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
+        let admin = test_scenario::take_from_address<RAMMAdminCap>(scenario, sender);
+        let new_asset_cap = test_scenario::take_from_address<RAMMNewAssetCap>(scenario, sender);
+        let aggr = test_scenario::take_shared<Aggregator>(scenario);
+
+        ramm::add_asset_to_ramm<Asset>(&mut ramm, &aggr, 0, &admin, &new_asset_cap);
+
+        test_scenario::return_shared<Aggregator>(aggr);
+        test_scenario::return_to_address<RAMMAdminCap>(sender, admin);
+        test_scenario::return_to_address<RAMMNewAssetCap>(sender, new_asset_cap);
+        test_scenario::return_shared<RAMM>(ramm);
+        test_scenario::next_tx(scenario, sender);
+    }
+
+    /// Create two test RAMMs with different owners, and then add the same asset
+    /// to both.
+    fun double_add_asset<Asset>(): (ID, ID, test_scenario::Scenario) {
+        let (alice_ramm_id, bob_ramm_id, scenario_val) = double_create();
+        let scenario = &mut scenario_val;
+
+        add_asset_to_ramm<Asset>(alice_ramm_id, ALICE, scenario);
+        add_asset_to_ramm<Asset>(bob_ramm_id, BOB, scenario);
+
+        (alice_ramm_id, bob_ramm_id, scenario_val)
+    }
+
+    #[test]
+    #[expected_failure(abort_code = ramm::ENotAdmin)]
+    /// After creating two RAMMs with different owners and adding an asset to both,
+    /// attempt to initialize one with the other's `AdminCap`.
+    ///
+    /// This *must* fail.
+    fun initialize_mismatch_admin_cap() {
+        let (_alice_ramm_id, bob_ramm_id, scenario_val) = double_add_asset<BTC>();
+        let scenario = &mut scenario_val;
+
+        {
+            let bob_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, bob_ramm_id);
+            let alice_admin_cap = test_scenario::take_from_address<RAMMAdminCap>(scenario, ALICE);
+            let alice_cap = test_scenario::take_from_address<RAMMNewAssetCap>(scenario, ALICE);
+
+            ramm::initialize_ramm(&mut bob_ramm, &alice_admin_cap, alice_cap);
+
+            test_scenario::return_to_address<RAMMAdminCap>(BOB, alice_admin_cap);
+            test_scenario::return_shared<RAMM>(bob_ramm);
+        };
+
+        test_scenario::end(scenario_val);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = ramm::EWrongNewAssetCap)]
+    /// After creating two RAMMs with different owners and adding an asset to both,
+    /// attempt to initialize one with the other's `AdminCap`.
+    ///
+    /// This *must* fail.
+    fun initialize_mismatch_new_asset_cap() {
+        let (_alice_ramm_id, bob_ramm_id, scenario_val) = double_add_asset<BTC>();
+        let scenario = &mut scenario_val;
+
+        {
+            let bob_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, bob_ramm_id);
+            let bob_admin_cap = test_scenario::take_from_address<RAMMAdminCap>(scenario, BOB);
+            let alice_new_asset_cap = test_scenario::take_from_address<RAMMNewAssetCap>(scenario, ALICE);
+
+            ramm::initialize_ramm(&mut bob_ramm, &bob_admin_cap, alice_new_asset_cap);
+
+            test_scenario::return_to_address<RAMMAdminCap>(BOB, bob_admin_cap);
+            test_scenario::return_shared<RAMM>(bob_ramm);
+        };
+
+        test_scenario::end(scenario_val);
+    }
+
+    /// Given a RAMM's object ID and the address of its `AdminCap` owner, add an asset to
+    /// it, and then initialize it.
+    fun initialize_ramm(
+        ramm_id: ID,
+        sender: address,
+        scenario: &mut test_scenario::Scenario
+    ) {
+        test_scenario::next_tx(scenario, sender);
+        {
+            let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
+            let admin = test_scenario::take_from_address<RAMMAdminCap>(scenario, sender);
+            let new_asset_cap = test_scenario::take_from_address<RAMMNewAssetCap>(scenario, sender);
+            ramm::initialize_ramm(&mut ramm, &admin, new_asset_cap);
+            test_scenario::return_to_address<RAMMAdminCap>(sender, admin);
+            test_scenario::return_shared<RAMM>(ramm);
+        };
+        test_scenario::next_tx(scenario, sender);
+    }
+
+    fun double_initialize<Asset>(): (ID, ID, test_scenario::Scenario) {
+        let (alice_ramm_id, bob_ramm_id, scenario_val) = double_add_asset<Asset>();
+        let scenario = &mut scenario_val;
+
+        initialize_ramm(alice_ramm_id, ALICE, scenario);
+        initialize_ramm(bob_ramm_id, BOB, scenario);
+
+        (alice_ramm_id, bob_ramm_id, scenario_val)
+    }
+
+    #[test]
+    #[expected_failure(abort_code = ramm::ENotAdmin)]
+    /// Check that setting a new fee collecting address with the wrong `RAMMAdminCap` will fail.
+    fun set_fee_collector_admin_cap_mismatch() {
+        let (_alice_ramm_id, bob_ramm_id, scenario_val) = double_initialize<BTC>();
+        let scenario = &mut scenario_val;
+        {
+            let bob_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, bob_ramm_id);
+            let alice_admin_cap = test_scenario::take_from_address<RAMMAdminCap>(scenario, ALICE);
+
+            ramm::set_fee_collector(&mut bob_ramm, &alice_admin_cap, ALICE);
+
+            test_scenario::return_to_address<RAMMAdminCap>(ALICE, alice_admin_cap);
+            test_scenario::return_shared<RAMM>(bob_ramm);
+        };
+
+        test_scenario::end(scenario_val);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = ramm::ENotAdmin)]
+    /// Check that setting minimum trade amounts with the wrong `RAMMAdminCap` will fail.
+    fun set_minimum_trade_amount_admin_cap_mismatch() {
+        let (_alice_ramm_id, bob_ramm_id, scenario_val) = double_initialize<BTC>();
+        let scenario = &mut scenario_val;
+        {
+            let bob_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, bob_ramm_id);
+            let alice_admin_cap = test_scenario::take_from_address<RAMMAdminCap>(scenario, ALICE);
+
+            ramm::set_minimum_trade_amount<BTC>(&mut bob_ramm, &alice_admin_cap, 1);
+
+            test_scenario::return_to_address<RAMMAdminCap>(ALICE, alice_admin_cap);
+            test_scenario::return_shared<RAMM>(bob_ramm);
+        };
+
+        test_scenario::end(scenario_val);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = ramm::ENotAdmin)]
+    /// Check that enabling deposits for an asset with the wrong `RAMMAdminCap` will fail.
+    fun enable_deposits_admin_cap_mismatch() {
+        let (_alice_ramm_id, bob_ramm_id, scenario_val) = double_initialize<BTC>();
+        let scenario = &mut scenario_val;
+        {
+            let bob_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, bob_ramm_id);
+            let alice_admin_cap = test_scenario::take_from_address<RAMMAdminCap>(scenario, ALICE);
+
+            ramm::enable_deposits<BTC>(&mut bob_ramm, &alice_admin_cap);
+
+            test_scenario::return_to_address<RAMMAdminCap>(ALICE, alice_admin_cap);
+            test_scenario::return_shared<RAMM>(bob_ramm);
+        };
+
+        test_scenario::end(scenario_val);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = ramm::ENotAdmin)]
+    /// Check that disabling deposits for an asset with the wrong `RAMMAdminCap` will fail.
+    fun disable_deposits_admin_cap_mismatch() {
+        let (_alice_ramm_id, bob_ramm_id, scenario_val) = double_initialize<BTC>();
+        let scenario = &mut scenario_val;
+        {
+            let bob_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, bob_ramm_id);
+            let alice_admin_cap = test_scenario::take_from_address<RAMMAdminCap>(scenario, ALICE);
+
+            ramm::disable_deposits<BTC>(&mut bob_ramm, &alice_admin_cap);
+
+            test_scenario::return_to_address<RAMMAdminCap>(ALICE, alice_admin_cap);
+            test_scenario::return_shared<RAMM>(bob_ramm);
+        };
+
+        test_scenario::end(scenario_val);
+    }
+}
