@@ -18,18 +18,6 @@ module ramm_sui::ramm {
     friend ramm_sui::interface2;
     friend ramm_sui::interface3;
 
-    // Because of the below declarations, use the `test` flag when building or
-    // creating test coverage maps: `sui move test coverage --test`.
-    friend ramm_sui::interface2_safety_tests;
-    friend ramm_sui::interface2_tests;
-    friend ramm_sui::interface3_safety_tests;
-    friend ramm_sui::interface3_tests;
-    friend ramm_sui::math_tests;
-    friend ramm_sui::ramm_tests;
-    friend ramm_sui::test_util;
-    friend ramm_sui::volatility2_tests;
-    friend ramm_sui::volatility3_tests;
-
     const ERAMMInvalidInitState: u64 = 0;
     const EInvalidAggregator: u64 = 1;
     const ENotAdmin: u64 = 2;
@@ -354,27 +342,27 @@ module ramm_sui::ramm {
     See `ramm_math` for details.
     */
 
-    public(friend) fun mul(x: u256, y: u256): u256 {
+    public fun mul(x: u256, y: u256): u256 {
         ramm_math::mul(x, y, PRECISION_DECIMAL_PLACES, MAX_PRECISION_DECIMAL_PLACES)
     }
 
-    public(friend) fun mul3(x: u256, y: u256, z: u256): u256 {
+    public fun mul3(x: u256, y: u256, z: u256): u256 {
         ramm_math::mul3(x, y, z, PRECISION_DECIMAL_PLACES, MAX_PRECISION_DECIMAL_PLACES)
     }
 
-    public(friend) fun div(x: u256, y: u256): u256 {
+    public fun div(x: u256, y: u256): u256 {
         ramm_math::div(x, y, PRECISION_DECIMAL_PLACES, MAX_PRECISION_DECIMAL_PLACES)
     }
 
-    public(friend) fun pow_n(x: u256, n: u256): u256 {
+    public fun pow_n(x: u256, n: u256): u256 {
         ramm_math::pow_n(x, n, ONE, PRECISION_DECIMAL_PLACES, MAX_PRECISION_DECIMAL_PLACES)
     }
 
-    public(friend) fun pow_d(x: u256, a: u256): u256 {
+    public fun pow_d(x: u256, a: u256): u256 {
         ramm_math::pow_d(x, a, ONE, PRECISION_DECIMAL_PLACES, MAX_PRECISION_DECIMAL_PLACES)
     }
 
-    public(friend) fun power(x: u256, a: u256): u256 {
+    public fun power(x: u256, a: u256): u256 {
         ramm_math::power(x, a, ONE, PRECISION_DECIMAL_PLACES, MAX_PRECISION_DECIMAL_PLACES)
     }
 
@@ -394,7 +382,7 @@ module ramm_sui::ramm {
     ///
     /// A RAMM needs to have assets added to it before it can be initialized,
     /// after which it can be used.
-    public(friend) entry fun new_ramm(
+    public entry fun new_ramm(
         fee_collector: address,
         ctx: &mut TxContext
     ) {
@@ -503,7 +491,7 @@ module ramm_sui::ramm {
     /// * If called with the wrong admin or new asset capability objects
     /// * If an asset that already exists is added twice, the function will abort.
     /// * If more than `u8::MAX` assets are added to the pool
-    public(friend) fun add_asset_to_ramm<Asset>(
+    public fun add_asset_to_ramm<Asset>(
         self: &mut RAMM,
         feed: &Aggregator,
         min_trade_amnt: u64,
@@ -570,7 +558,7 @@ module ramm_sui::ramm {
     /// * if its internal data is inconsistent e.g.
     ///   - there are no assets, or
     ///   - the number of held assets differs from the number of LP token issuers.
-    public(friend) entry fun initialize_ramm(
+    public entry fun initialize_ramm(
         self: &mut RAMM,
         a: &RAMMAdminCap,
         cap: RAMMNewAssetCap,
@@ -601,7 +589,6 @@ module ramm_sui::ramm {
             index_map_size == bag::length(&self.typed_lp_tokens_issued),
             ERAMMInvalidInitState
         );
-
 
         let ix = 0;
         while (ix < self.asset_count) {
@@ -701,7 +688,7 @@ module ramm_sui::ramm {
     /// Admin cap
     
     /// Return the ID of the RAMM's admin capability.
-    public(friend) fun get_admin_cap_id(self: &RAMM): ID {
+    public fun get_admin_cap_id(self: &RAMM): ID {
         self.admin_cap_id
     }
 
@@ -712,7 +699,7 @@ module ramm_sui::ramm {
     /// * `option::some(id)`, where `id: ID` is the ID of the RAMM's new asset capability, *if*
     ///    the RAMM has already been initialized
     /// * `option::none()` if the RAMM has already been initialized.
-    public(friend) fun get_new_asset_cap_id(self: &RAMM): Option<ID> {
+    public fun get_new_asset_cap_id(self: &RAMM): Option<ID> {
         self.new_asset_cap_id
     }
 
@@ -725,7 +712,7 @@ module ramm_sui::ramm {
     /// Fee collector address
 
     /// Return the `address` to which this RAMM will send collected protocol operation fees.
-    public(friend) fun get_fee_collector(self: &RAMM): address {
+    public fun get_fee_collector(self: &RAMM): address {
         self.fee_collector
     }
 
@@ -736,7 +723,7 @@ module ramm_sui::ramm {
     /// # Aborts
     ///
     /// If called with the wrong admin capability object.
-    public(friend) fun set_fee_collector(self: &mut RAMM, a: &RAMMAdminCap, new_fee_addr: address) {
+    public fun set_fee_collector(self: &mut RAMM, a: &RAMMAdminCap, new_fee_addr: address) {
         assert!(self.admin_cap_id == object::id(a), ENotAdmin);
         self.fee_collector = new_fee_addr;
     }
@@ -750,7 +737,7 @@ module ramm_sui::ramm {
     }
 
     /// Returns the untyped (`u64`) value of fees collected by the RAMM for a given asset.
-    public(friend) fun get_collected_protocol_fees<Asset>(self: &RAMM): u64 {
+    public fun get_collected_protocol_fees<Asset>(self: &RAMM): u64 {
         let ix = get_asset_index<Asset>(self);
         get_fees<Asset>(self, ix)
     }
@@ -811,7 +798,7 @@ module ramm_sui::ramm {
     ///
     /// * If called with the wrong admin capability object
     /// * If the RAMM does not have an asset with the provided type.
-    public(friend) fun set_minimum_trade_amount<Asset>(
+    public fun set_minimum_trade_amount<Asset>(
         self: &mut RAMM,
         a: &RAMMAdminCap,
         new_min: u64
@@ -899,7 +886,7 @@ module ramm_sui::ramm {
     }
 
     /// Return the Switchboard aggregator address for a given asset.
-    public(friend) fun get_aggregator_address<Asset>(self: &RAMM): address {
+    public fun get_aggregator_address<Asset>(self: &RAMM): address {
         let ix = get_asset_index<Asset>(self);
         get_aggr_addr(self, ix)
     }
@@ -915,7 +902,7 @@ module ramm_sui::ramm {
     }
 
     /// Given a RAMM, return the last previously recorded price of an asset.
-    public(friend) fun get_previous_price<Asset>(self: &RAMM): u256 {
+    public fun get_previous_price<Asset>(self: &RAMM): u256 {
         let ix = get_asset_index<Asset>(self);
         get_prev_prc(self, ix)
     }
@@ -949,7 +936,7 @@ module ramm_sui::ramm {
 
     /// Given a RAMM, return the timestamp of the last price obtained for an asset from its
     /// `Aggregator`.
-    public(friend) fun get_previous_price_timestamp<Asset>(self: &RAMM): u64 {
+    public fun get_previous_price_timestamp<Asset>(self: &RAMM): u64 {
         let ix = get_asset_index<Asset>(self);
         get_prev_prc_tmstmp(self, ix)
     }
@@ -997,7 +984,7 @@ module ramm_sui::ramm {
     /// Return an asset's most recent volatility index (0 if none has yet been calculated).
     ///
     /// The result is a percentage encoded with `PRECISION_DECIMAL_PLACES`.
-    public(friend) fun get_volatility_index<Asset>(self: &RAMM): u256 {
+    public fun get_volatility_index<Asset>(self: &RAMM): u256 {
         let ix = get_asset_index<Asset>(self);
         get_vol_ix(self, ix)
     }
@@ -1015,7 +1002,7 @@ module ramm_sui::ramm {
     }
 
     /// Return the timestamp of an asset's most recent volatility index (0 if none yet exists).
-    public(friend) fun get_volatility_timestamp<Asset>(self: &RAMM): u64 {
+    public fun get_volatility_timestamp<Asset>(self: &RAMM): u64 {
         let ix = get_asset_index<Asset>(self);
         get_vol_tmstmp(self, ix)
     }
@@ -1036,7 +1023,7 @@ module ramm_sui::ramm {
 
     /// Getter for an asset's untyped balance.
     /// The asset index is not passed in, but instead obtained through the type parameter for safety.
-    public(friend) fun get_balance<Asset>(self: &RAMM): u256 {
+    public fun get_balance<Asset>(self: &RAMM): u256 {
         let ix = get_asset_index<Asset>(self);
         get_bal(self, ix)
     }
@@ -1076,7 +1063,7 @@ module ramm_sui::ramm {
 
     /// Getter for an asset's typed balance.
     /// The asset index is not passed in, but instead obtained through the type parameter for safety.
-    public(friend) fun get_typed_balance<Asset>(self: &RAMM): u256 {
+    public fun get_typed_balance<Asset>(self: &RAMM): u256 {
         let ix = get_asset_index<Asset>(self);
         get_typed_bal<Asset>(self, ix)
     }
@@ -1130,7 +1117,7 @@ module ramm_sui::ramm {
     /// # Aborts
     ///
     /// * If the provided asset does not exist in the RAMM.
-    public(friend) fun get_lptokens_issued<Asset>(self: &RAMM): u256 {
+    public fun get_lptokens_issued<Asset>(self: &RAMM): u256 {
         let ix = get_asset_index<Asset>(self);
         get_lptok_issued(self, ix)
     }
@@ -1181,7 +1168,7 @@ module ramm_sui::ramm {
     /// # Aborts
     ///
     /// * If the RAMM does not contain the provided asset
-    public(friend) fun get_typed_lptokens_issued<Asset>(self: &RAMM): u256 {
+    public fun get_typed_lptokens_issued<Asset>(self: &RAMM): u256 {
         let ix = get_asset_index<Asset>(self);
         get_typed_lptok_issued<Asset>(self, ix)
     }
@@ -1211,7 +1198,7 @@ module ramm_sui::ramm {
     /// # Aborts
     ///
     /// * If the RAMM does not have an asset with the provided type.
-    public(friend) fun get_type_index<Asset>(self: &RAMM): u8 {
+    public fun get_type_index<Asset>(self: &RAMM): u8 {
         *vec_map::get(&self.types_to_indexes, &type_name::get<Asset>())
     }
 
@@ -1233,7 +1220,7 @@ module ramm_sui::ramm {
     /// # Aborts
     ///
     /// * If the RAMM does not contain the provided asset.
-    public(friend) fun get_factor_for_balance<Asset>(self: &RAMM): u256{
+    public fun get_factor_for_balance<Asset>(self: &RAMM): u256{
         let ix = get_asset_index<Asset>(self);
         get_fact_for_bal(self, ix)
     }
@@ -1241,7 +1228,7 @@ module ramm_sui::ramm {
     /// Asset count
 
     /// Return the number of assets in the RAMM.
-    public(friend) fun get_asset_count(self: &RAMM): u8 {
+    public fun get_asset_count(self: &RAMM): u8 {
         self.asset_count
     }
 
@@ -1364,7 +1351,7 @@ module ramm_sui::ramm {
     /// This function is not public, as it is NOT safe to call this *without*
     /// first checking that the aggregator's address matches the RAMM's records
     /// for the given asset.
-    public(friend) fun get_price_from_oracle(feed: &Aggregator): (u256, u256, u64) {
+    public fun get_price_from_oracle(feed: &Aggregator): (u256, u256, u64) {
         // the timestamp can be used in the future to check for price staleness
         let (latest_result, latest_timestamp) = aggregator::latest_value(feed);
         // do something with the below, most likely scale it to our needs

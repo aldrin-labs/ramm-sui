@@ -7,10 +7,10 @@ module ramm_misc::coin_bag {
     use sui::test_scenario;
     use sui::sui::SUI;
 
-    use ramm_misc::btc::BTC;
-    use ramm_misc::eth::ETH;
-    use ramm_misc::sol::SOL;
-    use ramm_misc::usdc::USDC;
+    use ramm_misc::test_coins::BTC;
+    use ramm_misc::test_coins::ETH;
+    use ramm_misc::test_coins::SOL;
+    use ramm_misc::test_coins::USDC;
 
     use std::debug;
     use std::type_name;

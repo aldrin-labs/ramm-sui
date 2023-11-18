@@ -4,13 +4,17 @@ This repository hosts an implementation of a RAMM in Sui Move.
 
 At present, there are 2 Sui Move packages:
 * `ramm-sui` contains an implementation for the RAMM, which is ongoing work.
-* `ramm-misc` has a simple demo that fetches pricing information from [Switchboard](https://beta.app.switchboard.xyz/sui/testnet) Sui oracles
-  - it also has fictional tokens to be used later when testing the RAMM
+* `ramm-misc` has a faucet with tokens useful for testnet development/testing
+  - it also has a simple demo that showcases price information querying from [Switchboard](https://app.switchboard.xyz/sui/testnet) aggregators
 
 ## Table of contents
 1. [RAMM in Sui Move](#ramm-sui-ramm-in-sui-move)
-2. [Testing a Switchboard price feed](#testing-a-price-feed)
-3. [Creating tokens for tests](#creating-test-coins)
+2. [Deploying and testing the RAMM on the testnet](#interacting-with-the-ramm-on-the-testnet)
+   - 2.1. [Addresses of currently published packages and instantiated objects](#addresses-of-currently-published-packages-and-instantiated-objects)
+   - 2.2. [Regarding `suibase`](#regarding-suibase)
+   - 2.3. [Requesting tokens from the faucet](#requesting-tokens-from-the-faucet)
+   - 2.4. [RAMM creation/funding](#manually-creating-and-funding-a-ramm-on-the-testnet)
+3. [Testing a Switchboard price feed](#testing-a-price-feed)
 4. [Regarding AMMs with variable numbers of assets in Sui Move](#on-supporting-variable-sized-pools-with-a-single-implementation)
 
 ## `ramm-sui`: RAMM in Sui Move
@@ -23,12 +27,31 @@ they must interact with a `RAMM` object through the contract APIs in the `interf
 
 ### Structure of `ramm-sui` package and modules
 
-The public API is split in different modules:
+#### Library
+
+The public API, in `ramm_sui/sources`, is split in different modules:
 * Functions that can be called on RAMMs of any size exist in `ramm_sui::ramm`
 * for 2-asset RAMMs, the module `ramm_sui::interface2` is to be used
 * for 3-asset RAMMs, use `ramm_sui::interface3`
-* any future additions of higher-order RAMMs will follow this pattern: 4-asset RAMMs => `ramm_sui::interface4`, etc.
+  - any future additions of higher-order RAMMs will follow this pattern: 4-asset RAMMs => `ramm_sui::interface4`, etc.
+* mathematical operators related to the RAMM protocol in `ramm_sui::math`
 
+#### Tests
+
+The `ramm_sui/tests/` directory has an extensive suite of tests for the RAMM's functionality.
+Among them:
+* Utilities used to create non-trivial test scenarios, and avoid boilerplate when setting up test
+  environments in `test_util.move`
+* Tests to the basic mathematical operators required to implement the RAMM, in `math_tests.move`
+* Basic unit-tests for RAMM creation and initialization, in `ramm_tests.move`
+* Safety tests for each of the sized RAMM's interfaces: `interface2_safety_tests.move` for 2-asset
+  RAMMs, and so on; these safety tests include:
+    * checking that priviledged RAMM operations performed with an incorrect `Cap` object fail
+    * providing an incorrect `Aggregator` to trading functions will promptly fail
+* End-to-end tests in `interface{n}_tests.move` that use the functionality present in
+  `sui::test_scenario` to flow from RAMM and `Aggregator` creation, all the way to liquidity
+  deposits, withdrawals and trading with the RAMM
+* Tests to the RAMM's volatility fee in `volatility{n}_tests.move`
 
 ### RAMM Internal data
 
@@ -39,7 +62,7 @@ The structure stores information required for its management and operation, incl
 * a data structure specific to Sui (`balance::Supply`) that regulates LP token issuance for each asset
 * protocol fees collected for each asset
 
-### Capability pattern as security measure
+### Capability pattern as a security measure
 
 Some RAMM operations don't require administrative privileges - trading, liquidity deposits/withdrawals - while
 others must. Examples:
@@ -102,6 +125,7 @@ the fast-tracking of transactions that occurs in contexts of in sole object owne
 
 In order to obtain current information on asset pricing, the RAMM requires the use of oracles.
 In Sui, at present, there are only two alternatives: Pyth Network, and Switchboard.
+
 Switchboard was chosen over Pyth due to its simplicity - Pyth [requires](https://docs.pyth.network/pythnet-price-feeds/sui)
 attested off-chain data to be provided in each price request, while Switchboard does not.
 
@@ -110,7 +134,8 @@ Sui's object model prevents interaction via an `address` alone, and as such:
 
 > Switchboard's `Aggregator`s cannot be stored in the RAMM object.
 
-This is because if `RAMM` `has key`, then
+This is because the RAMM must be a (shared) object; whereby it must have the `key` ability.
+If `RAMM has key`, then
 * all its fields must have `store`
 * in particular, `vector<Aggregator>` must have store
   - so `Aggregator` must have `store`
@@ -119,28 +144,354 @@ This is because if `RAMM` `has key`, then
   `sui::transfer::share_object`
 * which it *must* be, to be readable and writable by all
 
+## Interacting with the RAMM on the testnet
+
+### Addresses of currently published packages and instantiated objects
+
+The Bash variables below should be declared in a terminal/script for ease of use when running
+the example commands.
+
+#### Package IDs
+
+The latest package IDs of
+
+* the `ramm_sui` package, which is the library to create/interact with RAMM objects, as well as the
+* `ramm_misc` package, used to create test tokens on the testnet,
+
+are the following:
+
+```bash
+export FAUCET_PACKAGE_ID=0x76a5ecf30b2cf49a342a9bd74a479702a1b321b0d45f06920618dbe7c2da52b1 \
+export RAMM_SUI_PACKAGE_ID=0x0adad52b9aa0a00460e47c3d5884dd4610bafdd772d62321558005387abe1174
+```
+
+#### Object IDs / Addresses
+
+The object IDs of
+
+* the most recently created `ramm_misc::faucet::Faucet` object, as well as
+* a 3-asset `BTC/ETH/SOL` RAMM, and
+  - its fee collection address (can be changed)
+  - its admin capability, and
+  - its new asset capability (since deleted with its initialization)
+
+are:
+
+```bash
+export FAUCET_ID=0xaf774e31764afcf13761111b662892d12d6998032691160e1b3f7d7f0ab039bd \
+
+export RAMM_ID=0xbee296f4efc42bb228c284c944d58c28a971d5c29c015ba9fe6b0db20b07896d \
+export FEE_COLLECTOR=0x1fad963ac9311c5f99685bc430dc022a5b0d36f6860603495ca0a0e3a46dd120 \
+export ADMIN_CAP_ID=0xaacbaebf49380e6b5587ce0a26dc54dc4576045ff9c6e3a8aab30e2b48e81ecd \
+export NEW_ASSET_CAP_ID=0xb7bcf12b4984e0ea6b11a969b4bc2fa11efa3d488b6ba6696c43425c886d2915
+```
+
+The object IDs of
+
+* a 2-asset `ETH/USDC` RAMM, and
+  - its fee collection address (can be changed)
+  - its admin capability, and
+  - its new asset capability (since deleted with its initialization)
+
+are
+
+```bash
+export RAMM_ID=0x14cd5b0a0fdb09ca16959ed8b30ac674521fed8ed0089ff4a3d321f3295668ef \
+export FEE_COLLECTOR=0x1fad963ac9311c5f99685bc430dc022a5b0d36f6860603495ca0a0e3a46dd120 \
+export ADMIN_CAP_ID=0x0c4baabcfe4b9fcfe7c45c5bf5f639e54ab948be0794d8cc9246545edcb8f49a \
+export NEW_ASSET_CAP_ID=0xf3d8e8f21e84d4220cec2edb1e30bb3667a57d390d6298e68bbeef2b202e105e
+```
+
+Verify these using `tsui client object {object-id}`.
+
+The object IDs of the six Switchboard `Aggregators` presently on the Sui testnet, for
+* `BTC, ETH, SOL, SUI, USDT, USDC`
+are:
+
+```bash
+export BTC_AGG_ID=0x7c30e48db7dfd6a2301795be6cb99d00c87782e2547cf0c63869de244cfc7e47 \
+export ETH_AGG_ID=0x68ed81c5dd07d12c629e5cdad291ca004a5cd3708d5659cb0b6bfe983e14778c \
+export SOL_AGG_ID=0x35c7c241fa2d9c12cd2e3bcfa7d77192a58fd94e9d6f482465d5e3c8d91b4b43 \
+export SUI_AGG_ID=0x84d2b7e435d6e6a5b137bf6f78f34b2c5515ae61cd8591d5ff6cd121a21aa6b7 \
+export USDT_AGG_ID=0xe8a09db813c07b0a30c9026b3ff7d5617d2505a097f1a90a06a941d34bee9585 \
+export USDC_AGG_ID=0xde58993e6aabe1248a9956557ba744cb930b61437f94556d0380b87913d5ef47
+```
+
+### Regarding suibase
+
+[Suibase](https://suibase.io/intro.html) is a tool that assists in the development, testing
+and deployment of Sui smart contracts.
+
+It provides a suite of tools and SDKs for Rust/Python that let developers easily target
+different Sui networks (e.g. devnet, testnet, main) and configure the development environment,
+e.g. by allowing the specification of an exact version of the `sui` binaries, and/or from a forked
+repository.
+
+For the purposes of this project, `suibase` will be needed to build/test/deploy the RAMM on a given
+network - in this case, the testnet.
+
+After installing `suibase`, optionally [setting](https://suibase.io/how-to/configure-suibase-yaml.html#change-default-repo-and-branch)
+the `sui` version to be used, and running `testnet start`, `tsui` will be ready for use in the
+user's `$PATH`.
+
+### Requesting tokens from the faucet
+
+In order to create/interact with the RAMM, fictitious tokens are required.
+
+Then, for the purpose of creating test coins to be used to interact with the RAMM,
+`ramm-misc/sources/test_coins` offers 5 different tokens for which there exists a corresponding
+Switchboard `Aggregator` on the Sui testnet:
+ * `BTC, ETH, SOL, USDT, USDC`
+
+`SUI` for gas fees can be requested in the Sui [Discord](https://discord.com/invite/sui) server.
+
+To interact with the faucet, the following data are required:
+1. The ID of the `ramm_misc` package, which contains the faucet: it may be `export`ed as
+   `FAUCET_PACKAGE_ID`
+   - See [above](#addresses-of-currently-published-packages-and-instantiated-objects) a list of
+     currently published package IDs
+2. The ID of a `ramm_misc::faucet::Faucet` that is currently instantiated on the testnet,
+   may it be called `FAUCET_ID`
+   - See [above](#addresses-of-currently-published-packages-and-instantiated-objects)
+3. The amount of the token to be minted, `COIN_AMNT`.
+   - See [below](#obtaining-a-coint-types-decimal-place-count) for a note on how many decimal
+     places each fictitious asset has
+4. A type argument specifying the specific asset to be requested, `export`ed as `COIN`
+   - In the case of e.g. `ETH`, it'll be `"$FAUCET_PACKAGE_ID"::test_coins::"$COIN`, which will
+     expand to `"$FAUCET_PACKAGE_ID"::test_coins::ETH`
+
+After these data are set as variables, a specific token, i.e. `ramm_misc::test_coins::BTC`, can be
+requested with
+
+```bash
+tsui client call --package "$FAUCET_PACKAGE_ID" \
+--module test_coin_faucet \
+--function mint_test_coins \
+--args "$FAUCET_ID" "$COIN_AMNT" \
+--type-args "$FAUCET_PACKAGE_ID"::test_coins::"$COIN" \
+--gas-budget 100000000
+```
+
+#### Obtaining a `Coin<T>` type's decimal place count
+
+For these tests, all assets can be considered to have 8 decimal places.
+
+However, when using real tokens bridged from other chains into Sui, in order to obtain its decimal
+place count, do the following:
+
+1. Obtain the ID of the package containing the Sui-side version of the bridged token from
+   [the official docs](https://docs.sui.io/learn/sui-bridging); in the case of `WSOL`, it is
+  `export PACKAGE_ID=0xb7844e289a8410e50fb3ca48d69eb9cf29e27d223ef90353fe1bd8e27ff8f3f8`
+2. Use a [Sui RPC inspector](https://www.suirpc.app/method/suix_getCoinMetadata) to run the
+   `get_CoinMetadata` method on `PACKAGE_ID::coin::COIN`
+3. In the JSON response, the `decimals` field will be the decimal places the token was configured
+   with; for `WSOL`, `8`
+
+### Creating, populating and initializing a RAMM to the testnet
+
+#### Creation
+
+In order to create a RAMM, the following data are necessary:
+1. The previously stored `RAMM_PACKAGE_ID`, and
+2.  an address for fee collection needs to be specified, e.g. as `FEE_COLLECTOR`.
+
+See [above](#addresses-of-currently-published-packages-and-instantiated-objects) for the addresses
+of currently published RAMMs.
+
+After the above:
+
+```bash
+tsui client call --package "$RAMM_PACKAGE_ID" \
+--module ramm \
+--function new_ramm \
+--args "$FEE_COLLECTOR" \
+--gas-budget 1000000000
+```
+
+#### Asset addition
+
+The previous transaction should have resulted in several newly created objects:
+1. the RAMM object, which should be `export`ed as `RAMM_ID`
+2. an admin capability object, `ADMIN_CAP_ID`
+3. a capability used to add new assets, `NEW_ASSET_CAP_ID`
+
+For an asset to be added, assuming its `Aggregator`'s ID from
+[the list of presently available testnet aggregators](#addresses-of-currently-published-packages-and-instantiated-objects)
+has been `export`ed as `AGGREGATOR_ID`:
+
+```bash
+tsui client call --package "$RAMM_PACKAGE_ID" \
+  --module ramm \
+  --function add_asset_to_ramm \
+  --args "$RAMM_ID" "$AGGREGATOR_ID" $MIN_TRADE_AMNT $ASSET_DEC_PLACES "$ADMIN_CAP_ID" "$NEW_ASSET_CAP_ID" \
+  --gas-budget 1000000000
+```
+
+The values `MIN_TRADE_AMNT` and `ASSET_DEC_PLACES` are the asset's minimum trade amount, and
+its decimal places, respectively.
+See the note [above](#obtaining-a-coint-types-decimal-place-count) to know how many decimal places
+each test token has.
+
+#### Initialize the RAMM
+
+Run the following
+
+```bash
+tsui client call --package "$RAMM_PACKAGE_ID" \
+  --module ramm \
+  --function initialize_ramm \
+  --args "$RAMM_ID" "$ADMIN_CAP_ID" "$NEW_ASSET_CAP_ID" \
+  --gas-budget 1000000000
+```
+
+This will delete the new asset capability associated with this RAMM whose ID is `NEW_ASSET_CAP_ID`,
+so no more assets can be added to that RAMM.
+
+Carefully consider the RAMM's desired asset count before initializing it.
+
+#### Depositing liquidity in the RAMM
+
+Consider a concrete example of a `BTC/ETH/SOL` 3-asset RAMM.
+As the RAMM has 3 assets, the corresponding public interface must be used.
+In order to deposit liquidity for an asset in the RAMM, the following data are required:
+
+1. The previously stored `$RAMM_ID`
+2. The coins previously requested from the faucet
+   - in this case, `$BTC_ID` is the object ID of the `Coin<$FAUCET_PACKAGE_ID::test_coins::BTC>`
+     gotten from the faucet
+3. Aggregator IDs for each of the RAMM's 3 assets, once again gotten from [here](https://app.switchboard.xyz/sui/testnet)
+   - `$BTC_AGG_ID` for `BTC`
+   - `$ETH_AGG_ID` for `ETH`, etc
+4. the type information of each of the RAMM's assets
+   - in this case, `$FAUCET_PACKAGE_ID::test_coins::BTC` for `BTC`
+   - `$FAUCET_PACKAGE_ID::test_coins::ETH` for `ETH`, etc
+
+Note that:
+* the first type provided corresponds to the type of the coin object i.e. of the asset for which
+  liquidity is being deposited
+* the order in which the `Aggregator`s are provided must match the order in which the types are
+  given
+
+All of the above results in the following:
+
+```bash
+tsui client call --package "$RAMM_PACKAGE_ID" \
+  --module interface3 \
+  --function liquidity_deposit_3 \
+  --args "$RAMM_ID" "$BTC_ID" "$BTC_AGG_ID" "$ETH_AGG_ID" "$SOL_AGG_ID" \
+  --gas-budget 1000000000 \
+  --type-args "$FAUCET_PACKAGE_ID::test_coins::BTC" "$FAUCET_PACKAGE_ID::test_coins::ETH" "$FAUCET_PACKAGE_ID::test_coins::SOL" 
+```
+
+#### Trading with the RAMM
+
+The examples below assume a 3-asset `BTC/ETH/SOL` RAMM with existing initial liquidity.
+
+##### Depositing a specific amount of an asset
+
+In order to eg. deposit exactly 20 ETH into the RAMM, the following data are required:
+
+1. `$RAMM_ID`
+2. The ID of the `Coin<$FAUCET_PACKAGE_ID::test_coins::ETH>` previously requested from the faucet
+3. The minimum amount of the outbound asset the trader expects to receive, which can be `export`ed
+   as `MIN_AMNT_OUT`.
+   - Recall that all test coins are created to have 8 decimal places, so e.g. 1 unit of `BTC` should
+     be `100000000`
+4. Aggregator IDs for each of the RAMM's 3 assets, as always taken from [here](https://app.switchboard.xyz/sui/testnet)
+5. the type information of each of the RAMM's assets
+   - in this case, `$FAUCET_PACKAGE_ID::test_coins::BTC` for `BTC`, etc
+
+Note that:
+* the first type provided corresponds to the inbound asset, as well as the type of the coin object
+* the second type provided corresponds to outbound asset
+* the order in which the `Aggregator`s are provided must match the order in which the types are
+  given
+
+```bash
+tsui client call --package "$RAMM_PACKAGE_ID" \
+  --module interface3 \
+  --function trade_amount_in_3 \
+  --args "$RAMM_ID" "$ETH_ID" "$MIN_AMNT_OUT" "$ETH_AGG_ID" "$BTC_AGG_ID" "$SOL_AGG_ID" \
+  --gas-budget 1000000000 \
+  --type-args "$FAUCET_PACKAGE_ID::test_coins::ETH" "$FAUCET_PACKAGE_ID::test_coins::BTC" "$FAUCET_PACKAGE_ID::test_coins::SOL"
+```
+
+##### Withdrawing an exact amount of an asset
+
+In order to e.g. withdraw exactly 1 BTC from the RAMM, the following data are required:
+
+1. `$RAMM_ID`
+2. The amount of the outbound asset the trader wishes to receive, which can be `export`ed
+   as `AMNT_OUT`.
+   - Recall that all test coins are created to have 8 decimal places, so e.g. 1 unit of `BTC` should
+     be `100000000`
+3. The ID of the coin object previously requested from the faucet
+4. Aggregator IDs for each of the RAMM's 3 assets, as always taken from [here](https://app.switchboard.xyz/sui/testnet)
+5. the type information of each of the RAMM's assets
+   - in this case, `$FAUCET_PACKAGE_ID::test_coins::BTC` for `BTC`, etc
+
+Note that:
+* the first type provided corresponds to the inbound asset, as well as the type of the coin object
+* the second type provided corresponds to outbound asset
+* the order in which the `Aggregator`s are provided must match the order in which the types are
+  given
+
+```bash
+tsui client call --package "$RAMM_PACKAGE_ID" \
+  --module interface3 \
+  --function trade_amount_out_3 \
+  --args "$RAMM_ID" "$AMNT_OUT" "$BTC_ID"  "$BTC_AGG_ID" "$ETH_AGG_ID" "$SOL_AGG_ID" \
+  --gas-budget 1000000000 \
+  --type-args "$FAUCET_PACKAGE_ID::test_coins::BTC" "$FAUCET_PACKAGE_ID::test_coins::ETH" "$FAUCET_PACKAGE_ID::test_coins::SOL"
+```
+
+#### Executing a liquidity withdrawal
+
+Below are the data required to perform a liquidity withdrawal from the RAMM.
+This example also considers the above 3-asset `BTC/ETH/SOL` pool.
+
+1. The `$RAMM_ID` is necessary
+2. The object ID, call it `$LP_ID` of the liquidity pool (LP) `Coin`s emitted by the pool upon the
+   asset's prior deposit
+3. Aggregator IDs for each of the RAMM's 3 assets, as always taken from [here](https://app.switchboard.xyz/sui/testnet)
+4. the type information of each of the RAMM's assets, appended by the type of the asset meant to be
+   withdrawn
+   - in this case, since the pool has 3 assets, 4 type arguments are needed
+
+Note that:
+* the last type provided corresponds to
+  - the inbound LP tokens which will be burned
+  - the outbound asset
+* the order in which the `Aggregator`s are provided must match the order in which the pool's types
+  are given
+
+```bash
+tsui client call --package "$RAMM_PACKAGE_ID" \
+  --module interface3 \
+  --function liquidity_withdrawal_3 \
+  --args "$RAMM_ID" "$LP_ID" "$BTC_AGG_ID" "$ETH_AGG_ID" "$SOL_AGG_ID" \
+  --gas-budget 1000000000 \
+  --type-args "$FAUCET_PACKAGE_ID::test_coins::BTC" "$FAUCET_PACKAGE_ID::test_coins::ETH" \
+     "$FAUCET_PACKAGE_ID::test_coins::SOL" "$FAUCET_PACKAGE_ID::test_coins::BTC"
+```
+
 ## Testing a Switchboard price feed
 
-A Sui testnet price information feed can be found in the link above,
-and in `ramm-misc/sources/demo.move`, there exist constants with the aggregators'
-addresses; some examples which can be used below with `$AGGREGATOR_ID`:
+A list of price information feeds currently available on the test Sui testnet can be found
+[here](https://app.switchboard.xyz/sui/testnet).
 
-```Rust
-const BTC_USD: address = @0x7c30e48db7dfd6a2301795be6cb99d00c87782e2547cf0c63869de244cfc7e47;
-const ETH_USD: address = @0x68ed81c5dd07d12c629e5cdad291ca004a5cd3708d5659cb0b6bfe983e14778c;
-const SOL_USD: address = @0x35c7c241fa2d9c12cd2e3bcfa7d77192a58fd94e9d6f482465d5e3c8d91b4b43;
-const SUI_USD: address = @0x84d2b7e435d6e6a5b137bf6f78f34b2c5515ae61cd8591d5ff6cd121a21aa6b7;
-```
+In order to test a price feed from the CLI using the `ramm_misc` package, perform the following
+actions:
 
 ```bash
 cd ramm-misc
 sui move build
 sui client publish --gas-budget 20000000
-# export the above package ID to $PACKAGE
+# export the above package ID to $FAUCET_PACKAGE_ID
 
-# $AGGREGATOR_ID is an ID from https://beta.app.switchboard.xyz/sui/testnet
+# $AGGREGATOR_ID is an ID from https://app.switchboard.xyz/sui/testnet
 sui client call \
-  --package $PACKAGE \
+  --package $FAUCET_PACKAGE_ID \
   --module switchboard_feed_parser \
   --function log_aggregator_info \
   --args $AGGREGATOR_ID \
@@ -152,33 +503,6 @@ sui client object $AGGREGATOR_INFO
 
 The relevant information will be in the `latest_result, latest_result_scaling_factor`
 fields.
-
-## Creating test coins
-
-In order to create testing coins to be used in the RAMM (which is WIP),
-`ramm-misc/sources/test_coins` has some modules for dummy tokens.
-
-How to create them:
-1. Publish this package
-  ```bash
-  sui client publish . --gas-budget 10000000
-  ```
-  The created objects whose ID will be necessary are:
-  - the published package's ID, which can be `export`ed as `PACKAGE`
-  - the `TreasuryCap`s for the created test currencies, which will need to be
-    `export`ed as well, e.g. `export SOL_TREASURY_CAP=...`
-2. Mint-and-transfer testing tokens:
-  ```bash
-  sui client call \
-  --package 0x2 \
-  --module coin \
-  --function mint_and_transfer \
-  --gas-budget 10000000 \
-  --args $TOKEN_TREASURY_CAP 1000 $ADDRESS \
-  --type-args $PACKAGE::token::TOKEN
-  ```
-  where `$ADDRESS` in a previously `export`ed valid Sui address.
-  Other functions are available in the `0x2::coin` module
 
 ## On supporting variable-sized pools with a single implementation
 
@@ -199,7 +523,8 @@ of testing tokens, and inserts them in a [`sui::bag::Bag`](https://github.com/My
 
 ### Goal
 
-The goal is to perform a trivial operation: add all of the testing tokens' amounts.
+The goal of this experiment is to perform a trivial operation: add all of the testing tokens'
+amounts.
 Doing this requires fully instantiating the types of all the involved tokens, which
 by consequence prevents a fully generic RAMM from being implemented in Sui Move (as of its release).
 The reasoning supporting this conclusion will be below.
