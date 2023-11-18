@@ -7,7 +7,7 @@ module ramm_sui::interface3_tests {
     use sui::test_utils;
 
     use ramm_sui::interface3;
-    use ramm_sui::ramm::{Self, RAMM};
+    use ramm_sui::ramm::{Self, LP,  RAMM};
     use ramm_sui::test_util::{Self, ETH, MATIC, USDT};
 
     use switchboard::aggregator::Aggregator;
@@ -124,6 +124,43 @@ module ramm_sui::interface3_tests {
         {
             assert!(!test_scenario::has_most_recent_for_address<Coin<ETH>>(ALICE), ETraderShouldNotHaveAsset);
         };
+
+        test_scenario::next_tx(scenario, ADMIN);
+
+        {
+            let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
+            let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
+            let matic_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, matic_ag_id);
+            let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
+
+            let lp_eth = test_scenario::take_from_address<Coin<LP<ETH>>>(scenario, ADMIN);
+            test_utils::assert_eq(coin::value(&lp_eth), (200 * test_util::eth_factor() as u64));
+
+            interface3::liquidity_withdrawal_3<ETH, USDT, MATIC, ETH>(
+                &mut ramm,
+                lp_eth,
+                &eth_aggr,
+                &usdt_aggr,
+                &matic_aggr,
+                test_scenario::ctx(scenario)
+            );
+
+            test_scenario::return_shared<RAMM>(ramm);
+            test_scenario::return_shared<Aggregator>(eth_aggr);
+            test_scenario::return_shared<Aggregator>(matic_aggr);
+            test_scenario::return_shared<Aggregator>(usdt_aggr);
+        };
+
+        test_scenario::next_tx(scenario, ADMIN);
+
+        {
+            let eth = test_scenario::take_from_address<Coin<ETH>>(scenario, ADMIN);
+            // The liquidity provider should have about 200.05 ETH, with the 0.05 ETH
+            // being the result of collected fees.
+            test_utils::assert_eq(coin::value(&eth), 20000518458);
+            test_scenario::return_to_address(ADMIN, eth);
+        };
+
 
         test_scenario::end(scenario_val);
     }

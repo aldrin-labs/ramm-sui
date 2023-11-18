@@ -3,7 +3,6 @@ module ramm_sui::ramm {
 
     use sui::bag::{Self, Bag};
     use sui::balance::{Self, Balance, Supply};
-    use sui::coin::{Self, Coin};
     use sui::object::{Self, ID, UID};
     use sui::transfer;
     use sui::tx_context::{Self, TxContext};
@@ -190,7 +189,13 @@ module ramm_sui::ramm {
         asset_count: u8,
     }
 
-    struct TradeOutput has drop{
+    /// Result of an asset deposit/withdrawal operation by a trader.
+    /// If `execute_trade` is `true`, then:
+    /// * in the case of an asset deposit, the amount of the outbound asset is specified,
+    ///   as well as the fee to be levied on the inbound asset
+    /// * in the case of an asset withdrawal, the amount of the inbound asset is specified,
+    ///   as well as the fee to be levied on the inbound asset
+    struct TradeOutput has drop {
         amount: u256,
         protocol_fee: u256,
         execute_trade: bool
@@ -206,6 +211,37 @@ module ramm_sui::ramm {
 
     public(friend) fun execute(to: &TradeOutput): bool {
         to.execute_trade
+    }
+
+    /// Result of a liquidity withdrawal by a trader that had previously deposited
+    /// liquidity into the pool.
+    ///
+    /// Contains:
+    /// * the amount of each of the pool's assets the trader will receive for his LP tokens
+    /// * the total value of the redeemed tokens
+    /// * the remaining value
+    struct WithdrawalOutput has drop {
+        amounts: VecMap<u8, u256>,
+        value: u256,
+        remaining: u256
+    }
+
+    /// Return a `WithdrawalOutput's` mapping of assets to liquidity withdrawal values
+    /// in that asset.
+    public(friend) fun amounts(wo: &WithdrawalOutput): VecMap<u8, u256> {
+        wo.amounts
+    }
+
+    /// Return the value given to the liquidity provider in terms of token `o`, which the provider
+    /// wants.
+    public(friend) fun value(wo: &WithdrawalOutput): u256 {
+        wo.value
+    }
+
+    /// Return the remaining amount of token `o` to be given to the liquidity provider (if any)
+    /// in case the process could not be completed.
+    public(friend) fun remaining(wo: &WithdrawalOutput): u256 {
+        wo.remaining
     }
 
     /// --------------
@@ -583,10 +619,24 @@ module ramm_sui::ramm {
         get_lptok_issued(self, ix)
     }
 
-    fun incr_lptokens_issued<Asset>(self: &mut RAMM, minted: u64) {
+    /// Update untyped count of issued LP tokens for a given asset.
+    ///
+    /// It's is the user's responsibility to ensure that there is also an
+    /// update to the typed count for this token.
+    public(friend) fun incr_lptokens_issued<Asset>(self: &mut RAMM, minted: u64) {
         let ix = get_asset_index<Asset>(self);
         let lptoks = vec_map::get_mut(&mut self.lp_tokens_issued, &ix);
         *lptoks = *lptoks + (minted as u256);
+    }
+
+    /// Update untyped count of issued LP tokens for a given asset.
+    ///
+    /// It's is the user's responsibility to ensure that there is also an
+    /// update to the typed count for this token.
+    public(friend) fun decr_lptokens_issued<Asset>(self: &mut RAMM, burned: u64) {
+        let ix = get_asset_index<Asset>(self);
+        let lptoks = vec_map::get_mut(&mut self.lp_tokens_issued, &ix);
+        *lptoks = *lptoks - (burned as u256);
     }
 
     /// Typed LP Tokens Issued
@@ -606,9 +656,22 @@ module ramm_sui::ramm {
         get_typed_lptok_issued<Asset>(self, ix)
     }
 
-    fun mint_lp_tokens<Asset>(self: &mut RAMM, amount: u64): Balance<LP<Asset>> {
+    /// Mint LP tokens for a given asset, in a given amount.
+    ///
+    /// It's is the user's responsibility to ensure that there is also an
+    /// update to the untyped LP token count for this token.
+    public(friend) fun mint_lp_tokens<Asset>(self: &mut RAMM, amount: u64): Balance<LP<Asset>> {
         let supply = get_lptoken_supply<Asset>(self);
         balance::increase_supply(supply, amount)
+    }
+
+    /// Burn a given amount of LP tokens for a given asset.
+    ///
+    /// It's is the user's responsibility to ensure that there is also an
+    /// update to the untyped LP token count for this token.
+    public(friend) fun burn_lp_tokens<Asset>(self: &mut RAMM, lp_tokens: Balance<LP<Asset>>): u64 {
+        let supply = get_lptoken_supply<Asset>(self);
+        balance::decrease_supply(supply, lp_tokens)
     }
 
     /// Minimum trading amounts
@@ -1053,7 +1116,7 @@ module ramm_sui::ramm {
             let ai: u256 = div(num, denom) / factor_i;
             let pr_fee: u256 = mul3(PROTOCOL_FEE, BASE_FEE, ai * factor_i) / factor_i;
             let execute: bool = check_imbalance_ratios(self, &prices, i, o, ai, ao, pr_fee, &factors_for_prices);
-            return TradeOutput {amount: ao, protocol_fee: pr_fee, execute_trade: execute}
+            return TradeOutput {amount: ai, protocol_fee: pr_fee, execute_trade: execute}
         };
 
         let _W: VecMap<u8, u256> = weights(self, &prices, &factors_for_prices);
@@ -1096,41 +1159,202 @@ module ramm_sui::ramm {
     public(friend) fun single_asset_deposit<AssetIn>(
         self: &mut RAMM,
         i: u8,
-        ai: Coin<AssetIn>,
-        _prices: VecMap<u8, u256>,
-        ctx: &mut TxContext
-        ): Coin<LP<AssetIn>> {
-        // TODO
-        let amount_in = coin::into_balance(ai);
-        let amount_in_u64 = balance::value(&amount_in);
-        let curr_bal = vec_map::get_mut(&mut self.balances, &i);
-        let curr_typed_bal = bag::borrow_mut<u8, Balance<AssetIn>>(&mut self.typed_balances, i);
-        let new_bal = balance::join(curr_typed_bal, amount_in);
-        *curr_bal = (new_bal as u256);
+        ai: u64,
+        prices: VecMap<u8, u256>,
+        factors_for_prices: VecMap<u8, u256>
+    ): u64 {
 
-        incr_lptokens_issued<AssetIn>(self, amount_in_u64);
-        let lptoken_balance = mint_lp_tokens(self, amount_in_u64);
+        let factor_i = get_fact_for_bal(self, i);
 
-        coin::from_balance(lptoken_balance, ctx)
+        if (get_typed_lptok_issued<AssetIn>(self, i) == 0 ||
+            (get_typed_lptok_issued<AssetIn>(self, i) != 0 && get_typed_bal<AssetIn>(self, i) == 0)
+        ) {
+            let (_B, _L) = compute_B_and_L(self, &prices, &factors_for_prices);
+            if (_B == 0) {
+                let lpt: u64 = ai;
+                return lpt
+            } else {
+                let lpt: u256 = div(mul((ai as u256) * factor_i, _L), _B) / FACTOR_LPT;
+                return (lpt as u64)
+            }
+        };
+
+        if ((get_typed_lptok_issued<AssetIn>(self, i) != 0 && get_typed_bal<AssetIn>(self, i) != 0)) {
+            let imb_ratios: VecMap<u8, u256> = imbalance_ratios(self, &prices, &factors_for_prices);
+            let bi: u256 = get_typed_bal<AssetIn>(self, i) * factor_i;
+            let ri: u256 = *vec_map::get(&imb_ratios, &i);
+
+            let lpt: u256 =
+                div(
+                    mul3(
+                        (ai as u256) * factor_i,
+                        ri,
+                        get_typed_lptok_issued<AssetIn>(self, i) * FACTOR_LPT
+                        ),
+                    bi
+                ) / FACTOR_LPT;
+            return (lpt as u64)
+        } else {
+            return 0
+        }
     }
 
-    public(friend) fun single_asset_withdrawal<Asset1, Asset2, Asset3, AssetOut>(
+    /// Given an amount of LP tokens and their type `o`, return
+    /// * the amounts of each of the pool's tokens to be given to the liquidity provider,
+    /// * the value given to the LP in terms of token `o`, and
+    /// * the remaining amount of token `o` to be given to the provider (if any) in case the
+    ///   process could not be completed.
+    ///
+    /// This function is internal to the RAMM, and it can/should only be used indirectly.
+    /// In other words, by being called in the client facing modules of the package, e.g.
+    /// `interface3` for 3-asset RAMMs.
+    public(friend) fun single_asset_withdrawal<AssetOut>(
         self: &mut RAMM,
         o: u8,
-        lp_token: Coin<LP<AssetOut>>,
-        _prices: VecMap<u8, u256>,
-        ctx: &mut TxContext
-    ): (Coin<Asset1>, Coin<Asset2>, Coin<Asset3>) {
-        // TODO
+        lpt: u64,
+        prices: VecMap<u8, u256>,
+        factors_for_prices: VecMap<u8, u256>,
+    ): WithdrawalOutput {
+        let lpt: u256 = (lpt as u256);
 
-        let lp_token = coin::into_balance(lp_token);
-        let lp_token_value = balance::value(&lp_token);
-        let curr_lpt_bal = vec_map::get_mut(&mut self.lp_tokens_issued, &o);
-        let curr_typed_lpt_bal = bag::borrow_mut<u8, Supply<LP<AssetOut>>>(&mut self.typed_lp_tokens_issued, o);
-        balance::decrease_supply(curr_typed_lpt_bal, lp_token);
-        *curr_lpt_bal = *curr_lpt_bal - (lp_token_value as u256);
+        let amounts_out = vec_map::empty<u8, u256>();
+        // Required to initialize this `VecMap` to zeroes, or `liquidity_withdrawal`
+        // will fail.
+        let t: u8 = 0;
+        while (t < get_asset_count(self)) {
+            vec_map::insert(&mut amounts_out, t, 0);
+            t = t + 1;
+        };
 
-        (coin::zero<Asset1>(ctx), coin::zero<Asset2>(ctx), coin::zero<Asset3>(ctx))
+        let a_remaining: &mut u256 = &mut 0;
+        let factor_o: u256 = get_fact_for_bal(self, o);
+        let bo: u256 = get_typed_bal<AssetOut>(self, o) * factor_o;
+        let imb_ratios: VecMap<u8, u256> = imbalance_ratios(self, &prices, &factors_for_prices);
+        let ao: &mut u256 = &mut 0;
+        let (_B, _L): (u256, u256) = compute_B_and_L(self, &prices, &factors_for_prices);
+
+        // Miguel's notes:
+        // The liquidity provider receives `0` token o.
+        // We continue the withdrawal with another token.
+
+        // This corresponds to Case 2 in the whitepaper's "Liquidity Withdrawal" section
+        if (get_bal(self, o) == 0) {
+            *ao = div(mul(lpt * FACTOR_LPT, _B), _L) / factor_o;
+            *a_remaining = *ao;
+        };
+
+        // Case 1
+        if (get_bal(self, o) != 0) {
+            let ro: u256 = *vec_map::get(&imb_ratios, &o);
+            let _Lo: u256 = get_typed_lptok_issued<AssetOut>(self, o) * factor_o;
+
+            // Case 1.1
+            if (lpt < get_typed_lptok_issued<AssetOut>(self, o)) {
+                *ao = div(mul(lpt * FACTOR_LPT, bo), mul(_Lo, ro)) / factor_o;
+                let max_token_o: &mut u256 = &mut 0;
+
+                if (ONE - DELTA < ro) {
+                    let min_token_o: u256 = div(mul3(_B, (get_lptok_issued(self, o) - lpt) * FACTOR_LPT, ONE - DELTA), _L) / factor_o;
+                    *max_token_o = get_bal(self, o) - min_token_o;
+                } else {
+                    *max_token_o = div(mul(lpt * FACTOR_LPT, bo), _Lo) / factor_o;
+                };
+
+                let amounts_out_o: &mut u256 = vec_map::get_mut(&mut amounts_out, &o);
+                // Case 1.1.1
+                if (*ao <= *max_token_o) {
+                    *amounts_out_o = *amounts_out_o + *ao;
+                    return WithdrawalOutput { amounts: amounts_out, value: *ao, remaining: 0}
+                };
+                // Case 1.1.2
+                if (*ao > *max_token_o) {
+                    *amounts_out_o = *amounts_out_o + *max_token_o;
+                    *a_remaining = *ao - *max_token_o;
+                    let imb_ratio_o = vec_map::get_mut(&mut imb_ratios, &o);
+                    // to avoid choosing token o again in the next steps
+                    *imb_ratio_o = 0;
+                    // Withdrawal continued with different token
+                };
+            } else {
+                *ao = div(bo, ro) / factor_o;
+                let amount_out_o = vec_map::get_mut(&mut amounts_out, &o);
+                if (*ao <= get_bal(self, o)) {
+                    *amount_out_o = *amount_out_o + *ao;
+                    return WithdrawalOutput { amounts: amounts_out, value: *ao, remaining: 0}
+                };
+                if (*ao > get_bal(self, o)) {
+                    *amount_out_o = *amount_out_o + get_bal(self, o);
+                    *a_remaining = *ao - get_bal(self, o);
+                    let imb_ratio_o = vec_map::get_mut(&mut imb_ratios, &o);
+                    // to avoid choosing token o again in the next steps
+                    *imb_ratio_o = 0;
+                    // Withdrawal continued with different token
+                };
+            };
+        };
+
+        *vec_map::get_mut(&mut imb_ratios, &o) = 0;
+
+        let j: u8 = 0;
+        while (j < get_asset_count(self)) {
+            let max_imb_ratio: &mut u256 = &mut 0;
+            let index: &mut u8 = &mut copy o;
+
+            let l: u8 = 0;
+            while (l < get_asset_count(self)) {
+                if (*max_imb_ratio < *vec_map::get(&imb_ratios, &l)) {
+                    *index = l;
+                    *max_imb_ratio = *vec_map::get(&imb_ratios, &l);
+                };
+
+                let k: u8 = *index;
+                // We set imb_ratios[k] = 0 to avoid choosing index k again.
+                *vec_map::get_mut(&mut imb_ratios, &k) = 0;
+
+                if (*a_remaining != 0 && *max_imb_ratio != 0) {
+                    let factor_k: u256 = get_fact_for_bal(self, k);
+                    let ak: u256 =
+                        div(
+                            mul(
+                                *a_remaining * factor_o,
+                                *vec_map::get(&prices, &o) * *vec_map::get(&factors_for_prices, &o)
+                            ),
+                            *vec_map::get(&prices, &k) * *vec_map::get(&factors_for_prices, &k)
+                        ) / factor_k;
+                    let _Lk: u256 = get_lptok_issued(self, k) * FACTOR_LPT;
+                    // Mk = bk-(1.0-DELTA)*Lk*B/L
+                    let min_token_k: u256 = div(mul3(_B, _Lk, ONE - DELTA), _L) / factor_k;
+                    let max_token_k: u256 = get_bal(self, k) - min_token_k;
+                    let amount_out_k: &mut u256 = vec_map::get_mut(&mut amounts_out, &k);
+
+                    if (ak <= max_token_k) {
+                        *amount_out_k = *amount_out_k + ak;
+                        // The liquidity provider receives `ak` units of token `k`.
+                        *a_remaining = 0;
+                    };
+                    if (ak > max_token_k) {
+                        *amount_out_k = *amount_out_k + max_token_k;
+                        // The liquidity provider receives `max_token_k` token `k`.
+                        // The value of `max_token_k` in terms of token `o` is `max_token_k*prices[k]/prices[o]`
+                        let value_max_token_k: u256 =
+                            div(
+                                mul(
+                                    max_token_k * factor_k,
+                                    *vec_map::get(&prices, &k) * *vec_map::get(&factors_for_prices, &k)
+                                ),
+                                *vec_map::get(&prices, &o) * *vec_map::get(&factors_for_prices, &o)
+                            ) / factor_o;
+                            *a_remaining = *a_remaining - value_max_token_k;
+                    };
+                };
+
+                l = l + 1;
+            };
+
+            j = j + 1;
+        };
+
+        WithdrawalOutput {amounts: amounts_out, value: *ao, remaining: *a_remaining}
+
     }
-
 }
