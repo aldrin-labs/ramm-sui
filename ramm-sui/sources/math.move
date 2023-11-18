@@ -6,8 +6,12 @@ module ramm_sui::math {
     use switchboard::math as sb_math;
 
     friend ramm_sui::ramm;
+
+    friend ramm_sui::interface2_tests;
+    friend ramm_sui::interface3_tests;
     friend ramm_sui::math_tests;
     friend ramm_sui::test_util;
+    friend ramm_sui::volatility2_tests;
 
     const ENegativeSbD: u64 = 0;
     const EMulOverflow: u64 = 1;
@@ -42,17 +46,29 @@ module ramm_sui::math {
         res
     }
 
-    /// Convert an `switchboard::aggregator::SwitchboardDecimal` to a `u256`.
+    /// Given a `switchboard::aggregator::SwitchboardDecimal`, returns:
+    /// * the price as a `u256`
+    /// * the scaling factor by which the price can be multiplied in order to bring it to `prec`
+    ///   decimal places of precision
     ///
     /// # Aborts
     ///
-    /// If the `SwitchboardDecimal`'s `neg`ative flag was set to `true`.
+    /// * If the `SwitchboardDecimal`'s `neg`ative flag was set to `true`.
+    /// * If the `SwitchboardDecimal`'s `scaling_factor` is more than `prec`; in practice
+    ///   this will not happen because it can be at most `9`; see documentation for
+    ///   `SwitchboardDecimal`
     public(friend) fun sbd_to_price_info(sbd: sb_math::SwitchboardDecimal, prec: u8): (u256, u256) {
         let (value, scaling_factor, neg) = sb_math::unpack(sbd);
         assert!(!neg, ENegativeSbD);
 
         ((value as u256), pow_u256(10u256, prec - scaling_factor))
 
+    }
+
+    /// Given a `u256` value, forecefully clamp it to the range `[0, max]`.
+    public(friend) fun clamp(val: u256, max: u256): u256 {
+        if (val >= max) { return max };
+        val
     }
 
     /// Raise a `base: u256` to the power of a `u8` `exp`onent.
@@ -90,6 +106,13 @@ module ramm_sui::math {
         result
     }
 
+    /// Given `x`, `y` and `z` with `prec` decimal places of precision, and at most `max_prec`
+    /// places, calculate `x * y * z` with `prec` places, and at most `max_prec`.
+    ///
+    /// # Aborts
+    ///
+    /// * If any operand overflows past `pow(10, max_prec)`
+    /// * If any intermediate/final results overflow past `pow(10, max_prec)`
     public(friend) fun mul3(x: u256, y: u256, z: u256, prec: u8, max_prec: u8): u256 {
         mul(x, mul(y, z, prec, max_prec), prec, max_prec)
     }
@@ -377,17 +400,6 @@ module ramm_sui::math {
         let balance_after_o: &mut u256 = vec_map::get_mut(&mut balances_after, &o);
         *balance_after_o = *balance_after_o - ao;
 
-        let imb_ratios_before_trade: VecMap<u8, u256> = imbalance_ratios(
-            &balances_before,
-            lp_tokens_issued,
-            prices,
-            factors_for_balances,
-            factor_lpt,
-            factors_for_prices,
-            prec,
-            max_prec
-        );
-
         let imb_ratios_after_trade: VecMap<u8, u256> = imbalance_ratios(
             &balances_after,
             lp_tokens_issued,
@@ -399,17 +411,13 @@ module ramm_sui::math {
             max_prec
         );
 
-        let imb_i_before = *vec_map::get(&imb_ratios_before_trade, &i);
         let imb_i_after = *vec_map::get(&imb_ratios_after_trade, &i);
-        let imb_o_before = *vec_map::get(&imb_ratios_before_trade, &o);
         let imb_o_after = *vec_map::get(&imb_ratios_after_trade, &o);
 
         let condition1: bool = one - delta <= imb_o_after;
         let condition2: bool = imb_i_after <= one + delta;
-        let condition3: bool =
-            (imb_i_after < imb_i_before + delta / 5) && (imb_o_after > imb_o_before - delta / 5);
 
-        condition1 && condition2 && condition3
+        condition1 && condition2
     }
 
     /// Returns the scaled base fee and leverage parameter for a trade where token `i` goes into the
@@ -445,5 +453,144 @@ module ramm_sui::math {
         let scaled_leverage: u256 = div(mul(adjust_o, base_leverage, prec, max_prec), adjust_i, prec, max_prec);
 
         (scaled_fee, scaled_leverage)
+    }
+
+    /// Returns the volatility fee as a `u256` with `prec` decimal places.
+    ///
+    /// The value will represent a percentage i.e. a value between `0` and `one`, where
+    /// `one` is the value `1` with `prec` decimal places.
+    public(friend) fun compute_volatility_fee(
+        previous_price: u256,
+        previous_price_timestamp: u64,
+        new_price: u256,
+        new_price_timestamp: u64,
+        // mutable reference to most recently stored volatility parameter for given asset
+        current_volatility_param: u256,
+        // mutable reference to timestamp of most recently stored volatility parameter for
+        // given asset
+        current_volatility_timestamp: u64,
+        prec: u8,
+        max_prec: u8,
+        one: u256,
+        // maximum trade size, `const` defined in main module
+        mu: u256,
+        base_fee: u256,
+        // length of sliding window in seconds, `const` defined in main module
+        tau: u64
+    ): u256 {
+        // A price change of roughly 0.17% should be enough to trigger a volatility fee.
+        let maximum_tolerable_change: u256 =
+            mul3(
+                2 * one,
+                mul3(one - mu, one - mu,one - mu, prec, max_prec),
+                base_fee,
+                prec,
+                max_prec
+            );
+
+        // In case the time difference between price data is above our defined
+        // threshold of 1 minute (60 seconds)
+        if (new_price_timestamp - previous_price_timestamp > tau) {
+            0
+        }
+        // In case the previous and current price data are not too far apart
+        else {
+            // The previously recorded price being zero means that no volatility indices
+            // or timestamps for this asset have yet been calculated, and that this is
+            // the first time the RAMM queries this asset's pricing oracle.
+            //
+            // As such, a sensible result is a volatility fee of simply 0%.
+            if (previous_price == 0) { return 0 };
+
+            // Sui Move doesn't support negative numbers, so the below check is required
+            // to avoid aborting the program when performing the subtraction
+            let price_change: u256;
+            if (new_price >= previous_price) {
+                price_change = (new_price - previous_price) * one / previous_price;
+            } else {
+                price_change = (previous_price - new_price) * one / previous_price;
+            };
+
+            let price_change_param: u256;
+            if (price_change > maximum_tolerable_change) {
+                price_change_param = price_change;
+            } else {
+                price_change_param = 0;
+            };
+
+            if (new_price_timestamp - current_volatility_timestamp > tau) {
+                price_change_param
+            } else {
+                if (price_change_param >= current_volatility_param) {
+                    price_change_param
+                } else {
+                    current_volatility_param
+                }
+            }
+        }
+    }
+
+    /// Update a given asset's volatility index/timestamp.
+    ///
+    /// The two mutable references this function is passed will correspond to fields in the
+    /// RAMM structure, whose update (or not) hinges on the result of this function.
+    ///
+    /// The RAMM stores, for every asset, the following pricing data:
+    /// 1. the most recently queried oracle price (referred to as "previous"), and
+    ///     - its timestamp
+    /// 2. the most recently calculated volatility index in the last `TAU` seconds, and
+    ///     - a timestamp for this as well
+    ///
+    /// This function uses an asset's "previous"ly stored price/its timestamp, and the
+    /// most recently queried price/timestamp pair, referred to as "new", to decide whether to
+    /// update the asset's stored information.
+    public(friend) fun update_volatility_data(
+        previous_price: u256,
+        previous_price_timestamp: u64,
+        new_price: u256,
+        new_price_timestamp: u64,
+        // mutable reference to most recently stored volatility parameter for given asset
+        stored_volatility_param: &mut u256,
+        // mutable reference to timestamp of most recently stored volatility parameter for
+        // given asset
+        stored_volatility_timestamp: &mut u64,
+        // volatility calculated from all the above parameters
+        calculated_volatility_fee: u256,
+        one: u256,
+        // length of sliding window in seconds, `const` defined in main module
+        tau: u64
+    ) {
+        let current_volatility_param: u256 = *stored_volatility_param;
+        let current_volatility_timestamp: u64 = *stored_volatility_timestamp;
+
+        let price_change: u256;
+
+        // If the previously recorded price is 0, this is the first volatility index calculation
+        // for this asset; it is undefined, so 0 is chosen.
+        if (previous_price == 0) {
+            price_change = 0;
+        } else {
+            if (new_price >= previous_price) {
+                price_change = (new_price - previous_price) * one / previous_price;
+            } else {
+                price_change = (previous_price - new_price) * one / previous_price;
+            };
+        };
+
+        // In case the time difference between price data is below our defined
+        // threshold of 1 minute (60 seconds)
+        if (new_price_timestamp - previous_price_timestamp <= tau) {
+            // if the currently recorded volatility data is older then `TAU`, then
+            // unconditionally update it
+            if (new_price_timestamp - current_volatility_timestamp > tau) {
+                *stored_volatility_param = calculated_volatility_fee;
+                *stored_volatility_timestamp = new_price_timestamp;
+            } else {
+                if (current_volatility_param <= price_change) {
+                    *stored_volatility_param = calculated_volatility_fee;
+                    *stored_volatility_timestamp = new_price_timestamp;
+                } else {};
+            }
+        }
     }
 }

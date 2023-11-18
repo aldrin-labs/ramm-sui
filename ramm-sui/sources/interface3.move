@@ -13,11 +13,13 @@ module ramm_sui::interface3 {
     use switchboard::aggregator::Aggregator;
 
     use ramm_sui::events::{Self, TradeIn, TradeOut};
-    use ramm_sui::ramm::{Self, LP, RAMM, RAMMAdminCap};
+    use ramm_sui::ramm::{Self, LP, RAMM, RAMMAdminCap, TradeOutput};
 
     const THREE: u8 = 3;
 
     /// Amounts of LP tokens are considered to have 9 decimal places.
+    ///
+    /// Sui Move does not allow the export of `const`s, so this is a redefinition from `ramm.move`.
     ///
     /// This `const` factor is used when performing calculations with LP tokens.
     const FACTOR_LPT: u256 = 1_000_000_000_000 / 1_000_000_000; // FACTOR_LPT = 10**(PRECISION_DECIMAL_PLACES-LP_TOKENS_DECIMAL_PLACES)
@@ -65,25 +67,109 @@ module ramm_sui::interface3 {
         let o_bal: u64 = (ramm::get_bal(self, o) as u64);
         assert!(o_bal > 0, ERAMMInsufficientBalance);
 
+        // The trade's size should be checked before oracles are accessed, to spare the trouble
+        // of locking the oracle object only to have the tx abort anyway.
+        ramm::check_trade_amount_in<AssetIn>(self, (coin::value(&amount_in) as u256));
+
         let oth = ramm::get_asset_index<Other>(self);
 
-        let asset_prices = vec_map::empty<u8, u256>();
+        let new_prices = vec_map::empty<u8, u256>();
         let factors_for_prices = vec_map::empty<u8, u256>();
-        ramm::check_feed_and_get_price(self, i, feed_in, &mut asset_prices, &mut factors_for_prices);
-        ramm::check_feed_and_get_price(self, o, feed_out, &mut asset_prices, &mut factors_for_prices);
-        ramm::check_feed_and_get_price(self, oth, other, &mut asset_prices, &mut factors_for_prices);
+        let new_price_timestamps = vec_map::empty<u8, u64>();
+        ramm::check_feed_and_get_price_data(
+            self,
+            i,
+            feed_in,
+            &mut new_prices,
+            &mut factors_for_prices,
+            &mut new_price_timestamps
+        );
+        ramm::check_feed_and_get_price_data(
+            self,
+            o,
+            feed_out,
+            &mut new_prices,
+            &mut factors_for_prices,
+            &mut new_price_timestamps
+        );
+        ramm::check_feed_and_get_price_data(
+            self,
+            oth,
+            other,
+            &mut new_prices,
+            &mut factors_for_prices,
+            &mut new_price_timestamps
+        );
+
+        /*
+        Calculate volatility data to be used in trading business logic
+        */
+
+        let in_vol_fee: u256 = ramm::compute_volatility_fee(
+            self,
+            i,
+            *vec_map::get(&new_prices, &i),
+            *vec_map::get(&new_price_timestamps, &i)
+        );
+        let out_vol_fee: u256 = ramm::compute_volatility_fee(
+            self,
+            o,
+            *vec_map::get(&new_prices, &o),
+            *vec_map::get(&new_price_timestamps, &o)
+        );
+        let other_vol: u256 = ramm::compute_volatility_fee(
+            self,
+            oth,
+            *vec_map::get(&new_prices, &oth),
+            *vec_map::get(&new_price_timestamps, &oth)
+        );
+        let calculated_volatility_fee: u256 = in_vol_fee + out_vol_fee;
+
+        /*
+        */
 
         let amount_in_u64: u64 = coin::value(&amount_in);
-        let trade: ramm::TradeOutput = ramm::trade_i<AssetIn, AssetOut>(
+        let trade: TradeOutput = ramm::trade_i<AssetIn, AssetOut>(
             self,
             i,
             o,
             (amount_in_u64 as u256),
-            asset_prices,
-            factors_for_prices
+            new_prices,
+            factors_for_prices,
+            calculated_volatility_fee
         );
 
+        /*
+        Update pricing and volatility data for every asset
+        */
+
+        let previous_price_i: u256 = ramm::get_prev_prc(self, i);
+        let previous_price_timestamp_i = ramm::get_prev_prc_tmstmp(self, i);
+        let previous_price_o: u256 = ramm::get_prev_prc(self, o);
+        let previous_price_timestamp_o = ramm::get_prev_prc_tmstmp(self, o);
+        let previous_price_oth: u256 = ramm::get_prev_prc(self, oth);
+        let previous_price_timestamp_oth = ramm::get_prev_prc_tmstmp(self, oth);
+
+        let new_price_i: u256 = *vec_map::get(&new_prices, &i);
+        let new_timestamp_i: u64 = *vec_map::get(&new_price_timestamps, &i);
+        let new_price_o: u256 = *vec_map::get(&new_prices, &o);
+        let new_timestamp_o: u64 = *vec_map::get(&new_price_timestamps, &o);
+        let new_price_oth: u256 = *vec_map::get(&new_prices, &oth);
+        let new_timestamp_oth: u64 = *vec_map::get(&new_price_timestamps, &oth);
+
+        ramm::update_volatility_data(self, i, previous_price_i, previous_price_timestamp_i, new_price_i, new_timestamp_i, in_vol_fee);
+        ramm::update_volatility_data(self, o, previous_price_o, previous_price_timestamp_o, new_price_o, new_timestamp_o, out_vol_fee);
+        ramm::update_volatility_data(self, oth, previous_price_oth, previous_price_timestamp_oth, new_price_oth, new_timestamp_oth, other_vol);
+        ramm::update_pricing_data<AssetIn>(self, new_price_i, new_timestamp_i);
+        ramm::update_pricing_data<AssetOut>(self, new_price_o, new_timestamp_o);
+        ramm::update_pricing_data<Other>(self, new_price_oth, new_timestamp_oth);
+
+        /*
+        */
+
         let amount_out_u256: u256 = ramm::amount(&trade);
+        ramm::check_trade_amount_out<AssetOut>(self, amount_out_u256);
+
         let amount_out_u64: u64 = (amount_out_u256 as u64);
         if (ramm::execute(&trade) && amount_out_u64 >= min_ao) {
             let amount_in: Balance<AssetIn> = coin::into_balance(amount_in);
@@ -171,21 +257,104 @@ module ramm_sui::interface3 {
         };
         let oth = ramm::get_asset_index<Other>(self);
 
-        let asset_prices = vec_map::empty<u8, u256>();
-        let factors_for_prices = vec_map::empty<u8, u256>();
-        ramm::check_feed_and_get_price(self, i, feed_in, &mut asset_prices, &mut factors_for_prices);
-        ramm::check_feed_and_get_price(self, o, feed_out, &mut asset_prices, &mut factors_for_prices);
-        ramm::check_feed_and_get_price(self, oth, other, &mut asset_prices, &mut factors_for_prices);
+        // The trade's size should be checked before oracles are accessed, to spare the trouble
+        // of locking the oracle object only to have the tx abort anyway.
+        ramm::check_trade_amount_out<AssetOut>(self, (amount_out as u256));
 
-        let trade = ramm::trade_o<AssetIn, AssetOut>(
+        let new_prices = vec_map::empty<u8, u256>();
+        let factors_for_prices = vec_map::empty<u8, u256>();
+        let new_price_timestamps = vec_map::empty<u8, u64>();
+        ramm::check_feed_and_get_price_data(
+            self,
+            i,
+            feed_in,
+            &mut new_prices,
+            &mut factors_for_prices,
+            &mut new_price_timestamps
+        );
+        ramm::check_feed_and_get_price_data(
+            self,
+            o,
+            feed_out,
+            &mut new_prices,
+            &mut factors_for_prices,
+            &mut new_price_timestamps
+        );
+        ramm::check_feed_and_get_price_data(
+            self,
+            oth,
+            other,
+            &mut new_prices,
+            &mut factors_for_prices,
+            &mut new_price_timestamps
+        );
+
+        /*
+        Calculate volatility data to be used in trading business logic
+        */
+
+        let in_vol_fee: u256 = ramm::compute_volatility_fee(
+            self,
+            i,
+            *vec_map::get(&new_prices, &i),
+            *vec_map::get(&new_price_timestamps, &i)
+        );
+        let out_vol_fee: u256 = ramm::compute_volatility_fee(
+            self,
+            o,
+            *vec_map::get(&new_prices, &o),
+            *vec_map::get(&new_price_timestamps, &o)
+        );
+        let other_vol: u256 = ramm::compute_volatility_fee(
+            self,
+            oth,
+            *vec_map::get(&new_prices, &oth),
+            *vec_map::get(&new_price_timestamps, &oth)
+        );
+        let calculated_volatility_fee: u256 = in_vol_fee + out_vol_fee;
+
+        /*
+        */
+
+        let trade: TradeOutput = ramm::trade_o<AssetIn, AssetOut>(
             self,
             i,
             o,
             amount_out,
-            asset_prices,
-            factors_for_prices
+            new_prices,
+            factors_for_prices,
+            calculated_volatility_fee
         );
 
+        /*
+        Update pricing and volatility data for every asset
+        */
+
+        let previous_price_i: u256 = ramm::get_prev_prc(self, i);
+        let previous_price_timestamp_i = ramm::get_prev_prc_tmstmp(self, i);
+        let previous_price_o: u256 = ramm::get_prev_prc(self, o);
+        let previous_price_timestamp_o = ramm::get_prev_prc_tmstmp(self, o);
+        let previous_price_oth: u256 = ramm::get_prev_prc(self, oth);
+        let previous_price_timestamp_oth = ramm::get_prev_prc_tmstmp(self, oth);
+
+        let new_price_i: u256 = *vec_map::get(&new_prices, &i);
+        let new_timestamp_i: u64 = *vec_map::get(&new_price_timestamps, &i);
+        let new_price_o: u256 = *vec_map::get(&new_prices, &o);
+        let new_timestamp_o: u64 = *vec_map::get(&new_price_timestamps, &o);
+        let new_price_oth: u256 = *vec_map::get(&new_prices, &oth);
+        let new_timestamp_oth: u64 = *vec_map::get(&new_price_timestamps, &oth);
+
+        ramm::update_volatility_data(self, i, previous_price_i, previous_price_timestamp_i, new_price_i, new_timestamp_i, in_vol_fee);
+        ramm::update_volatility_data(self, o, previous_price_o, previous_price_timestamp_o, new_price_o, new_timestamp_o, out_vol_fee);
+        ramm::update_volatility_data(self, oth, previous_price_oth, previous_price_timestamp_oth, new_price_oth, new_timestamp_oth, other_vol);
+        ramm::update_pricing_data<AssetIn>(self, new_price_i, new_timestamp_i);
+        ramm::update_pricing_data<AssetOut>(self, new_price_o, new_timestamp_o);
+        ramm::update_pricing_data<Other>(self, new_price_oth, new_timestamp_oth);
+
+        /*
+        */
+
+        ramm::check_trade_amount_in<AssetIn>(self, ramm::amount(&trade));
         let trade_amount = (ramm::amount(&trade) as u64);
 
         let max_ai_u64: u64 = coin::value(&max_ai);
@@ -276,13 +445,77 @@ module ramm_sui::interface3 {
         let oth = ramm::get_asset_index<Other>(self);
         let anoth = ramm::get_asset_index<Another>(self);
 
-        let asset_prices = vec_map::empty<u8, u256>();
+        let new_prices = vec_map::empty<u8, u256>();
         let factors_for_prices = vec_map::empty<u8, u256>();
-        ramm::check_feed_and_get_price(self, i, feed_in, &mut asset_prices, &mut factors_for_prices);
-        ramm::check_feed_and_get_price(self, oth, other, &mut asset_prices, &mut factors_for_prices);
-        ramm::check_feed_and_get_price(self, anoth, another, &mut asset_prices, &mut factors_for_prices);
+        let new_price_timestamps = vec_map::empty<u8, u64>();
+        ramm::check_feed_and_get_price_data(
+            self, i, feed_in, &mut new_prices, &mut factors_for_prices, &mut new_price_timestamps
+        );
+        ramm::check_feed_and_get_price_data(
+            self, oth, other, &mut new_prices, &mut factors_for_prices, &mut new_price_timestamps
+        );
+        ramm::check_feed_and_get_price_data(
+            self, anoth, another, &mut new_prices, &mut factors_for_prices, &mut new_price_timestamps
+        );
 
-        let lpt: u64 = ramm::liq_dep<AssetIn>(self, i, coin::value(&amount_in), asset_prices, factors_for_prices);
+        /*
+        Calculate volatility data to be used in trading business logic
+
+        Liquidity deposits do not levy a volatility fee, but since they access oracle data
+        they must update price/volatility data to keep it as current as possible.
+        */
+
+        let in_vol: u256 = ramm::compute_volatility_fee(
+            self,
+            i,
+            *vec_map::get(&new_prices, &i),
+            *vec_map::get(&new_price_timestamps, &i)
+        );
+        let oth_vol: u256 = ramm::compute_volatility_fee(
+            self,
+            oth,
+            *vec_map::get(&new_prices, &oth),
+            *vec_map::get(&new_price_timestamps, &oth)
+        );
+        let anoth_vol: u256 = ramm::compute_volatility_fee(
+            self,
+            anoth,
+            *vec_map::get(&new_prices, &anoth),
+            *vec_map::get(&new_price_timestamps, &anoth)
+        );
+
+        /*
+        */
+
+        let lpt: u64 = ramm::liq_dep<AssetIn>(self, i, coin::value(&amount_in), new_prices, factors_for_prices);
+
+        /*
+        Update pricing and volatility data for every asset
+        */
+
+        let previous_price_i: u256 = ramm::get_prev_prc(self, i);
+        let previous_price_timestamp_i = ramm::get_prev_prc_tmstmp(self, i);
+        let previous_price_oth: u256 = ramm::get_prev_prc(self, oth);
+        let previous_price_timestamp_oth = ramm::get_prev_prc_tmstmp(self, oth);
+        let previous_price_anoth: u256 = ramm::get_prev_prc(self, anoth);
+        let previous_price_timestamp_anoth = ramm::get_prev_prc_tmstmp(self, anoth);
+
+        let new_price_i: u256 = *vec_map::get(&new_prices, &i);
+        let new_timestamp_i: u64 = *vec_map::get(&new_price_timestamps, &i);
+        let new_price_oth: u256 = *vec_map::get(&new_prices, &oth);
+        let new_timestamp_oth: u64 = *vec_map::get(&new_price_timestamps, &oth);
+        let new_price_anoth: u256 = *vec_map::get(&new_prices, &anoth);
+        let new_timestamp_anoth: u64 = *vec_map::get(&new_price_timestamps, &anoth);
+
+        ramm::update_volatility_data(self, i, previous_price_i, previous_price_timestamp_i, new_price_i, new_timestamp_i, in_vol);
+        ramm::update_volatility_data(self, oth, previous_price_oth, previous_price_timestamp_oth, new_price_oth, new_timestamp_oth, oth_vol);
+        ramm::update_volatility_data(self, anoth, previous_price_anoth, previous_price_timestamp_anoth, new_price_anoth, new_timestamp_anoth, anoth_vol);
+        ramm::update_pricing_data<AssetIn>(self, new_price_i, new_timestamp_i);
+        ramm::update_pricing_data<Other>(self, new_price_oth, new_timestamp_oth);
+        ramm::update_pricing_data<Another>(self, new_price_anoth, new_timestamp_anoth);
+
+        /*
+        */
 
         if (lpt == 0) {
             let amount_in_u64: u64 = coin::value(&amount_in);
@@ -347,11 +580,54 @@ module ramm_sui::interface3 {
         // be specified, and the type of the outgoing asset as well, separately.
         let o   = ramm::get_asset_index<AssetOut>(self);
 
-        let asset_prices = vec_map::empty<u8, u256>();
+        let new_prices = vec_map::empty<u8, u256>();
         let factors_for_prices = vec_map::empty<u8, u256>();
-        ramm::check_feed_and_get_price(self, fst, feed1, &mut asset_prices, &mut factors_for_prices);
-        ramm::check_feed_and_get_price(self, snd, feed2, &mut asset_prices, &mut factors_for_prices);
-        ramm::check_feed_and_get_price(self, trd, feed3, &mut asset_prices, &mut factors_for_prices);
+        let new_price_timestamps = vec_map::empty<u8, u64>();
+        ramm::check_feed_and_get_price_data(
+            self,
+            fst,
+            feed1,
+            &mut new_prices,
+            &mut factors_for_prices,
+            &mut new_price_timestamps
+        );
+        ramm::check_feed_and_get_price_data(
+            self,
+            snd,
+            feed2,
+            &mut new_prices,
+            &mut factors_for_prices,
+            &mut new_price_timestamps
+        );
+        ramm::check_feed_and_get_price_data(
+            self,
+            trd,
+            feed3,
+            &mut new_prices,
+            &mut factors_for_prices,
+            &mut new_price_timestamps
+        );
+
+        /*
+        Calculate volatility data to be used when updating the RAMM's data.
+        */
+
+        let fst_vol_fee: u256 = ramm::compute_volatility_fee(
+            self, fst, *vec_map::get(&new_prices, &fst), *vec_map::get(&new_price_timestamps, &fst)
+        );
+        let snd_vol_fee: u256 = ramm::compute_volatility_fee(
+            self, snd, *vec_map::get(&new_prices, &snd), *vec_map::get(&new_price_timestamps, &snd)
+        );
+        let trd_vol_fee: u256 = ramm::compute_volatility_fee(
+            self, trd, *vec_map::get(&new_prices, &trd), *vec_map::get(&new_price_timestamps, &trd)
+        );
+
+        let volatility_fees: VecMap<u8, u256> = vec_map::empty();
+        vec_map::insert(&mut volatility_fees, fst, fst_vol_fee);
+        vec_map::insert(&mut volatility_fees, snd, snd_vol_fee);
+        vec_map::insert(&mut volatility_fees, trd, trd_vol_fee);
+        /*
+        */
 
         let lpt_u64: u64 = coin::value(&lp_token);
         let factor_o: u256 = ramm::get_fact_for_bal(self, o);
@@ -360,9 +636,38 @@ module ramm_sui::interface3 {
                 self,
                 o,
                 lpt_u64,
-                asset_prices,
+                new_prices,
                 factors_for_prices,
+                volatility_fees
             );
+
+        /*
+        Update pricing and volatility data for every asset
+        */
+
+        let previous_price_fst: u256 = ramm::get_prev_prc(self, fst);
+        let previous_price_timestamp_fst = ramm::get_prev_prc_tmstmp(self, fst);
+        let previous_price_snd: u256 = ramm::get_prev_prc(self, snd);
+        let previous_price_timestamp_snd = ramm::get_prev_prc_tmstmp(self, snd);
+        let previous_price_trd: u256 = ramm::get_prev_prc(self, trd);
+        let previous_price_timestamp_trd = ramm::get_prev_prc_tmstmp(self, trd);
+
+        let new_price_fst: u256 = *vec_map::get(&new_prices, &fst);
+        let new_timestamp_fst: u64 = *vec_map::get(&new_price_timestamps, &fst);
+        let new_price_snd: u256 = *vec_map::get(&new_prices, &snd);
+        let new_timestamp_snd: u64 = *vec_map::get(&new_price_timestamps, &snd);
+        let new_price_trd: u256 = *vec_map::get(&new_prices, &trd);
+        let new_timestamp_trd: u64 = *vec_map::get(&new_price_timestamps, &trd);
+
+        ramm::update_volatility_data(self, fst, previous_price_fst, previous_price_timestamp_fst, new_price_fst, new_timestamp_fst, fst_vol_fee);
+        ramm::update_volatility_data(self, snd, previous_price_snd, previous_price_timestamp_snd, new_price_snd, new_timestamp_snd, snd_vol_fee);
+        ramm::update_volatility_data(self, trd, previous_price_trd, previous_price_timestamp_trd, new_price_trd, new_timestamp_trd, trd_vol_fee);
+        ramm::update_pricing_data<Asset1>(self, new_price_fst, new_timestamp_fst);
+        ramm::update_pricing_data<Asset2>(self, new_price_snd, new_timestamp_snd);
+        ramm::update_pricing_data<Asset3>(self, new_price_trd, new_timestamp_trd);
+
+        /*
+        */
 
         let lpt_u256: u256 = (lpt_u64 as u256);
         let lpt_amount: &mut u256 = &mut (copy lpt_u256);
@@ -398,42 +703,46 @@ module ramm_sui::interface3 {
             transfer::public_transfer(lp_token, tx_context::sender(ctx));
         };
 
-        let amounts_out = ramm::amounts(&withdrawal_output);
+        let amounts_out: VecMap<u8, u256> = ramm::amounts(&withdrawal_output);
+        let fees: VecMap<u8, u256> = ramm::fees(&withdrawal_output);
 
         // Withdraw first asset in the RAMM for the liquidity provider
         let amount_fst: u256 = *vec_map::get(&amounts_out, &fst);
         if (amount_fst != 0) {
-            ramm::split_bal(self, fst, amount_fst);
-            let amount_out: Balance<Asset1> = ramm::split_typed_bal(self, fst, (amount_fst as u64));
-            let amount_out: Coin<Asset1> = coin::from_balance(amount_out, ctx);
-            transfer::public_transfer(amount_out, tx_context::sender(ctx));
+            let fee_fst: u256 = *vec_map::get(&fees, &fst);
+            let amount_fst: Coin<Asset1> = ramm::liq_withdraw_helper<Asset1>(self, fst, amount_fst, fee_fst, ctx);
+            transfer::public_transfer(amount_fst, tx_context::sender(ctx));
         };
 
         // Withdraw second asset in the RAMM for the liquidity provider
         let amount_snd: u256 = *vec_map::get(&amounts_out, &snd);
         if (amount_snd != 0) {
-            ramm::split_bal(self, snd, amount_snd);
-            let amount_out: Balance<Asset2> = ramm::split_typed_bal(self, snd, (amount_snd as u64));
-            let amount_out: Coin<Asset2> = coin::from_balance(amount_out, ctx);
-            transfer::public_transfer(amount_out, tx_context::sender(ctx));
+            let fee_snd: u256 = *vec_map::get(&fees, &snd);
+            let amount_snd: Coin<Asset2> = ramm::liq_withdraw_helper<Asset2>(self, snd, amount_snd, fee_snd, ctx);
+            transfer::public_transfer(amount_snd, tx_context::sender(ctx));
         };
 
         // Withdraw third asset in the RAMM for the liquidity provider
         let amount_trd: u256 = *vec_map::get(&amounts_out, &trd);
         if (amount_trd != 0) {
-            ramm::split_bal(self, trd, amount_trd);
-            let amount_out: Balance<Asset3> = ramm::split_typed_bal(self, trd, (amount_trd as u64));
-            let amount_out: Coin<Asset3> = coin::from_balance(amount_out, ctx);
-            transfer::public_transfer(amount_out, tx_context::sender(ctx));
+            let fee_trd: u256 = *vec_map::get(&fees, &trd);
+            let amount_trd: Coin<Asset3> = ramm::liq_withdraw_helper<Asset3>(self, trd, amount_trd, fee_trd, ctx);
+            transfer::public_transfer(amount_trd, tx_context::sender(ctx));
         };
 
+        // Build required data structures for liquidity withdrawal event emission.
+
         let amounts_out_u64: VecMap<TypeName, u64> = vec_map::empty();
+        let fees_u64: VecMap<TypeName, u64> = vec_map::empty();
         vec_map::insert(&mut amounts_out_u64, type_name::get<Asset1>(), (*vec_map::get(&amounts_out, &fst) as u64));
+        vec_map::insert(&mut fees_u64, type_name::get<Asset1>(), (*vec_map::get(&fees, &fst) as u64));
         if (vec_map::contains(&amounts_out, &snd)) {
             vec_map::insert(&mut amounts_out_u64, type_name::get<Asset2>(), (*vec_map::get(&amounts_out, &snd) as u64));
+            vec_map::insert(&mut fees_u64, type_name::get<Asset2>(), (*vec_map::get(&fees, &snd) as u64));
         };
         if (vec_map::contains(&amounts_out, &trd)) {
             vec_map::insert(&mut amounts_out_u64, type_name::get<Asset3>(), (*vec_map::get(&amounts_out, &trd) as u64));
+            vec_map::insert(&mut fees_u64, type_name::get<Asset3>(), (*vec_map::get(&fees, &trd) as u64));
         };
 
         events::liquidity_withdrawal_event(
@@ -441,7 +750,8 @@ module ramm_sui::interface3 {
             tx_context::sender(ctx),
             type_name::get<AssetOut>(),
             lpt_u64,
-            amounts_out_u64
+            amounts_out_u64,
+            fees_u64
         );
 
         ramm::check_ramm_invariants_3<Asset1, Asset2, Asset3>(self);
@@ -468,19 +778,23 @@ module ramm_sui::interface3 {
         let snd = ramm::get_asset_index<Asset2>(self);
         let trd = ramm::get_asset_index<Asset3>(self);
 
-        let fst = coin::from_balance(ramm::get_fees_for_asset<Asset1>(self, fst), ctx);
-        let snd = coin::from_balance(ramm::get_fees_for_asset<Asset2>(self, snd), ctx);
-        let trd = coin::from_balance(ramm::get_fees_for_asset<Asset3>(self, trd), ctx);
+        let fst: Coin<Asset1> = coin::from_balance(ramm::get_fees_for_asset<Asset1>(self, fst), ctx);
+        let snd: Coin<Asset2> = coin::from_balance(ramm::get_fees_for_asset<Asset2>(self, snd), ctx);
+        let trd: Coin<Asset3> = coin::from_balance(ramm::get_fees_for_asset<Asset3>(self, trd), ctx);
+
+        let value_fst: u64 = coin::value(&fst);
+        let value_snd: u64 = coin::value(&snd);
+        let value_trd: u64 = coin::value(&trd);
 
         let collected_fees: VecMap<TypeName, u64> = vec_map::empty();
-        vec_map::insert(&mut collected_fees, type_name::get<Asset1>(), coin::value(&fst));
-        vec_map::insert(&mut collected_fees, type_name::get<Asset2>(), coin::value(&snd));
-        vec_map::insert(&mut collected_fees, type_name::get<Asset3>(), coin::value(&trd));
+        vec_map::insert(&mut collected_fees, type_name::get<Asset1>(), value_fst);
+        vec_map::insert(&mut collected_fees, type_name::get<Asset2>(), value_snd);
+        vec_map::insert(&mut collected_fees, type_name::get<Asset3>(), value_trd);
 
         let fee_collector = ramm::get_fee_collector(self);
-        transfer::public_transfer(fst, fee_collector);
-        transfer::public_transfer(snd, fee_collector);
-        transfer::public_transfer(trd, fee_collector);
+        if (value_fst > 0) { transfer::public_transfer(fst, fee_collector); } else { coin::destroy_zero(fst); };
+        if (value_snd > 0) { transfer::public_transfer(snd, fee_collector); } else { coin::destroy_zero(snd); };
+        if (value_trd > 0) { transfer::public_transfer(trd, fee_collector); } else { coin::destroy_zero(trd); };
 
         events::fee_collection_event(
             ramm::get_id(self),

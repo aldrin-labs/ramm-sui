@@ -6,6 +6,7 @@ module ramm_sui::test_util {
     use sui::coin;
     use sui::object::{Self, ID};
     use sui::test_scenario::{Self, Scenario};
+    use sui::test_utils;
     use sui::tx_context::{Self, TxContext};
     use sui::vec_map::{Self, VecMap};
 
@@ -23,6 +24,43 @@ module ramm_sui::test_util {
     friend ramm_sui::interface2_tests;
     friend ramm_sui::interface3_safety_tests;
     friend ramm_sui::interface3_tests;
+    friend ramm_sui::volatility2_tests;
+    friend ramm_sui::volatility3_tests;
+
+    /// ----------------
+    /// Useful operators
+    /// ----------------
+    
+    /// Check that the first operand is stricly less (`<`) than the second.
+    public(friend) fun assert_lt(t1: u256, t2: u256) {
+        let res = t1 < t2;
+        if (!res) {
+            test_utils::print(b"Assertion failed:");
+            std::debug::print(&t1);
+            test_utils::print(b"is not strictly less than");
+            std::debug::print(&t2);
+            abort(0)
+        }
+    }
+
+    /// Compare two `u256`s  up to a given `eps: u256`.
+    ///
+    /// If the numbers are farther apart than `eps`, the assertion fails.
+    public(friend) fun assert_eq_eps(t1: u256, t2: u256, eps: u256) {
+        let sub: u256;
+        if (t1 > t2) { sub = t1 - t2; } else { sub = t2 - t1; };
+        if (!(sub <= eps)) {
+            test_utils::print(b"Assertion failed:");
+            test_utils::print(b"t1 is:");
+            std::debug::print(&t1);
+            test_utils::print(b"t2 is:");
+            std::debug::print(&t2);
+            test_utils::print(b"eps is");
+            std::debug::print(&eps);
+            test_utils::print(b"|t1 - t2| > eps");
+            abort(0)
+        }
+    }
 
     /// --------------------------------------------------------------------------------------------
     /// Coins used in testing - for coins to be using in the test*net*, see the `ramm-misc` package.
@@ -204,14 +242,14 @@ module ramm_sui::test_util {
             *vec_map::get(&asset_prices, &0),
             *vec_map::get(&asset_price_scales, &0),
             false,
-            100
+            0
         );
         let aggr2_id = create_write_share_aggregator(
             scenario,
             *vec_map::get(&asset_prices, &1),
             *vec_map::get(&asset_price_scales, &1),
             false,
-            100
+            0
         );
 
         test_scenario::next_tx(scenario, sender);
@@ -314,21 +352,21 @@ module ramm_sui::test_util {
             *vec_map::get(&asset_prices, &0),
             *vec_map::get(&asset_price_scales, &0),
             false,
-            100
+            0
         );
         let aggr2_id = create_write_share_aggregator(
             scenario,
             *vec_map::get(&asset_prices, &1),
             *vec_map::get(&asset_price_scales, &1),
             false,
-            100
+            0
         );
         let aggr3_id = create_write_share_aggregator(
             scenario,
             *vec_map::get(&asset_prices, &2),
             *vec_map::get(&asset_price_scales, &2),
             false,
-            100
+            0
         );
 
         test_scenario::next_tx(scenario, sender);
@@ -441,8 +479,8 @@ module ramm_sui::test_util {
         initial_asset_liquidity: VecMap<u8, u64>
     ): (ID, ID, ID, test_scenario::Scenario) {
         let asset_prices: VecMap<u8, u128> = vec_map::empty();
-            vec_map::insert(&mut asset_prices, 0, 27802450000000);
-            vec_map::insert(&mut asset_prices, 1, 1884085000000);
+            vec_map::insert(&mut asset_prices, 0, 27_800_000000000);
+            vec_map::insert(&mut asset_prices, 1, 1_880_000000000);
         let asset_price_scales: VecMap<u8, u8> = vec_map::empty();
             vec_map::insert(&mut asset_price_scales, 0, 9);
             vec_map::insert(&mut asset_price_scales, 1, 9);
@@ -472,8 +510,8 @@ module ramm_sui::test_util {
     public(friend) fun create_ramm_test_scenario_btc_eth_with_liq(sender: address)
         : (ID, ID, ID, test_scenario::Scenario) {
         let initial_asset_liquidity: VecMap<u8, u64> = vec_map::empty();
-            vec_map::insert(&mut initial_asset_liquidity, 0, (btc_factor() as u64));
-            vec_map::insert(&mut initial_asset_liquidity, 1, (eth_factor() as u64));
+            vec_map::insert(&mut initial_asset_liquidity, 0, (1000 * btc_factor() as u64));
+            vec_map::insert(&mut initial_asset_liquidity, 1, (1000 * eth_factor() as u64));
 
         create_ramm_test_scenario_btc_eth(
             sender,
@@ -513,9 +551,9 @@ module ramm_sui::test_util {
         initial_asset_liquidity: VecMap<u8, u64>
     ): (ID, ID, ID, ID, test_scenario::Scenario) {
         let asset_prices: VecMap<u8, u128> = vec_map::empty();
-        vec_map::insert(&mut asset_prices, 0, 27802450000000);
-        vec_map::insert(&mut asset_prices, 1, 1884085000000);
-        vec_map::insert(&mut asset_prices, 2, 20526500000);
+        vec_map::insert(&mut asset_prices, 0, 27_800_000000000);
+        vec_map::insert(&mut asset_prices, 1, 1_880_000000000);
+        vec_map::insert(&mut asset_prices, 2, 20_000000000);
         let asset_price_scales: VecMap<u8, u8> = vec_map::empty();
         vec_map::insert(&mut asset_price_scales, 0, 9);
         vec_map::insert(&mut asset_price_scales, 1, 9);
@@ -540,17 +578,17 @@ module ramm_sui::test_util {
     }
 
     /// Does the same as `create_ramm_test_scenario_btc_eth_sol`, but adds initial liquidity
-    /// to each of the BTC/ETH/SOL RAMM's assets:
-    /// 1. 1 BTC
-    /// 2. 1 ETH
-    /// 3. 1 SOL
+    /// to each of the BTC/ETH/SOL assets in the RAMM:
+    /// 1. 10 BTC
+    /// 2. 100 ETH
+    /// 3. 10000 SOL
     public(friend) fun create_ramm_test_scenario_btc_eth_sol_with_liq(
         sender: address,
     ): (ID, ID, ID, ID, test_scenario::Scenario) {
         let initial_asset_liquidity: VecMap<u8, u64> = vec_map::empty();
-            vec_map::insert(&mut initial_asset_liquidity, 0, (btc_factor() as u64));
-            vec_map::insert(&mut initial_asset_liquidity, 1, (eth_factor() as u64));
-            vec_map::insert(&mut initial_asset_liquidity, 2, (sol_factor() as u64));
+            vec_map::insert(&mut initial_asset_liquidity, 0, (10 * btc_factor() as u64));
+            vec_map::insert(&mut initial_asset_liquidity, 1, (100 * eth_factor() as u64));
+            vec_map::insert(&mut initial_asset_liquidity, 2, (10000 * sol_factor() as u64));
 
         create_ramm_test_scenario_btc_eth_sol(
             sender,
@@ -558,11 +596,8 @@ module ramm_sui::test_util {
         )
     }
 
-    /// Does the same as `create_ramm_test_scenario_btc_eth_sol`, but adds initial liquidity
-    /// to each of the BTC/ETH/SOL RAMM's assets:
-    /// 1. 1 BTC
-    /// 2. 1 ETH
-    /// 3. 1 SOL
+    /// Does the same as `create_ramm_test_scenario_btc_eth_sol`, without initial liquidity
+    /// for any of the BTC/ETH/SOL assets in the RAMM.
     public(friend) fun create_ramm_test_scenario_btc_eth_sol_no_liq(
         sender: address,
     ): (ID, ID, ID, ID, test_scenario::Scenario) {
@@ -583,10 +618,10 @@ module ramm_sui::test_util {
 
     /// Create an ETH/USDT pool with the parameters from the whitepaper's second
     /// practical example.
-    public(friend) fun create_testing_ramm_eth_udst(sender: address): (ID, ID, ID, Scenario) {
+    public(friend) fun create_ramm_test_scenario_eth_usdt(sender: address): (ID, ID, ID, Scenario) {
         let asset_prices: VecMap<u8, u128> = vec_map::empty();
-        vec_map::insert(&mut asset_prices, 0, 2000000000000);
-        vec_map::insert(&mut asset_prices, 1, 1000000000);
+        vec_map::insert(&mut asset_prices, 0, 2_000_000000000);
+        vec_map::insert(&mut asset_prices, 1, 1_000000000);
         let asset_price_scales: VecMap<u8, u8> = vec_map::empty();
         vec_map::insert(&mut asset_price_scales, 0, 9);
         vec_map::insert(&mut asset_price_scales, 1, 9);
@@ -598,7 +633,7 @@ module ramm_sui::test_util {
         vec_map::insert(&mut asset_decimal_places, 1, usdt_dec_places());
         let initial_asset_liquidity: VecMap<u8, u64> = vec_map::empty();
         vec_map::insert(&mut initial_asset_liquidity, 0, 500 * (eth_factor() as u64));
-        vec_map::insert(&mut initial_asset_liquidity, 1, 900_000 * (matic_factor() as u64));
+        vec_map::insert(&mut initial_asset_liquidity, 1, 900_000 * (usdt_factor() as u64));
 
         create_populate_initialize_ramm_2_asset<ETH, USDT>(
             asset_prices,
@@ -614,9 +649,9 @@ module ramm_sui::test_util {
     /// practical example.
     public(friend) fun create_ramm_test_scenario_eth_matic_usdt(sender: address): (ID, ID, ID, ID, Scenario) {
         let asset_prices: VecMap<u8, u128> = vec_map::empty();
-        vec_map::insert(&mut asset_prices, 0, 1800000000000);
-        vec_map::insert(&mut asset_prices, 1, 1200000000);
-        vec_map::insert(&mut asset_prices, 2, 1000000000);
+        vec_map::insert(&mut asset_prices, 0, 1_800_000000000);
+        vec_map::insert(&mut asset_prices, 1, 1_200000000);
+        vec_map::insert(&mut asset_prices, 2, 1_000000000);
         let asset_price_scales: VecMap<u8, u8> = vec_map::empty();
         vec_map::insert(&mut asset_price_scales, 0, 9);
         vec_map::insert(&mut asset_price_scales, 1, 9);

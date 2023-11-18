@@ -169,8 +169,9 @@ module ramm_sui::events {
         ramm_id: ID,
         trader: address,
         token_out: TypeName,
-        amount_out: u64,
-        lpts: VecMap<TypeName, u64>
+        lpt: u64,
+        amounts_out: VecMap<TypeName, u64>,
+        fees: VecMap<TypeName, u64>,
     }
 
     /// Given all the information necessary to identify a given RAMM's liquidity withdrawal event,
@@ -179,18 +180,20 @@ module ramm_sui::events {
         ramm_id: ID,
         trader: address,
         token_out: TypeName,
-        amount_out: u64,
-        lpts: VecMap<TypeName, u64>
+        lpt: u64,
+        amounts_out: VecMap<TypeName, u64>,
+        fees: VecMap<TypeName, u64>,
     ) {
-        event::emit(
-            LiquidityWithdrawalEvent {
+        let lwe = LiquidityWithdrawalEvent {
                 ramm_id,
                 trader,
                 token_out,
-                amount_out,
-                lpts
-            }
-        )
+                lpt,
+                amounts_out,
+                fees,
+            };
+
+        event::emit(lwe)
     }
 
     /// Datatype describing a Sui event for a given RAMM's fee collection.
@@ -209,13 +212,13 @@ module ramm_sui::events {
         fee_collector: address,
         collected_fees: VecMap<TypeName, u64>
     ) {
-        event::emit(
-            FeeCollectionEvent {
+        let fce = FeeCollectionEvent {
                 ramm_id,
                 admin,
                 fee_collector,
                 collected_fees,
-            }
-        )
+            };
+
+        event::emit(fce)
     }
 }
