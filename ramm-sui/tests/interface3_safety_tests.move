@@ -22,7 +22,7 @@ module ramm_sui::interface3_safety_tests {
     #[expected_failure(abort_code = interface3::ERAMMInvalidSize)]
     /// Check that calling `trade_amount_in_3` on a RAMM without *exactly* 3 assets fails.
     fun trade_amount_in_3_invalid_ramm_size() {
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) = test_util::create_populate_initialize_ramm_2(ALICE);
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) = test_util::create_populate_initialize_ramm_btc_eth(ALICE);
         let scenario = &mut scenario_val;
 
         {
@@ -53,7 +53,7 @@ module ramm_sui::interface3_safety_tests {
     #[expected_failure(abort_code = interface3::ERAMMInvalidSize)]
     /// Check that calling `trade_amount_out_3` on a RAMM without *exactly* 3 assets fails.
     fun trade_amount_out_3_invalid_ramm_size() {
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) = test_util::create_populate_initialize_ramm_2(ALICE);
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) = test_util::create_populate_initialize_ramm_btc_eth(ALICE);
         let scenario = &mut scenario_val;
 
         {
@@ -84,7 +84,7 @@ module ramm_sui::interface3_safety_tests {
     #[expected_failure(abort_code = interface3::ERAMMInvalidSize)]
     /// Check that calling `liquidity_deposit_3` on a RAMM without *exactly* 3 assets fails.
     fun liquidity_deposit_3_invalid_ramm_size() {
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) = test_util::create_populate_initialize_ramm_2(ALICE);
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) = test_util::create_populate_initialize_ramm_btc_eth(ALICE);
         let scenario = &mut scenario_val;
 
         {
@@ -114,7 +114,7 @@ module ramm_sui::interface3_safety_tests {
     #[expected_failure(abort_code = interface3::ERAMMInvalidSize)]
     /// Check that calling `liquidity_withdrawal_3` on a RAMM without *exactly* 3 assets fails.
     fun liquidity_withdrawal_3_invalid_ramm_size() {
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) = test_util::create_populate_initialize_ramm_2(ALICE);
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) = test_util::create_populate_initialize_ramm_btc_eth(ALICE);
         let scenario = &mut scenario_val;
 
         {
@@ -144,7 +144,7 @@ module ramm_sui::interface3_safety_tests {
     #[expected_failure(abort_code = interface3::ERAMMInvalidSize)]
     /// Check that calling `collect_fees_3` on a RAMM without *exactly* 3 assets fails.
     fun collect_fees_3_invalid_ramm_size() {
-        let (alice_ramm_id, _, _, scenario_val) = test_util::create_populate_initialize_ramm_2(ALICE);
+        let (alice_ramm_id, _, _, scenario_val) = test_util::create_populate_initialize_ramm_btc_eth(ALICE);
         let scenario = &mut scenario_val;
 
         {
@@ -176,7 +176,7 @@ module ramm_sui::interface3_safety_tests {
     /// It *must* fail.
     fun collect_fees_3_wrong_admin_cap() {
         // Create a 3-asset pool with BTC, ETH, SOL
-        let (alice_ramm_id, _, _, _, scenario_val) = test_util::create_populate_initialize_ramm_3(ALICE);
+        let (alice_ramm_id, _, _, _, scenario_val) = test_util::create_ramm_test_scenario_btc_eth_sol(ALICE);
         let scenario = &mut scenario_val;
         
         test_scenario::next_tx(scenario, BOB);
@@ -215,7 +215,7 @@ module ramm_sui::interface3_safety_tests {
     /// This test *must* fail.
     fun trade_amount_in_3_invalid_asset() {
         // Create a 3-asset pool with BTC, ETH, SOL
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val) = test_util::create_populate_initialize_ramm_3(ALICE);
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val) = test_util::create_ramm_test_scenario_btc_eth_sol(ALICE);
         let scenario = &mut scenario_val;
 
         {
@@ -252,7 +252,7 @@ module ramm_sui::interface3_safety_tests {
     fun trade_amount_in_3_insufficient_amount_in() {
         // Create a 3-asset pool with BTC, ETH, SOL
         let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val)
-            = test_util::create_populate_initialize_ramm_3_with_liquidity_in_out(ALICE);
+            = test_util::create_ramm_test_scenario_btc_eth_sol(ALICE);
         let scenario = &mut scenario_val;
 
         {
@@ -289,7 +289,7 @@ module ramm_sui::interface3_safety_tests {
     /// This test *must* fail.
     fun trade_amount_in_3_no_minted_lptoken() {
         // Create a 3-asset pool with BTC, ETH, SOL
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val) = test_util::create_populate_initialize_ramm_3(ALICE);
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val) = test_util::create_ramm_test_scenario_btc_eth_sol(ALICE);
         let scenario = &mut scenario_val;
 
         {
@@ -326,7 +326,7 @@ module ramm_sui::interface3_safety_tests {
     fun trade_amount_in_3_insufficient_outbound_balance() {
         // Create a 3-asset pool with BTC, ETH, SOL
         let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val) =
-            test_util::create_populate_initialize_ramm_3_with_liquidity_in(ALICE);
+            test_util::create_ramm_test_scenario_with_liquidity_in(ALICE);
         let scenario = &mut scenario_val;
 
         {
@@ -363,7 +363,7 @@ module ramm_sui::interface3_safety_tests {
     fun trade_amount_in_3_invalid_aggregator() {
         // Create a 3-asset pool with BTC, ETH, SOL
         let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val) =
-            test_util::create_populate_initialize_ramm_3_with_liquidity_in_out(ALICE);
+            test_util::create_ramm_test_scenario_with_liquidity_in_out(ALICE);
         let scenario = &mut scenario_val;
 
         {

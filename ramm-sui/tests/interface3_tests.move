@@ -25,7 +25,7 @@ module ramm_sui::interface3_tests {
     /// asset the pool can provide.
     /// The trader receives no "change".
     fun test_trade_i() {
-        let (ramm_id, eth_ag_id, matic_ag_id, usdt_ag_id, scenario_val) = test_util::create_testing_ramm(ADMIN);
+        let (ramm_id, eth_ag_id, matic_ag_id, usdt_ag_id, scenario_val) = test_util::create_ramm_test_scenario_eth_matic_usdt(ADMIN);
         let scenario = &mut scenario_val;
 
         test_scenario::next_tx(scenario, ALICE);
@@ -171,7 +171,7 @@ module ramm_sui::interface3_tests {
     /// of an asset they desire, and provide an upper bound of the inbound asset,
     /// being returned the remainder.
     fun test_trade_o() {
-        let (ramm_id, eth_ag_id, matic_ag_id, usdt_ag_id, scenario_val) = test_util::create_testing_ramm(ADMIN);
+        let (ramm_id, eth_ag_id, matic_ag_id, usdt_ag_id, scenario_val) = test_util::create_ramm_test_scenario_eth_matic_usdt(ADMIN);
         let scenario = &mut scenario_val;
 
         test_scenario::next_tx(scenario, BOB);
