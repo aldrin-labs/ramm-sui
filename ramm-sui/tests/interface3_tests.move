@@ -3,7 +3,7 @@ module ramm_sui::interface3_tests {
     //use std::debug;
 
     use sui::coin::{Self, Coin};
-    use sui::test_scenario;
+    use sui::test_scenario::{Self, TransactionEffects};
     use sui::test_utils;
 
     use ramm_sui::interface3;
@@ -119,13 +119,15 @@ module ramm_sui::interface3_tests {
             test_scenario::return_shared<Aggregator>(usdt_aggr);
         };
 
-        test_scenario::next_tx(scenario, ALICE);
+        let tx_fx: TransactionEffects = test_scenario::next_tx(scenario, ALICE);
+        test_utils::assert_eq(test_scenario::num_user_events(&tx_fx), 2);
 
         {
             assert!(!test_scenario::has_most_recent_for_address<Coin<ETH>>(ALICE), ETraderShouldNotHaveAsset);
         };
 
-        test_scenario::next_tx(scenario, ADMIN);
+        let tx_fx: TransactionEffects = test_scenario::next_tx(scenario, ADMIN);
+        test_utils::assert_eq(test_scenario::num_user_events(&tx_fx), 0);
 
         {
             let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
@@ -151,7 +153,8 @@ module ramm_sui::interface3_tests {
             test_scenario::return_shared<Aggregator>(usdt_aggr);
         };
 
-        test_scenario::next_tx(scenario, ADMIN);
+        let tx_fx: TransactionEffects = test_scenario::next_tx(scenario, ADMIN);
+        test_utils::assert_eq(test_scenario::num_user_events(&tx_fx), 1);
 
         {
             let eth = test_scenario::take_from_address<Coin<ETH>>(scenario, ADMIN);
@@ -224,7 +227,8 @@ module ramm_sui::interface3_tests {
             test_scenario::return_shared<Aggregator>(usdt_aggr);
         };
 
-        test_scenario::next_tx(scenario, BOB);
+        let tx_fx: TransactionEffects = test_scenario::next_tx(scenario, BOB);
+        test_utils::assert_eq(test_scenario::num_user_events(&tx_fx), 1);
 
         {
             let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);

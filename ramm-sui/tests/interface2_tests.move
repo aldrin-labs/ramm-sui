@@ -3,7 +3,7 @@ module ramm_sui::interface2_tests {
     //use std::debug;
 
     use sui::coin::{Self, Coin};
-    use sui::test_scenario;
+    use sui::test_scenario::{Self, TransactionEffects};
     use sui::test_utils;
 
     use ramm_sui::interface2;
@@ -91,7 +91,8 @@ module ramm_sui::interface2_tests {
             total_usdt
         };
 
-        test_scenario::next_tx(scenario, ALICE);
+        let tx_fx: TransactionEffects = test_scenario::next_tx(scenario, ALICE);
+        test_utils::assert_eq(test_scenario::num_user_events(&tx_fx), 1);
 
         {
             assert!(test_scenario::has_most_recent_for_address<Coin<USDT>>(ALICE), ETraderShouldHaveAsset);
@@ -124,7 +125,8 @@ module ramm_sui::interface2_tests {
             test_scenario::return_shared<Aggregator>(usdt_aggr);
         };
 
-        test_scenario::next_tx(scenario, ADMIN);
+        let tx_fx: TransactionEffects = test_scenario::next_tx(scenario, ADMIN);
+        test_utils::assert_eq(test_scenario::num_user_events(&tx_fx), 1);
 
         // Quick check of the funds returned to the admin after liquidity withdrawal.
         let fst_usdt_wthdrwl: u256 = {
