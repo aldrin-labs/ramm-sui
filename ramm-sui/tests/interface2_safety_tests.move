@@ -957,7 +957,7 @@ module ramm_sui::interface2_safety_tests {
 
         test_scenario::end(scenario_val);
     }
-
+ 
     #[test]
     #[expected_failure(abort_code = interface2::ENotAdmin)]
     /// This test scenario creates 2 RAMM pools, and attempts to collect the fees of the first
@@ -973,7 +973,8 @@ module ramm_sui::interface2_safety_tests {
         // Create second RAMM whose assets don't matter; only its admin cap is needed.
         // A second pool is required as it is the only way to have a second `AdminCap` for the test.
         {
-            ramm::new_ramm(BOB, test_scenario::ctx(scenario));
+            let (ramm, adm_cap, na_cap) = ramm::new_ramm_internal(BOB, test_scenario::ctx(scenario));
+            ramm::new_ramm(ramm, adm_cap, na_cap, test_scenario::ctx(scenario));
         };
         test_scenario::next_tx(scenario, ALICE);
 
@@ -992,6 +993,5 @@ module ramm_sui::interface2_safety_tests {
         };
 
         test_scenario::end(scenario_val);
-    } 
-
+    }
 }

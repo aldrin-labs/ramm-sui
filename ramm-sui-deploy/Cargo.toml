@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0"
+bcs = "0.1.4"
 futures = "0.3"
 
 # Careful with the absolute path here - must reflect the machine this deployment binary will be
@@ -20,6 +21,7 @@ sui-keys = { path = "../../../../suibase/workdirs/active/sui-repo/crates/sui-key
 sui-move-build = { path = "../../../../suibase/workdirs/active/sui-repo/crates/sui-move-build/" }
 sui-types = { path = "../../../../suibase/workdirs/active/sui-repo/crates/sui-types" }
 shared-crypto = { path = "../../../../suibase/workdirs/active/sui-repo/crates/shared-crypto/" }
+move-core-types = { path = "../../../../suibase/workdirs/active/sui-repo/external-crates/move/move-core/types" }
 #
 
 serde = {version = "1.0.188", features = ["derive"] }

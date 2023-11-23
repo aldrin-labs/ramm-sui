@@ -115,12 +115,15 @@ impl Display for AssetConfig {
 pub struct RAMMDeploymentConfig {
     pub faucet_data: FaucetData,
 
+    /// Informal invariant: this field must always match `assets.len()`
     pub asset_count: u8,
     pub fee_collection_address: SuiAddress,
     pub assets: Vec<AssetConfig>,
 }
 
 impl Display for RAMMDeploymentConfig {
+    /// Display a RAMM's deployment config in human-readable format, with indentation
+    /// for nested data for better visibility.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let &RAMMDeploymentConfig {
             faucet_data,

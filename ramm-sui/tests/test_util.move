@@ -232,7 +232,8 @@ module ramm_sui::test_util {
 
         // Create RAMM
         {
-            ramm::new_ramm(sender, test_scenario::ctx(scenario));
+            let (ramm, adm_cap, na_cap) = ramm::new_ramm_internal(sender, test_scenario::ctx(scenario));
+            ramm::new_ramm(ramm, adm_cap, na_cap, test_scenario::ctx(scenario));
         };
         test_scenario::next_tx(scenario, sender);
 
@@ -342,7 +343,8 @@ module ramm_sui::test_util {
 
         // Create RAMM
         {
-            ramm::new_ramm(sender, test_scenario::ctx(scenario));
+            let (ramm, adm_cap, na_cap) = ramm::new_ramm_internal(sender, test_scenario::ctx(scenario));
+            ramm::new_ramm(ramm, adm_cap, na_cap, test_scenario::ctx(scenario));
         };
         test_scenario::next_tx(scenario, sender);
 

@@ -4,6 +4,7 @@ use shared_crypto::intent::Intent;
 
 use suibase::Helper;
 
+use move_core_types::account_address::AccountAddress;
 use sui_json_rpc_types::{
     OwnedObjectRef,
     SuiTransactionBlockEffectsAPI,
@@ -15,7 +16,7 @@ use sui_sdk::SuiClientBuilder;
 use sui_types::{
     base_types::ObjectID,
     Identifier,
-    transaction::{Argument, ProgrammableTransaction, Transaction, TransactionData},
+    transaction::{Argument, ProgrammableTransaction, Transaction, TransactionData, CallArg},
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -255,54 +256,54 @@ async fn main() -> ExitCode {
     3. Initialize it
     */
     // a. Create the RAMM
-    let new_ramm_ids: Argument = ptb
+    ptb
+        .move_call(
+            ramm_package_id,
+            Identifier::new("ramm").unwrap(),
+            Identifier::new("new_ramm_internal").unwrap(),
+            vec![],
+            vec![CallArg::Pure(bcs::to_bytes(&AccountAddress::from(config.fee_collection_address)).unwrap())]
+        ).unwrap();
+    ptb
         .programmable_move_call(
             ramm_package_id,
             Identifier::new("ramm").unwrap(),
             Identifier::new("new_ramm").unwrap(),
             vec![],
-            vec![fee_collection_address]
+            vec![
+                Argument::NestedResult(0, 0),
+                Argument::NestedResult(0, 1),
+                Argument::NestedResult(0, 2)
+            ]
         );
 
-    // b. collect the RAMM's ID, along with the the IDs of the admin and new asset caps
-    let ramm_id: Argument = ptb
-        .programmable_move_call(
-            ramm_package_id,
-            Identifier::new("ramm").unwrap(),
-            Identifier::new("ramm_id").unwrap(),
-            vec![],
-            vec![new_ramm_ids]
-        );
-    let admin_cap_id: Argument = ptb
-        .programmable_move_call(
-            ramm_package_id,
-            Identifier::new("ramm").unwrap(),
-            Identifier::new("admin_cap_id").unwrap(),
-            vec![],
-            vec![new_ramm_ids]
-        );
-    let new_asset_cap_id: Argument = ptb
-        .programmable_move_call(
-            ramm_package_id,
-            Identifier::new("ramm").unwrap(),
-            Identifier::new("new_asset_cap_id").unwrap(),
-            vec![],
-            vec![new_ramm_ids]
-        );
+/*
+    Works up to here.
 
-    // c. add all of the assets specified in the TOML config
+    However:
+    * the `Argument` that is captured in `Argument::NestedResult(0, 0)` has a type,
+      in Sui Move, of `RAMM`
+    * whereas `&mut RAMM` is needed for `add_asset_to_ramm`
+
+    this disproves the viability of a single PTB to be used during the whole process without
+    even greater changes to the RAMM API in `ramm-sui`, which is not justifiable.
+
+    Will revert this commit.
+*/
+
+    // b. add all of the assets specified in the TOML config
     for ix in 0 .. (config.asset_count as usize) {
         // `N`-th asset to be added to the RAMM
         let asset_data: &AssetConfig = &config.assets[ix];
 
         // Arguments for the `add_asset_to_ramm` Move call
         let move_call_args: Vec<Argument> = vec![
-            ramm_id,
+            Argument::NestedResult(0, 0),
             ptb.pure(asset_data.aggregator_address).unwrap(),
             ptb.pure(asset_data.minimum_trade_amount).unwrap(),
             ptb.pure(asset_data.decimal_places).unwrap(),
-            admin_cap_id,
-            new_asset_cap_id
+            Argument::NestedResult(0, 1),
+            Argument::NestedResult(0, 2)
         ];
 
         // Type argument to the `add_asset_to_ramm` Move call
@@ -324,6 +325,15 @@ async fn main() -> ExitCode {
             );
     }
 
+/*     // d. initialize the RAMM
+    ptb
+        .programmable_move_call(
+            ramm_package_id,
+            Identifier::new("ramm").unwrap(),
+            Identifier::new("initialize_ramm").unwrap(),
+            vec![],
+            vec![ramm_id, admin_cap_id, new_asset_cap_id]
+        ); */
 
 
     // 3. Finalize the PTB object
@@ -371,7 +381,7 @@ async fn main() -> ExitCode {
             },
             Ok(r) => r
         };
-    println!("PTB response status: {:?}", ptb_response.status_ok());
+    println!("PTB response: {:?}", ptb_response);
 
     // Success, exit
     ExitCode::SUCCESS

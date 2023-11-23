@@ -5602,7 +5602,9 @@ name = "ramm_sui_deploy"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bcs",
  "futures",
+ "move-core-types",
  "serde",
  "shared-crypto",
  "sui-json-rpc-types",
