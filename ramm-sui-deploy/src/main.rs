@@ -1,20 +1,20 @@
-use std::{default::Default, env, fs, path::PathBuf, process::ExitCode};
+use std::{default::Default, env, fs, path::PathBuf, process::ExitCode, str::FromStr};
 
 use shared_crypto::intent::Intent;
 
 use suibase::Helper;
 
-use move_core_types::account_address::AccountAddress;
+use move_core_types::{account_address::AccountAddress, ident_str, identifier::IdentStr};
 use sui_json_rpc_types::{
     OwnedObjectRef,
     SuiTransactionBlockEffectsAPI,
-    SuiTransactionBlockResponseOptions
+    SuiTransactionBlockResponseOptions, SuiObjectDataOptions
 };
 use sui_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use sui_move_build::{CompiledPackage, BuildConfig};
-use sui_sdk::SuiClientBuilder;
+use sui_sdk::{SuiClientBuilder, json::SuiJsonValue};
 use sui_types::{
-    base_types::ObjectID,
+    base_types::{ObjectID, MoveObjectType, SuiAddress, ObjectType},
     Identifier,
     transaction::{Argument, ProgrammableTransaction, Transaction, TransactionData, CallArg},
     object::Owner,
@@ -33,6 +33,8 @@ const RAMM_MODULE_NAME: &str = "ramm";
 ///
 /// Publishing it in the testnet in mid/late 2023 cost roughly 0.25 SUI, on average.
 const PACKAGE_PUBLICATION_GAS_BUDGET: u64 = 500_000_000;
+
+const CREATE_RAMM_GAS_BUDGET: u64 = 100_000_000;
 
 const RAMM_PTB_GAS_BUDGET: u64 = 100_000_000;
 
@@ -129,7 +131,7 @@ async fn main() -> ExitCode {
     */
 
     // 1. Fetch the sui client's active address, to use it for publishing
-    let client_address = match suibase.client_sui_address("active") {
+    let client_address: SuiAddress = match suibase.client_sui_address("active") {
         Ok(adr) => {
             println!("Using address {} to publish the RAMM package.", adr);
             adr
@@ -220,7 +222,118 @@ async fn main() -> ExitCode {
     println!("RAMM package ID: {ramm_package_id}");
 
     /*
-    Constructing the PTB that will create and populate the RAMM
+    Create the RAMM, and then use the SDK to get the IDs of the admin and new asset caps.
+    */
+
+    // 1. Construct the non-PTB tx to create the RAMM and associated capability objects
+    let new_ramm_tx = match sui_client
+        .transaction_builder()
+        .move_call(
+            client_address,
+            ramm_package_id,
+            RAMM_MODULE_NAME,
+            "new_ramm",
+            vec![],
+            vec![SuiJsonValue::from_str(&config.fee_collection_address.to_string()).unwrap()],
+            None,
+            CREATE_RAMM_GAS_BUDGET
+        )
+        .await {
+            Ok(tx) => tx,
+            Err(err) => {
+                eprintln!("Failed to publish the RAMM package: {:?}", err);
+                return ExitCode::from(1)
+            }
+        };
+
+    // 2. Sign, submit and await tx
+    let signature = match keystore.sign_secure(&client_address, &new_ramm_tx, Intent::sui_transaction()) {
+        Ok(sig) => sig,
+        Err(err) => {
+            eprintln!("Failed to sign publish tx: {:?}", err);
+            return ExitCode::from(1)
+        }
+    };
+    println!("Successfully signed publish tx");
+
+    let new_ramm_tx = Transaction::from_data(
+        new_ramm_tx,
+        Intent::sui_transaction(),
+        vec![signature]
+    );
+    let response = match sui_client
+        .quorum_driver_api()
+        .execute_transaction_block(
+            new_ramm_tx,
+            SuiTransactionBlockResponseOptions::new().with_effects(),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+        )
+        .await {
+            Ok(r) => r,
+            Err(err) => {
+                eprintln!("Failed to execute block containing RAMM creation tx. Node response: {}", err);
+                return ExitCode::from(1)
+            }
+        };
+    println!("Successfully create the RAMM. Tx response: {:?}", response);
+
+    // 3. Disambiguate between created capability objects
+    //
+    // This is needed because when using regular transactions, the only information gleanable
+    // from the transaction response are created, mutated and deleted object IDs.
+    //
+    // Doing this, it is possible to get the object IDs of both
+    // a. the RAMM's admin capability
+    // b. the RAMM's new asset capability
+    // but not to tell which is which.
+
+    // Object IDs of both the admin cap, and the new asset cap
+    let cap_ids: Vec<ObjectID> = response
+        .effects
+        .expect("RAMM creation tx *should* result in non-empty effects")
+        .created()
+        .into_iter()
+        .filter(|oor| oor.owner == client_address)
+        .map(|oor| oor.object_id())
+        .collect::<Vec<_>>();
+    assert!(cap_ids.len() == 2);
+
+    // To tell both capability objects apart, the below must be done:
+    // 3.1. Use the SDK to query the network on one of the two object IDs in the RAMM creation 
+    //      response
+    let cap_object = match sui_client
+        .read_api()
+        .get_object_with_options(cap_ids[0], SuiObjectDataOptions::new().with_type())
+        .await {
+            Ok(o) => o,
+            Err(err) => {
+                eprintln!("Failed to fetch object data. Node response: {}", err);
+                return ExitCode::from(1)
+            }
+        };
+    // 3.2. Extract the type from the queried object's information
+    let cap_obj_ty = cap_object
+        .object()
+        .unwrap()
+        .object_type()
+        .unwrap();
+    let cap_move_obj_ty: MoveObjectType = match cap_obj_ty {
+        ObjectType::Package => panic!("Type of cap object is `ObjectType::Package`: not supposed to happen!"),
+        ObjectType::Struct(mot) => mot
+    };
+
+    // 3.3. Pattern match on the type, and assign `ObjectID`s to be used in the later PTB
+    let admin_cap_ident: &IdentStr = ident_str!("RAMMAdminCap");
+    let new_asset_cap_ident: &IdentStr  = ident_str!("RAMMNewAssetCap");
+    let (admin_cap_id, new_asset_cap_id): (ObjectID, ObjectID) = match cap_move_obj_ty.name() {
+        admin_cap_ident => (cap_ids[0], cap_ids[1]),
+        new_asset_cap_ident => (cap_ids[0], cap_ids[1]),
+        _ => panic!("`MoveObjectType` must be of either capability: not supposed to happen!"),
+    };
+
+
+    /*
+    Constructing the PTB that will populate and initialize the RAMM
     */
 
     // 1. Find the coin object to be used as gas for the PTB
@@ -251,9 +364,8 @@ async fn main() -> ExitCode {
 
     /*
     Create PTB to perform the following actions:
-    1. Create RAMM
-    2. Add assets specified in the RAMM deployment config
-    3. Initialize it
+    1. Add assets specified in the RAMM deployment config
+    2. Initialize it
     */
     // a. Create the RAMM
     ptb

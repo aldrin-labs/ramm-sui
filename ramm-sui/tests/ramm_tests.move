@@ -35,8 +35,7 @@ module ramm_sui::ramm_tests {
         assert!(!test_scenario::has_most_recent_for_address<RAMMNewAssetCap>(ADMIN), ERAMMCreation);
         // Create the RAMM
         {
-            let (ramm, adm_cap, na_cap) = ramm::new_ramm_internal(ADMIN, test_scenario::ctx(scenario));
-            ramm::new_ramm(ramm, adm_cap, na_cap, test_scenario::ctx(scenario));
+            ramm::new_ramm(ADMIN, test_scenario::ctx(scenario));
         };
         test_scenario::next_tx(scenario, ADMIN);
         // Check that they do exist, now
@@ -108,8 +107,7 @@ module ramm_sui::ramm_tests {
 
         // Create the RAMM
         {
-            let (ramm, adm_cap, na_cap) = ramm::new_ramm_internal(ADMIN, test_scenario::ctx(scenario));
-            ramm::new_ramm(ramm, adm_cap, na_cap, test_scenario::ctx(scenario));
+            ramm::new_ramm(ADMIN, test_scenario::ctx(scenario));
         };
         test_scenario::next_tx(scenario, ADMIN);
 
@@ -184,8 +182,7 @@ module ramm_sui::ramm_tests {
 
         // Create RAMM
         {
-            let (ramm, adm_cap, na_cap) = ramm::new_ramm_internal(ADMIN, test_scenario::ctx(scenario));
-            ramm::new_ramm(ramm, adm_cap, na_cap, test_scenario::ctx(scenario));
+            ramm::new_ramm(ADMIN, test_scenario::ctx(scenario));
         };
         test_scenario::next_tx(scenario, ADMIN);
 
@@ -275,16 +272,14 @@ module ramm_sui::ramm_tests {
 
         // Create first RAMM
         {
-            let (ramm, adm_cap, na_cap) = ramm::new_ramm_internal(ALICE, test_scenario::ctx(scenario));
-            ramm::new_ramm(ramm, adm_cap, na_cap, test_scenario::ctx(scenario));
+            ramm::new_ramm(ALICE, test_scenario::ctx(scenario));
         };
         test_scenario::next_tx(scenario, BOB);
         let alice_ramm_id = option::extract<ID>(&mut test_scenario::most_recent_id_shared<RAMM>());
 
         // Create second RAMM
         {
-            let (ramm, adm_cap, na_cap) = ramm::new_ramm_internal(BOB, test_scenario::ctx(scenario));
-            ramm::new_ramm(ramm, adm_cap, na_cap, test_scenario::ctx(scenario));
+            ramm::new_ramm(BOB, test_scenario::ctx(scenario));
         };
         test_scenario::next_tx(scenario, ADMIN);
         let bob_ramm_id = option::extract<ID>(&mut test_scenario::most_recent_id_shared<RAMM>());
@@ -509,8 +504,7 @@ module ramm_sui::ramm_tests {
 
         // Create the RAMM
         {
-            let (ramm, adm_cap, na_cap) = ramm::new_ramm_internal(ADMIN, test_scenario::ctx(scenario));
-            ramm::new_ramm(ramm, adm_cap, na_cap, test_scenario::ctx(scenario));
+            ramm::new_ramm(ADMIN, test_scenario::ctx(scenario));
         };
         test_scenario::next_tx(scenario, ADMIN);
 
@@ -556,8 +550,7 @@ module ramm_sui::ramm_tests {
 
         // Create the RAMM
         {
-            let (ramm, adm_cap, na_cap) = ramm::new_ramm_internal(ADMIN, test_scenario::ctx(scenario));
-            ramm::new_ramm(ramm, adm_cap, na_cap, test_scenario::ctx(scenario));
+            ramm::new_ramm(ADMIN, test_scenario::ctx(scenario));
         };
         test_scenario::next_tx(scenario, ADMIN);
 
@@ -628,8 +621,7 @@ module ramm_sui::ramm_tests {
 
         // Create the RAMM
         {
-            let (ramm, adm_cap, na_cap) = ramm::new_ramm_internal(ADMIN, test_scenario::ctx(scenario));
-            ramm::new_ramm(ramm, adm_cap, na_cap, test_scenario::ctx(scenario));
+            ramm::new_ramm(ADMIN, test_scenario::ctx(scenario));
         };
         test_scenario::next_tx(scenario, ADMIN);
 

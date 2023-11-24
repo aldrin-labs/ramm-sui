@@ -1036,8 +1036,7 @@ module ramm_sui::interface3_safety_tests {
         // Create second RAMM whose assets don't matter; only its admin cap is needed.
         // A second pool is required as it is the only way to have a second `AdminCap` for the test.
         {
-            let (ramm, adm_cap, na_cap) = ramm::new_ramm_internal(BOB, test_scenario::ctx(scenario));
-            ramm::new_ramm(ramm, adm_cap, na_cap, test_scenario::ctx(scenario));
+            ramm::new_ramm(BOB, test_scenario::ctx(scenario));
         };
         test_scenario::next_tx(scenario, ALICE);
 

@@ -402,10 +402,22 @@ These would not work:
     ///
     /// These data are required to use PTBs to then interact with the created RAMM,
     /// using the API in this module.
-    struct NewRAMMIDs {
-        ramm: RAMM,
-        admin_cap: RAMMAdminCap,
-        new_asset_cap: RAMMNewAssetCap,
+    struct NewRAMMIDs has copy, drop {
+        ramm_id: ID,
+        admin_cap_id: ID,
+        new_asset_cap_id: ID,
+    }
+
+    public fun ramm_id(nrids: &NewRAMMIDs): ID {
+        nrids.ramm_id
+    }
+
+    public fun admin_cap_id(nrids: &NewRAMMIDs): ID {
+        nrids.admin_cap_id
+    }
+
+    public fun new_asset_cap_id(nrids: &NewRAMMIDs): ID {
+        nrids.new_asset_cap_id
     }
 
     /// Create a new RAMM structure, without any asset.
@@ -422,16 +434,16 @@ These would not work:
     /// * `new_asset_cap_id` is the `ID` of the `RAMMNewAssetCap` object required to add assets
     ///   into an uninitialized RAMM
     ///
-    /// This function returns a triple of objects for two reasons:
+    /// This function returns a triples of IDS for two reasons:
     /// 1. In order to write a specification in MSL asserting that the above objects were indeed
     ///    created, `spec new_ramm`
     /// 2. To allow a deployment tool using the Sui Rust SDK and PTBs to programmatically create
     ///    a RAMM, and then access said IDs in subsequent transactions in the same block, to
     ///    e.g. add assets to the RAMM and initialize it.
-    public fun new_ramm_internal(
+    public fun new_ramm(
         fee_collector: address,
         ctx: &mut TxContext
-    ): (RAMM, RAMMAdminCap, RAMMNewAssetCap) {
+    ): NewRAMMIDs {
         let admin_cap_uid: UID = object::new(ctx);
         let admin_cap_id: ID = object::uid_to_inner(&admin_cap_uid);
         let admin_cap: RAMMAdminCap = RAMMAdminCap { id: admin_cap_uid };
@@ -442,7 +454,7 @@ These would not work:
 
         let ramm_uid: UID = object::new(ctx);
         let ramm_id: ID = object::uid_to_inner(&ramm_uid);
-        let ramm = RAMM {
+        let ramm_init = RAMM {
                 id: ramm_uid,
 
                 admin_cap_id,
@@ -471,18 +483,15 @@ These would not work:
                 typed_lp_tokens_issued: bag::new(ctx),
             };
 
-        (ramm, admin_cap, new_asset_cap)
-    }
+        transfer::transfer(admin_cap, tx_context::sender(ctx));
+        transfer::transfer(new_asset_cap, tx_context::sender(ctx));
+        transfer::share_object(ramm_init);
 
-    public entry fun new_ramm(
-        new_ramm: RAMM,
-        new_admin_cap: RAMMAdminCap,
-        new_new_asset_cap: RAMMNewAssetCap,
-        ctx: &mut TxContext
-    ) {
-        transfer::transfer(new_admin_cap, tx_context::sender(ctx));
-        transfer::transfer(new_new_asset_cap, tx_context::sender(ctx));
-        transfer::share_object(new_ramm);
+        NewRAMMIDs {
+            ramm_id,
+            admin_cap_id,
+            new_asset_cap_id
+        }
     }
 
     /// From the [MSL manual](https://github.com/move-language/move/blob/main/language/move-prover/doc/user/spec-lang.md#assume-and-assert-conditions-in-code):
@@ -521,7 +530,7 @@ These would not work:
         ensures global<object::Ownership>(object::id_to_address(result.new_asset_cap_id)).owner == tx_context::sender(ctx);
     }
 
-/*      #[test]
+    #[test]
     /// Some basic sanity checks, better safe than sorry.
     ///
     /// This test lives here, and not in the `tests` directory, because there is
@@ -572,7 +581,7 @@ These would not work:
         test_scenario::return_shared<RAMM>(ramm);
 
         test_scenario::end(scenario_val);
-    } */
+    }
 
     /// This function introduces an asset to the RAMM, and initializes its
     /// corresponding state, including:
