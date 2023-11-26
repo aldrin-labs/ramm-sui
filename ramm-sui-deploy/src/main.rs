@@ -4,7 +4,7 @@ use shared_crypto::intent::Intent;
 
 use suibase::Helper;
 
-use move_core_types::{account_address::AccountAddress, ident_str, identifier::IdentStr};
+use move_core_types::{ident_str, identifier::IdentStr};
 use sui_json_rpc_types::{
     OwnedObjectRef,
     SuiTransactionBlockEffectsAPI,
@@ -16,7 +16,7 @@ use sui_sdk::{SuiClientBuilder, json::SuiJsonValue};
 use sui_types::{
     base_types::{ObjectID, MoveObjectType, SuiAddress, ObjectType},
     Identifier,
-    transaction::{Argument, ProgrammableTransaction, Transaction, TransactionData, CallArg},
+    transaction::{Argument, ProgrammableTransaction, Transaction, TransactionData},
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -26,7 +26,7 @@ use sui_types::{
 use ramm_sui_deploy::{RAMMDeploymentConfig, AssetConfig};
 
 /// Name of the module in the RAMM package that contains the API to create and initialize it.
-const RAMM_MODULE_NAME: &str = "ramm";
+const RAMM_MODULE_NAME: &IdentStr = ident_str!("ramm");
 
 /// This represents the gas budget (in MIST units, where 10^9 MIST is 1 SUI) to be used
 /// when publishing the RAMM package.
@@ -231,7 +231,7 @@ async fn main() -> ExitCode {
         .move_call(
             client_address,
             ramm_package_id,
-            RAMM_MODULE_NAME,
+            RAMM_MODULE_NAME.as_str(),
             "new_ramm",
             vec![],
             vec![SuiJsonValue::from_str(&config.fee_collection_address.to_string()).unwrap()],
@@ -254,7 +254,7 @@ async fn main() -> ExitCode {
             return ExitCode::from(1)
         }
     };
-    println!("Successfully signed publish tx");
+    println!("Successfully signed ramm creation tx");
 
     let new_ramm_tx = Transaction::from_data(
         new_ramm_tx,
@@ -275,7 +275,20 @@ async fn main() -> ExitCode {
                 return ExitCode::from(1)
             }
         };
-    println!("Successfully create the RAMM. Tx response: {:?}", response);
+    println!("Successfully created the RAMM. Tx response: {:?}", response);
+
+    // Collect the RAMM's ID
+    let ramm_id = response
+        .effects
+        .as_ref()
+        .expect("RAMM creation tx *should* result in non-empty effects")
+        .created()
+        .into_iter()
+        .filter(|oor| oor.owner.is_shared())
+        .collect::<Vec<_>>()
+        .first()
+        .expect("The RAMM creation should result in *exactly* 1 new shared object")
+        .object_id();
 
     // 3. Disambiguate between created capability objects
     //
@@ -293,6 +306,7 @@ async fn main() -> ExitCode {
         .expect("RAMM creation tx *should* result in non-empty effects")
         .created()
         .into_iter()
+        // the ramm creation tx should have created 2 objects owned by the tx sender
         .filter(|oor| oor.owner == client_address)
         .map(|oor| oor.object_id())
         .collect::<Vec<_>>();
@@ -323,14 +337,17 @@ async fn main() -> ExitCode {
     };
 
     // 3.3. Pattern match on the type, and assign `ObjectID`s to be used in the later PTB
-    let admin_cap_ident: &IdentStr = ident_str!("RAMMAdminCap");
-    let new_asset_cap_ident: &IdentStr  = ident_str!("RAMMNewAssetCap");
-    let (admin_cap_id, new_asset_cap_id): (ObjectID, ObjectID) = match cap_move_obj_ty.name() {
-        admin_cap_ident => (cap_ids[0], cap_ids[1]),
-        new_asset_cap_ident => (cap_ids[0], cap_ids[1]),
-        _ => panic!("`MoveObjectType` must be of either capability: not supposed to happen!"),
+    let (admin_cap_id, new_asset_cap_id): (ObjectID, ObjectID) = match cap_move_obj_ty.name().as_str() {
+        "RAMMAdminCap"    => (cap_ids[0], cap_ids[1]),
+        "RAMMNewAssetCap" => (cap_ids[1], cap_ids[0]),
+        _                 => panic!(
+            "`MoveObjectType` must be of either capability: not supposed to happen!"
+            ),
     };
 
+    println!("\nRAMM ID: {}", ramm_id);
+    println!("Admin cap ID: {}", admin_cap_id);
+    println!("New asset cap ID: {}", new_asset_cap_id);
 
     /*
     Constructing the PTB that will populate and initialize the RAMM
@@ -358,64 +375,31 @@ async fn main() -> ExitCode {
 
     // 2. Build the PTB object via the `sui-sdk` builder API
     let mut ptb = ProgrammableTransactionBuilder::new();
-
-    // This is the fee collection address specified in the TOML RAMM config passed to the CLI
-    let fee_collection_address: Argument = ptb.pure(config.fee_collection_address).unwrap();
+    let ramm_arg: Argument = ptb.pure(ramm_id).unwrap();
+    // Add the cap IDs as inputs to the PTB. Recall: inputs to PTBs are added before it is
+    // built, and accessible to all subsequent commands.
+    let admin_cap_arg: Argument = ptb.pure(admin_cap_id).unwrap();
+    let new_asset_cap_arg: Argument = ptb.pure(new_asset_cap_id).unwrap();
 
     /*
     Create PTB to perform the following actions:
     1. Add assets specified in the RAMM deployment config
     2. Initialize it
     */
-    // a. Create the RAMM
-    ptb
-        .move_call(
-            ramm_package_id,
-            Identifier::new("ramm").unwrap(),
-            Identifier::new("new_ramm_internal").unwrap(),
-            vec![],
-            vec![CallArg::Pure(bcs::to_bytes(&AccountAddress::from(config.fee_collection_address)).unwrap())]
-        ).unwrap();
-    ptb
-        .programmable_move_call(
-            ramm_package_id,
-            Identifier::new("ramm").unwrap(),
-            Identifier::new("new_ramm").unwrap(),
-            vec![],
-            vec![
-                Argument::NestedResult(0, 0),
-                Argument::NestedResult(0, 1),
-                Argument::NestedResult(0, 2)
-            ]
-        );
 
-/*
-    Works up to here.
-
-    However:
-    * the `Argument` that is captured in `Argument::NestedResult(0, 0)` has a type,
-      in Sui Move, of `RAMM`
-    * whereas `&mut RAMM` is needed for `add_asset_to_ramm`
-
-    this disproves the viability of a single PTB to be used during the whole process without
-    even greater changes to the RAMM API in `ramm-sui`, which is not justifiable.
-
-    Will revert this commit.
-*/
-
-    // b. add all of the assets specified in the TOML config
+    // Add all of the assets specified in the TOML config
     for ix in 0 .. (config.asset_count as usize) {
         // `N`-th asset to be added to the RAMM
         let asset_data: &AssetConfig = &config.assets[ix];
 
         // Arguments for the `add_asset_to_ramm` Move call
         let move_call_args: Vec<Argument> = vec![
-            Argument::NestedResult(0, 0),
+            ramm_arg,
             ptb.pure(asset_data.aggregator_address).unwrap(),
             ptb.pure(asset_data.minimum_trade_amount).unwrap(),
             ptb.pure(asset_data.decimal_places).unwrap(),
-            Argument::NestedResult(0, 1),
-            Argument::NestedResult(0, 2)
+            admin_cap_arg,
+            new_asset_cap_arg
         ];
 
         // Type argument to the `add_asset_to_ramm` Move call
@@ -430,22 +414,22 @@ async fn main() -> ExitCode {
         ptb
             .programmable_move_call(
                 ramm_package_id,
-                Identifier::new(RAMM_MODULE_NAME).unwrap(),
+                RAMM_MODULE_NAME.to_owned(),
                 Identifier::new("add_asset_to_ramm").unwrap(),
                 vec![asset_type_tag],
                 move_call_args,
             );
     }
 
-/*     // d. initialize the RAMM
+    // Initialize the RAMM
     ptb
         .programmable_move_call(
             ramm_package_id,
-            Identifier::new("ramm").unwrap(),
+            RAMM_MODULE_NAME.to_owned(),
             Identifier::new("initialize_ramm").unwrap(),
             vec![],
-            vec![ramm_id, admin_cap_id, new_asset_cap_id]
-        ); */
+            vec![ramm_arg, admin_cap_arg, new_asset_cap_arg]
+        );
 
 
     // 3. Finalize the PTB object
@@ -460,14 +444,7 @@ async fn main() -> ExitCode {
         gas_price,
     );
 
-    // 4.1 Sign the tx data with the same key used to publish the package
-    let keystore = match FileBasedKeystore::new(&keystore_pathbuf) {
-        Ok(k_pb) => Keystore::File(k_pb),
-        Err(err) => {
-            eprintln!("Failed to fetch keystore from suibase: {:?}", err);
-            return ExitCode::from(1)
-        }
-    };
+    // 4.1 Sign the tx data with the same key used to publish the package and create the RAMM
     let signature = match keystore.sign_secure(&client_address, &ptx_data, Intent::sui_transaction()) {
         Ok(sig) => sig,
         Err(err) => {

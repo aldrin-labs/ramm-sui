@@ -434,12 +434,9 @@ These would not work:
     /// * `new_asset_cap_id` is the `ID` of the `RAMMNewAssetCap` object required to add assets
     ///   into an uninitialized RAMM
     ///
-    /// This function returns a triples of IDS for two reasons:
-    /// 1. In order to write a specification in MSL asserting that the above objects were indeed
-    ///    created, `spec new_ramm`
-    /// 2. To allow a deployment tool using the Sui Rust SDK and PTBs to programmatically create
-    ///    a RAMM, and then access said IDs in subsequent transactions in the same block, to
-    ///    e.g. add assets to the RAMM and initialize it.
+    /// This function returns a triples of IDS for a reason:
+    /// * In order to write a specification in MSL asserting that the above objects were indeed
+    ///   created, `spec new_ramm`
     public fun new_ramm(
         fee_collector: address,
         ctx: &mut TxContext
