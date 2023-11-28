@@ -16,7 +16,7 @@ use sui_sdk::{SuiClientBuilder, json::SuiJsonValue};
 use sui_types::{
     base_types::{ObjectID, MoveObjectType, SuiAddress, ObjectType},
     Identifier,
-    transaction::{Argument, ProgrammableTransaction, Transaction, TransactionData},
+    transaction::{Argument, ProgrammableTransaction, Transaction, TransactionData, ObjectArg},
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -278,17 +278,35 @@ async fn main() -> ExitCode {
     println!("Successfully created the RAMM. Tx response: {:?}", response);
 
     // Collect the RAMM's ID
-    let ramm_id = response
+    let binding = response
         .effects
         .as_ref()
         .expect("RAMM creation tx *should* result in non-empty effects")
         .created()
         .into_iter()
         .filter(|oor| oor.owner.is_shared())
-        .collect::<Vec<_>>()
+        .collect::<Vec<_>>();
+    let ramm_owned_obj_ref = binding
         .first()
-        .expect("The RAMM creation should result in *exactly* 1 new shared object")
-        .object_id();
+        .expect("The RAMM creation should result in *exactly* 1 new shared object");
+    // The above `sui_json_rpc_types::OwnedObjectRef` must be converted into a
+    // `sui_types::ObjectArg`, for use in a PTB later.
+    let ramm_obj_seq_num = match ramm_owned_obj_ref.owner {
+        Owner::Shared{initial_shared_version} => initial_shared_version,
+        _ => {
+            eprintln!("RAMM OwnedObjectRef::owner supposed to be shared!");
+            return ExitCode::from(1)
+        }
+    };
+    let ramm_obj_arg = ObjectArg::SharedObject {
+        id: ramm_owned_obj_ref.object_id(),
+        initial_shared_version: ramm_obj_seq_num,
+        // Recall that
+        // 1. to add assets to the RAMM, and
+        // 2. initialize it
+        // it must be passed in as `ramm: &mut RAMM`, so the below must be true.<<<<<<<<<<<<<
+        mutable: true
+    };
 
     // 3. Disambiguate between created capability objects
     //
@@ -300,24 +318,32 @@ async fn main() -> ExitCode {
     // b. the RAMM's new asset capability
     // but not to tell which is which.
 
-    // Object IDs of both the admin cap, and the new asset cap
-    let cap_ids: Vec<ObjectID> = response
+    // `ObjectArg`s of both the admin cap, and the new asset cap
+    let cap_obj_args: Vec<ObjectArg> = response
         .effects
         .expect("RAMM creation tx *should* result in non-empty effects")
         .created()
         .into_iter()
         // the ramm creation tx should have created 2 objects owned by the tx sender
         .filter(|oor| oor.owner == client_address)
-        .map(|oor| oor.object_id())
+        .map(|oor| match oor.owner {
+            Owner::AddressOwner(addr) => {
+                assert!(addr == client_address);
+                ObjectArg::ImmOrOwnedObject((oor.object_id(), oor.version(), oor.reference.digest))
+            },
+            _ => {
+                panic!("RAMM Cap OwnedObjectRef::owner supposed to be AddressOwner!")
+            },
+        })
         .collect::<Vec<_>>();
-    assert!(cap_ids.len() == 2);
+    assert!(cap_obj_args.len() == 2);
 
     // To tell both capability objects apart, the below must be done:
     // 3.1. Use the SDK to query the network on one of the two object IDs in the RAMM creation 
     //      response
     let cap_object = match sui_client
         .read_api()
-        .get_object_with_options(cap_ids[0], SuiObjectDataOptions::new().with_type())
+        .get_object_with_options(cap_obj_args[0].id(), SuiObjectDataOptions::new().with_type())
         .await {
             Ok(o) => o,
             Err(err) => {
@@ -337,17 +363,17 @@ async fn main() -> ExitCode {
     };
 
     // 3.3. Pattern match on the type, and assign `ObjectID`s to be used in the later PTB
-    let (admin_cap_id, new_asset_cap_id): (ObjectID, ObjectID) = match cap_move_obj_ty.name().as_str() {
-        "RAMMAdminCap"    => (cap_ids[0], cap_ids[1]),
-        "RAMMNewAssetCap" => (cap_ids[1], cap_ids[0]),
+    let (admin_cap_obj_arg, new_asset_cap_obj_arg): (ObjectArg, ObjectArg) = match cap_move_obj_ty.name().as_str() {
+        "RAMMAdminCap"    => (cap_obj_args[0], cap_obj_args[1]),
+        "RAMMNewAssetCap" => (cap_obj_args[1], cap_obj_args[0]),
         _                 => panic!(
             "`MoveObjectType` must be of either capability: not supposed to happen!"
             ),
     };
 
-    println!("\nRAMM ID: {}", ramm_id);
-    println!("Admin cap ID: {}", admin_cap_id);
-    println!("New asset cap ID: {}", new_asset_cap_id);
+    println!("\nRAMM: {:?}", ramm_obj_arg);
+    println!("Admin cap : {:?}", admin_cap_obj_arg);
+    println!("New asset cap: {:?}", new_asset_cap_obj_arg);
 
     /*
     Constructing the PTB that will populate and initialize the RAMM
@@ -375,11 +401,11 @@ async fn main() -> ExitCode {
 
     // 2. Build the PTB object via the `sui-sdk` builder API
     let mut ptb = ProgrammableTransactionBuilder::new();
-    let ramm_arg: Argument = ptb.pure(ramm_id).unwrap();
-    // Add the cap IDs as inputs to the PTB. Recall: inputs to PTBs are added before it is
+    let ramm_arg: Argument = ptb.obj(ramm_obj_arg).unwrap();
+    // Add the cap objects as inputs to the PTB. Recall: inputs to PTBs are added before it is
     // built, and accessible to all subsequent commands.
-    let admin_cap_arg: Argument = ptb.pure(admin_cap_id).unwrap();
-    let new_asset_cap_arg: Argument = ptb.pure(new_asset_cap_id).unwrap();
+    let admin_cap_arg: Argument = ptb.obj(admin_cap_obj_arg).unwrap();
+    let new_asset_cap_arg: Argument = ptb.obj(new_asset_cap_obj_arg).unwrap();
 
     /*
     Create PTB to perform the following actions:
