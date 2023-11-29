@@ -223,6 +223,9 @@ async fn main() -> ExitCode {
 
     /*
     Create the RAMM, and then use the SDK to get the IDs of the admin and new asset caps.
+
+    It is also necessary to query the network for each asset's `Aggregator`, to construct
+    a `sui_types::ObjectArg` for use in the PTB.
     */
 
     // 1. Construct the non-PTB tx to create the RAMM and associated capability objects
@@ -304,7 +307,7 @@ async fn main() -> ExitCode {
         // Recall that
         // 1. to add assets to the RAMM, and
         // 2. initialize it
-        // it must be passed in as `ramm: &mut RAMM`, so the below must be true.<<<<<<<<<<<<<
+        // it must be passed in as `ramm: &mut RAMM`, so the below must be set to true.
         mutable: true
     };
 
@@ -347,7 +350,7 @@ async fn main() -> ExitCode {
         .await {
             Ok(o) => o,
             Err(err) => {
-                eprintln!("Failed to fetch object data. Node response: {}", err);
+                eprintln!("Failed to fetch cap object data. Node response: {}", err);
                 return ExitCode::from(1)
             }
         };
@@ -374,6 +377,45 @@ async fn main() -> ExitCode {
     println!("\nRAMM: {:?}", ramm_obj_arg);
     println!("Admin cap : {:?}", admin_cap_obj_arg);
     println!("New asset cap: {:?}", new_asset_cap_obj_arg);
+
+    // 4. For each asset's aggregator address read from the TOML, use the `SuiClient`'s `ReadApi`
+    //    to query its `SuiObjectData`, and then use that to build an `ObjectArg` for use in the
+    //    PTB
+
+    let aggr_ids = config
+        .assets
+        .iter()
+        .map(|asset| Into::<ObjectID>::into(asset.aggregator_address))
+        .collect::<Vec<_>>();
+    let aggr_objs = match sui_client
+    .read_api()
+    .multi_get_object_with_options(aggr_ids.clone(), SuiObjectDataOptions::new().with_owner())
+    .await {
+        Ok(o) => o,
+        Err(err) => {
+            eprintln!("Failed to fetch aggregator object data. Node response: {}", err);
+            return ExitCode::from(1)
+        }
+    };
+    let mut aggr_obj_args: Vec<ObjectArg> = Vec::new();
+    for (ix, aggr_obj) in aggr_objs.iter().enumerate() {
+        let aggr_owner = aggr_obj.object().unwrap().owner.unwrap();
+        match aggr_owner {
+            Owner::Shared { initial_shared_version } => {
+                let aggr_obj_arg = ObjectArg::SharedObject {
+                    id: aggr_ids[ix],
+                    initial_shared_version,
+                    mutable: false
+                };
+                aggr_obj_args.push(aggr_obj_arg)
+            }
+            _ => {
+                eprintln!("`Owner` of Aggregator object must be `Shared`");
+                return ExitCode::from(1)
+            },
+        }
+    }
+    assert_eq!(aggr_obj_args.len(), config.asset_count as usize);
 
     /*
     Constructing the PTB that will populate and initialize the RAMM
@@ -417,11 +459,12 @@ async fn main() -> ExitCode {
     for ix in 0 .. (config.asset_count as usize) {
         // `N`-th asset to be added to the RAMM
         let asset_data: &AssetConfig = &config.assets[ix];
+        let aggr_arg = ptb.obj(aggr_obj_args[ix]).unwrap();
 
         // Arguments for the `add_asset_to_ramm` Move call
         let move_call_args: Vec<Argument> = vec![
             ramm_arg,
-            ptb.pure(asset_data.aggregator_address).unwrap(),
+            aggr_arg,
             ptb.pure(asset_data.minimum_trade_amount).unwrap(),
             ptb.pure(asset_data.decimal_places).unwrap(),
             admin_cap_arg,
@@ -494,9 +537,8 @@ async fn main() -> ExitCode {
                 eprintln!("Programmable transaction failed with: {:?}", err);
                 return ExitCode::from(1)
             },
-            Ok(r) => r
+            Ok(r) => println!("PTB response status: {:?}", r.status_ok())
         };
-    println!("PTB response: {:?}", ptb_response);
 
     // Success, exit
     ExitCode::SUCCESS
