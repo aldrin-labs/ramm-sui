@@ -76,7 +76,7 @@ async fn main() -> ExitCode {
     */
 
     let suibase = Helper::new();
-    match suibase.select_workdir("active") {
+    match suibase.select_workdir(&config.target_env) {
         Ok(_) => {},
         Err(err) => {
             eprintln!("Failure to select workdir: {}", err);
@@ -205,7 +205,7 @@ async fn main() -> ExitCode {
                 return ExitCode::from(1)
             }
         };
-    println!("Successfully published the RAMM package. Publish Tx response: {:?}", response);
+    println!("Response status of publish tx: {:?}", response.status_ok());
 
     // 6. Get the package's ID from the tx response.
     let ramm_package_id: ObjectID = response
@@ -278,7 +278,7 @@ async fn main() -> ExitCode {
                 return ExitCode::from(1)
             }
         };
-    println!("Successfully created the RAMM. Tx response: {:?}", response);
+    println!("Status of RAMM creation tx: {:?}", response.status_ok());
 
     // Collect the RAMM's ID
     let binding = response
@@ -472,13 +472,7 @@ async fn main() -> ExitCode {
         ];
 
         // Type argument to the `add_asset_to_ramm` Move call
-        let asset_type_tag: TypeTag = match asset_data.type_tag_from_faucet(&config.faucet_data) {
-            Err(err) => {
-                eprintln!("Failed to build type tag for a RAMM asset. Error: {}", err);
-                return ExitCode::from(1)
-            },
-            Ok(t) => t
-        };
+        let asset_type_tag: TypeTag = asset_data.asset_type.clone();
 
         ptb
             .programmable_move_call(
@@ -525,7 +519,7 @@ async fn main() -> ExitCode {
 
     // 4.2 Submit the tx to the network, and await execution result
     println!("\nExecuting the PTB\n");
-    let ptb_response = match sui_client
+    match sui_client
         .quorum_driver_api()
         .execute_transaction_block(
             Transaction::from_data(ptx_data, Intent::sui_transaction(), vec![signature]),
