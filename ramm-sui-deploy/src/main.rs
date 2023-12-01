@@ -21,7 +21,7 @@ use sui_types::{
     TypeTag,
 };
 
-use ramm_sui_deploy::{AssetConfig, deployment_cfg_from_args};
+use ramm_sui_deploy::{types::AssetConfig, deployment_cfg_from_args, get_suibase_and_sui_client};
 
 /// Name of the module in the RAMM package that contains the API to create and initialize it.
 const RAMM_MODULE_NAME: &IdentStr = ident_str!("ramm");
@@ -60,8 +60,7 @@ async fn main() -> ExitCode {
     /*
     Sui client creation, with the help of `suibase` for network selection
     */
-    let (suibase, sui_client) = match dplymt_cfg
-        .get_suibase_and_sui_client()
+    let (suibase, sui_client) = match get_suibase_and_sui_client(&dplymt_cfg.target_env)
         .await {
             Err(err) => {
                 eprintln!("{}", err);
