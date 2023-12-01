@@ -5614,6 +5614,7 @@ dependencies = [
  "sui-sdk",
  "sui-types",
  "suibase",
+ "thiserror",
  "tokio",
  "toml 0.8.1",
 ]

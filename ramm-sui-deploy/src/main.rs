@@ -1,8 +1,6 @@
-use std::{default::Default, env, fs, path::PathBuf, process::ExitCode, str::FromStr};
+use std::{default::Default, env, path::PathBuf, process::ExitCode, str::FromStr};
 
 use shared_crypto::intent::Intent;
-
-use suibase::Helper;
 
 use move_core_types::{ident_str, identifier::IdentStr};
 use sui_json_rpc_types::{
@@ -12,7 +10,7 @@ use sui_json_rpc_types::{
 };
 use sui_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use sui_move_build::{CompiledPackage, BuildConfig};
-use sui_sdk::{SuiClientBuilder, json::SuiJsonValue};
+use sui_sdk::json::SuiJsonValue;
 use sui_types::{
     base_types::{ObjectID, MoveObjectType, SuiAddress, ObjectType},
     Identifier,
@@ -23,7 +21,7 @@ use sui_types::{
     TypeTag,
 };
 
-use ramm_sui_deploy::{RAMMDeploymentConfig, AssetConfig};
+use ramm_sui_deploy::{AssetConfig, deployment_cfg_from_args};
 
 /// Name of the module in the RAMM package that contains the API to create and initialize it.
 const RAMM_MODULE_NAME: &IdentStr = ident_str!("ramm");
@@ -34,77 +32,43 @@ const RAMM_MODULE_NAME: &IdentStr = ident_str!("ramm");
 /// Publishing it in the testnet in mid/late 2023 cost roughly 0.25 SUI, on average.
 const PACKAGE_PUBLICATION_GAS_BUDGET: u64 = 500_000_000;
 
+/// Gas budget for the transaction that creates the RAMM.
 const CREATE_RAMM_GAS_BUDGET: u64 = 100_000_000;
 
+/// Gas budget for the PTB that will add assets to the RAMM, and initialize it.
 const RAMM_PTB_GAS_BUDGET: u64 = 100_000_000;
 
 #[tokio::main]
 async fn main() -> ExitCode {
+
     /*
     RAMM deployment config parsing
     */
-
-    let args = &mut env::args();
+    let args = &mut env::args_os();
     let exec_name: PathBuf = PathBuf::from(args.next().unwrap());
     println!("Process name: {}", exec_name.display());
 
-    let config_path: PathBuf = match args.next() {
-        None => {
-            println!("No TOML config provided; exiting.");
-            return ExitCode::from(0)
-        },
-        Some(s) => PathBuf::from(s),
-    };
-    let config_string: String = match fs::read_to_string(config_path) {
+    let (dplymt_cfg, pkg_addr) = match deployment_cfg_from_args(args) {
         Err(err) => {
-            eprintln!("Could not parse config file into `String`: {:?}", err);
+            eprintln!("{}", err);
             return ExitCode::from(1)
         },
-        Ok(str) => str,
-    };
-
-    let dplymt_cfg: RAMMDeploymentConfig= match toml::from_str(&config_string) {
-        Ok(cfg) => cfg,
-        Err(err) => {
-            eprintln!("Could not parse config file into `String`: {err}");
-            return ExitCode::from(1)
-        }
+        Ok(ok) => ok
     };
     println!("Using deployment config:\n{}", dplymt_cfg);
 
     /*
     Sui client creation, with the help of `suibase` for network selection
     */
-
-    let suibase = Helper::new();
-    match suibase.select_workdir(&dplymt_cfg.target_env) {
-        Ok(_) => {},
-        Err(err) => {
-            eprintln!("Failure to select workdir: {}", err);
-            return ExitCode::from(1)
-        }
-    }
-    match suibase.workdir() {
-        Ok(workdir) => println!("Using suibase workdir [{}]", workdir),
-        Err(err) => {
-            eprintln!("Failed to fetch current workdir: {:?}", err);
-            return ExitCode::from(1)
-        }
-    }
-    let rpc_url = match suibase.rpc_url() {
-        Ok(ru) => ru,
-        Err(err) => {
-            eprintln!("Failed to fetch current RPC URL: {:?}", err);
-            return ExitCode::from(1)
-        }
-    };
-    let sui_client = match SuiClientBuilder::default().build(rpc_url).await {
-        Ok(cl) => cl,
-        Err(err) => {
-            eprintln!("Failed to build Sui client from RPC URL: {:?}", err);
-            return ExitCode::from(1)
-        }
-    };
+    let (suibase, sui_client) = match dplymt_cfg
+        .get_suibase_and_sui_client()
+        .await {
+            Err(err) => {
+                eprintln!("{}", err);
+                return ExitCode::from(1)
+            },
+            Ok(pair) => pair
+        };
 
     /*
     Building the RAMM package

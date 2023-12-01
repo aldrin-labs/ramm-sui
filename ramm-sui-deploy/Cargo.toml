@@ -10,10 +10,16 @@ anyhow = "1.0"
 bcs = "0.1.4"
 clap = "4.4.10"
 futures = "0.3"
+serde = {version = "1.0.188", features = ["derive"] }
+thiserror = "1.0"
+tokio = { version = "1", features = ["macros"] }
+toml = "0.8.1"
 
 # Careful with the absolute path here - must reflect the machine this deployment binary will be
 # run on.
-# In the future it will be necessary to bundle `suibase` with this package.
+# To solve this, in the future it may be necessary to either
+# 1. bundle `suibase` with this package, or
+# 2. to fetch all below dependencies from Git, pinned to the same commit hash
 suibase = { path = "../../../../suibase/rust/helper" }
 
 sui-sdk = { path = "../../../../suibase/workdirs/active/sui-repo/crates/sui-sdk/" }
@@ -24,7 +30,3 @@ sui-types = { path = "../../../../suibase/workdirs/active/sui-repo/crates/sui-ty
 shared-crypto = { path = "../../../../suibase/workdirs/active/sui-repo/crates/shared-crypto/" }
 move-core-types = { path = "../../../../suibase/workdirs/active/sui-repo/external-crates/move/move-core/types" }
 #
-
-serde = {version = "1.0.188", features = ["derive"] }
-toml = "0.8.1"
-tokio = { version = "1", features = ["macros"] }

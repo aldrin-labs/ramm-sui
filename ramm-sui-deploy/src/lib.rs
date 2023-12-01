@@ -6,9 +6,11 @@ use clap::{Arg, Command, ArgMatches};
 use error::RAMMDeploymentError;
 use move_core_types::account_address::AccountAddress;
 use serde::{de, Deserialize, Deserializer};
+use sui_sdk::{SuiClient, SuiClientBuilder};
 use sui_types::{
     base_types::SuiAddress, TypeTag,
 };
+use suibase::Helper;
 
 /// Asset data required to add said asset to the RAMM, using its Sui Move API and the
 /// Sui Rust SDK via programmable transaction blocks (PTBs).
@@ -130,7 +132,7 @@ pub enum RAMMPkgAddrSrc {
 ///    a. to use the config's address of an already published RAMM library, or
 ///
 ///    b. to publish the library residing at the filepath specified by the user
-pub fn build(
+pub fn deployment_cfg_from_args(
     args: impl Iterator<Item = OsString>,
 ) -> Result<(RAMMDeploymentConfig, RAMMPkgAddrSrc), RAMMDeploymentError> {
     let deployer = Command::new("deployer")
@@ -150,7 +152,8 @@ pub fn build(
             .required(true)
             .num_args(1)
             .value_parser(clap::value_parser!(PathBuf))
-        );
+        )
+        .no_binary_name(true);
     let deployer_m: ArgMatches = match deployer
         .try_get_matches_from(args) {
             Err(err) => return Err(RAMMDeploymentError::CLIError(err)),
@@ -186,5 +189,25 @@ impl RAMMDeploymentConfig {
 
         toml::from_str(&config_string)
             .map_err(RAMMDeploymentError::TOMLParseError)
+    }
+
+    pub async fn get_suibase_and_sui_client(&self) ->
+        Result<(Helper, SuiClient), RAMMDeploymentError>
+    {
+        let suibase = Helper::new();
+        suibase
+            .select_workdir(&self.target_env)
+            .map_err(RAMMDeploymentError::SuibaseWorkdirError)?;
+
+        let rpc_url = suibase
+            .rpc_url()
+            .map_err(RAMMDeploymentError::RpcUrlSelectionError)?;
+
+        let sui_client = SuiClientBuilder::default()
+            .build(rpc_url)
+            .await
+            .map_err(RAMMDeploymentError::BuildSuiClientFromRpcUrlError)?;
+
+        Ok((suibase, sui_client))
     }
 }
