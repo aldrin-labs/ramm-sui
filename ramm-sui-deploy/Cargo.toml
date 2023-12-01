@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0"
 bcs = "0.1.4"
+clap = "4.4.10"
 futures = "0.3"
 
 # Careful with the absolute path here - must reflect the machine this deployment binary will be

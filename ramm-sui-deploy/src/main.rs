@@ -47,6 +47,7 @@ async fn main() -> ExitCode {
     let args = &mut env::args();
     let exec_name: PathBuf = PathBuf::from(args.next().unwrap());
     println!("Process name: {}", exec_name.display());
+
     let config_path: PathBuf = match args.next() {
         None => {
             println!("No TOML config provided; exiting.");
@@ -62,21 +63,21 @@ async fn main() -> ExitCode {
         Ok(str) => str,
     };
 
-    let config: RAMMDeploymentConfig= match toml::from_str(&config_string) {
+    let dplymt_cfg: RAMMDeploymentConfig= match toml::from_str(&config_string) {
         Ok(cfg) => cfg,
         Err(err) => {
             eprintln!("Could not parse config file into `String`: {err}");
             return ExitCode::from(1)
         }
     };
-    println!("Using deployment config:\n{}", config);
+    println!("Using deployment config:\n{}", dplymt_cfg);
 
     /*
     Sui client creation, with the help of `suibase` for network selection
     */
 
     let suibase = Helper::new();
-    match suibase.select_workdir(&config.target_env) {
+    match suibase.select_workdir(&dplymt_cfg.target_env) {
         Ok(_) => {},
         Err(err) => {
             eprintln!("Failure to select workdir: {}", err);
@@ -237,7 +238,7 @@ async fn main() -> ExitCode {
             RAMM_MODULE_NAME.as_str(),
             "new_ramm",
             vec![],
-            vec![SuiJsonValue::from_str(&config.fee_collection_address.to_string()).unwrap()],
+            vec![SuiJsonValue::from_str(&dplymt_cfg.fee_collection_address.to_string()).unwrap()],
             None,
             CREATE_RAMM_GAS_BUDGET
         )
@@ -382,7 +383,7 @@ async fn main() -> ExitCode {
     //    to query its `SuiObjectData`, and then use that to build an `ObjectArg` for use in the
     //    PTB
 
-    let aggr_ids = config
+    let aggr_ids = dplymt_cfg
         .assets
         .iter()
         .map(|asset| Into::<ObjectID>::into(asset.aggregator_address))
@@ -415,7 +416,7 @@ async fn main() -> ExitCode {
             },
         }
     }
-    assert_eq!(aggr_obj_args.len(), config.asset_count as usize);
+    assert_eq!(aggr_obj_args.len(), dplymt_cfg.asset_count as usize);
 
     /*
     Constructing the PTB that will populate and initialize the RAMM
@@ -456,9 +457,9 @@ async fn main() -> ExitCode {
     */
 
     // Add all of the assets specified in the TOML config
-    for ix in 0 .. (config.asset_count as usize) {
+    for ix in 0 .. (dplymt_cfg.asset_count as usize) {
         // `N`-th asset to be added to the RAMM
-        let asset_data: &AssetConfig = &config.assets[ix];
+        let asset_data: &AssetConfig = &dplymt_cfg.assets[ix];
         let aggr_arg = ptb.obj(aggr_obj_args[ix]).unwrap();
 
         // Arguments for the `add_asset_to_ramm` Move call
