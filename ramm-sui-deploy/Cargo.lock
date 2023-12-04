@@ -5608,6 +5608,7 @@ dependencies = [
  "move-core-types",
  "serde",
  "shared-crypto",
+ "signature 1.6.4",
  "sui-json-rpc-types",
  "sui-keys",
  "sui-move-build",

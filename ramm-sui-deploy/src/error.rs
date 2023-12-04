@@ -2,11 +2,6 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum RAMMDeploymentError {
-    /// The user did not use the `--publish` flag *and* also did not provided an `AccountAddress`
-    /// for a published version of the RAMM library
-    #[error("No RAMM package address and no `--publish` flag specified. Please supply at least one.")]
-    NoPkgAddrAndNoPublishFlag,
-
     #[error("Error reading the TOML config file into a `String`: {0}")]
     TOMLFileReadError(std::io::Error),
     #[error("Error parsing the executable's user input: {0}")]
@@ -21,5 +16,22 @@ pub enum RAMMDeploymentError {
     #[error("Failed to get the RPC URL for the selected workdir: {0}")]
     RpcUrlSelectionError(suibase::Error),
     #[error("Failed to build a Sui client from the selected RPC URL: {0}")]
-    BuildSuiClientFromRpcUrlError(sui_sdk::error::Error)
+    BuildSuiClientFromRpcUrlError(sui_sdk::error::Error),
+
+    #[error("Failed to fetch pathname of file-based keystore: {0}")]
+    KeystorePathnameError(suibase::Error),
+    #[error("Failed to open file-based keystore: {0}")]
+    KeystoreOpenError(anyhow::Error),
+
+    #[error("Failed to build the RAMM package: {0}")]
+    PkgBuildError(sui_types::error::SuiError),
+
+    #[error("Failed to create publication transaction for RAMM library: {0}")]
+    PublishTxCreationError(anyhow::Error),
+
+    #[error("Failed to sign transaction: {0}")]
+    TxSignatureError(signature::Error),
+
+    #[error("Failed to execute transaction block: {0}")]
+    TxBlockExecutionError(sui_sdk::error::Error)
 }

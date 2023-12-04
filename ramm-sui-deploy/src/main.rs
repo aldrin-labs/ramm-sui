@@ -1,4 +1,4 @@
-use std::{default::Default, env, path::PathBuf, process::ExitCode, str::FromStr};
+use std::{env, path::PathBuf, process::ExitCode, str::FromStr};
 
 use shared_crypto::intent::Intent;
 
@@ -8,8 +8,7 @@ use sui_json_rpc_types::{
     SuiTransactionBlockEffectsAPI,
     SuiTransactionBlockResponseOptions, SuiObjectDataOptions
 };
-use sui_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
-use sui_move_build::{CompiledPackage, BuildConfig};
+use sui_keys::keystore::AccountKeystore;
 use sui_sdk::json::SuiJsonValue;
 use sui_types::{
     base_types::{ObjectID, MoveObjectType, SuiAddress, ObjectType},
@@ -21,7 +20,12 @@ use sui_types::{
     TypeTag,
 };
 
-use ramm_sui_deploy::{types::AssetConfig, deployment_cfg_from_args, get_suibase_and_sui_client};
+use ramm_sui_deploy::{
+    types::{AssetConfig, RAMMPkgAddrSrc},
+    deployment_cfg_from_args,
+    get_suibase_and_sui_client,
+    get_keystore, create_publish_tx, sign_and_execute_tx
+};
 
 /// Name of the module in the RAMM package that contains the API to create and initialize it.
 const RAMM_MODULE_NAME: &IdentStr = ident_str!("ramm");
@@ -48,7 +52,7 @@ async fn main() -> ExitCode {
     let exec_name: PathBuf = PathBuf::from(args.next().unwrap());
     println!("Process name: {}", exec_name.display());
 
-    let (dplymt_cfg, pkg_addr) = match deployment_cfg_from_args(args) {
+    let dplymt_cfg = match deployment_cfg_from_args(args) {
         Err(err) => {
             eprintln!("{}", err);
             return ExitCode::from(1)
@@ -69,120 +73,77 @@ async fn main() -> ExitCode {
             Ok(pair) => pair
         };
 
-    /*
-    Building the RAMM package
-    */
-
-    let build_config: BuildConfig = Default::default();
-    let ramm_package_path: PathBuf = PathBuf::from("../ramm-sui");
-    // NOTE: hardcoded package path for now, will change this as needed
-    let compiled_ramm_package: CompiledPackage = match build_config.build(ramm_package_path.clone()) {
-        Ok(cp) => {
-            println!("Successfully compiled the RAMM Move package located at {:?}", ramm_package_path);
-            cp
-        },
-        Err(err) => {
-            eprintln!("Failed to compile RAMM Move package: {:?}", err);
-            return ExitCode::from(1)
-        }
-    };
-    let ramm_compiled_modules: Vec<Vec<u8>> =
-        compiled_ramm_package.get_package_bytes(/* with_unpublished_deps */ false);
-    let ramm_dep_ids: Vec<ObjectID> = compiled_ramm_package.dependency_ids.published.values().cloned().collect();
-
-    /*
-    Publishing the compiled Move RAMM package
-    */
-
-    // 1. Fetch the sui client's active address, to use it for publishing
+    // Fetch the sui client's active address, to use it for publishing
     let client_address: SuiAddress = match suibase.client_sui_address("active") {
-        Ok(adr) => {
-            println!("Using address {} to publish the RAMM package.", adr);
-            adr
-        },
+        Ok(adr) => adr,
         Err(err) => {
             eprintln!("Failed to fetch the active address for the Sui client: {:?}", err);
             return ExitCode::from(1)
         }
     };
+    println!("Using address {} to publish the RAMM package.", client_address);
 
-    // 2. Manually construct the publishing transaction
-    let publish_tx = match sui_client
-        .transaction_builder()
-        .publish(
-            client_address,
-            ramm_compiled_modules,
-            ramm_dep_ids,
-            // Recall that choosing `None` allows the client to choose a gas object instead of
-            // the user.
-            None,
-            PACKAGE_PUBLICATION_GAS_BUDGET
-        )
-        .await {
-            Ok(tx) => tx,
-            Err(err) => {
-                eprintln!("Failed to publish the RAMM package: {:?}", err);
-                return ExitCode::from(1)
-            }
-        };
-
-    // 3. Fetch the sui client keystore using the location given by suibase.
-    let keystore_pathname = match suibase.keystore_pathname() {
-        Ok(k_pn) => k_pn,
+    let keystore = match get_keystore(&suibase) {
         Err(err) => {
-            eprintln!("Failed to fetch keystore pathname: {:?}", err);
+            eprintln!("{}", err);
             return ExitCode::from(1)
+        },
+        Ok(a) => a
+    };
+
+    /*
+    Building the RAMM package
+    */
+
+    let ramm_package_id = match dplymt_cfg.ramm_pkg_addr_or_path {
+        RAMMPkgAddrSrc::FromTomlConfig(addr) => addr,
+        RAMMPkgAddrSrc::FromPkgPublication(path) => {
+            let publish_tx =
+                match create_publish_tx(
+                    &sui_client,
+                    path,
+                    client_address,
+                    PACKAGE_PUBLICATION_GAS_BUDGET
+                )
+                .await {
+                    Err(err) => {
+                        eprintln!("{}", err);
+                        return ExitCode::from(1)
+                },
+                Ok(tx) => tx
+            };
+
+            let response =
+                match sign_and_execute_tx(
+                    &sui_client,
+                    &keystore,
+                    publish_tx,
+                    &client_address
+                )
+                .await {
+                    Err(err) => {
+                        eprintln!("{}", err);
+                        return ExitCode::from(1)
+                   },
+                    Ok(r) => r
+                };
+
+            // 6. Get the package's ID from the tx response.
+            let ramm_package_id: ObjectID = response
+                .effects
+                .expect("Publish Tx *should* result in non-empty effects")
+                .created()
+                .into_iter()
+                .filter(|oor|  Owner::is_immutable(&oor.owner))
+                .collect::<Vec<&OwnedObjectRef>>()
+                .first()
+                .expect("Publish Tx *should* result in at least 1 immutable object, i.e. the published package")
+                .reference
+                .object_id;
+            ramm_package_id
         }
     };
-    let keystore_pathbuf = PathBuf::from(keystore_pathname);
 
-    // 4. Sign the transaction using the found keystore, and the previously queried active address
-    let keystore = match FileBasedKeystore::new(&keystore_pathbuf) {
-        Ok(k_pb) => Keystore::File(k_pb),
-        Err(err) => {
-            eprintln!("Failed to fetch keystore from suibase: {:?}", err);
-            return ExitCode::from(1)
-        }
-    };
-    let signature = match keystore.sign_secure(&client_address, &publish_tx, Intent::sui_transaction()) {
-        Ok(sig) => sig,
-        Err(err) => {
-            eprintln!("Failed to sign publish tx: {:?}", err);
-            return ExitCode::from(1)
-        }
-    };
-    println!("Successfully signed publish tx");
-
-    // 5. Publish the tx
-    let publish_tx = Transaction::from_data(publish_tx, Intent::sui_transaction(), vec![signature]);
-    let response = match sui_client
-        .quorum_driver_api()
-        .execute_transaction_block(
-            publish_tx,
-            SuiTransactionBlockResponseOptions::new().with_effects(),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
-        )
-        .await {
-            Ok(r) => r,
-            Err(err) => {
-                eprintln!("Failed to execute block containing publish tx. Node response: {}", err);
-                return ExitCode::from(1)
-            }
-        };
-    println!("Response status of publish tx: {:?}", response.status_ok());
-
-    // 6. Get the package's ID from the tx response.
-    let ramm_package_id: ObjectID = response
-        .effects
-        .expect("Publish Tx *should* result in non-empty effects")
-        .created()
-        .into_iter()
-        .filter(|oor|  Owner::is_immutable(&oor.owner))
-        .collect::<Vec<&OwnedObjectRef>>()
-        .first()
-        .expect("Publish Tx *should* result in at least 1 immutable object, i.e. the published package")
-        .reference
-        .object_id;
     println!("RAMM package ID: {ramm_package_id}");
 
     /*

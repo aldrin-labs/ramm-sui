@@ -11,6 +11,7 @@ bcs = "0.1.4"
 clap = "4.4.10"
 futures = "0.3"
 serde = {version = "1.0.188", features = ["derive"] }
+signature = "1.6.4"
 thiserror = "1.0"
 tokio = { version = "1", features = ["macros"] }
 toml = "0.8.1"
