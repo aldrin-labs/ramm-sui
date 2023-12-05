@@ -11,6 +11,9 @@ pub enum RAMMDeploymentError {
     #[error("Failed to parse the TOML config data: {0}")]
     TOMLParseError(toml::de::Error),
 
+    #[error("The parsed TOML config has bad data.")]
+    InvalidConfigData,
+
     #[error("Failed to fetch Suibase workdir specified in config: {0}")]
     SuibaseWorkdirError(suibase::Error),
     #[error("Failed to get the RPC URL for the selected workdir: {0}")]

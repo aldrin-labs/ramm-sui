@@ -29,10 +29,13 @@ fn parse_ramm_cfg(toml_path: PathBuf) -> Result<RAMMDeploymentConfig, RAMMDeploy
     let config_string: String = fs::read_to_string(toml_path)
         .map_err(RAMMDeploymentError::TOMLFileReadError)?;
 
-    let cfg = toml::from_str(&config_string)
-        .map_err(RAMMDeploymentError::TOMLParseError);
+    let cfg: RAMMDeploymentConfig = toml::from_str(&config_string)
+        .map_err(RAMMDeploymentError::TOMLParseError)?;
 
-    cfg
+    match cfg.validate_ramm_cfg() {
+        true => Ok(cfg),
+        _ => Err(RAMMDeploymentError::InvalidConfigData)
+    }
 }
 
 /// Build a [`RAMMDeploymentConfig`] from `main`'s `args` iterator.

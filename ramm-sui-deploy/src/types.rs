@@ -6,6 +6,10 @@ use sui_types::{
     base_types::{SuiAddress, ObjectID}, TypeTag,
 };
 
+/// Minimum number of decimal places assets in Sui are allowed to have - no exact reasoning here,
+/// just a heuristic in case a user writes something bad into the TOML config.
+const ASSET_MIN_DECIMAL_PLACES: u8 = 4;
+
 /// Asset data required to add said asset to the RAMM, using its Sui Move API and the
 /// Sui Rust SDK via programmable transaction blocks (PTBs).
 #[derive(Debug, Deserialize)]
@@ -109,6 +113,17 @@ pub struct RAMMDeploymentConfig {
     pub asset_count: u8,
     pub fee_collection_address: SuiAddress,
     pub assets: Vec<AssetConfig>,
+}
+
+impl RAMMDeploymentConfig {
+    /// Validate a deployment configuration parsed from a well-formed TOML file.
+    ///
+    /// Returns `true` iff the config is valid per the informal specification below.
+    pub(crate) fn validate_ramm_cfg(&self) -> bool {
+        self.asset_count == (self.assets.len() as u8) && self.asset_count > 0 &&
+        ["active", "testnet", "mainnet"].contains(&self.target_env.as_str()) &&
+        self.assets.iter().all(|asset| asset.decimal_places >= ASSET_MIN_DECIMAL_PLACES)
+    }
 }
 
 impl Display for RAMMDeploymentConfig {
