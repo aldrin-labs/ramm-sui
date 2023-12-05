@@ -1,7 +1,7 @@
 use std::{fmt::Display, str::FromStr, path::PathBuf};
 
+use colored::Colorize;
 use serde::{de, Deserialize, Deserializer};
-
 use sui_types::{
     base_types::{SuiAddress, ObjectID}, TypeTag,
 };
@@ -42,13 +42,13 @@ impl AssetConfig {
         let first_pad: String = '\t'.to_string().repeat(tab_count - 1);
         let padding: String = '\t'.to_string().repeat(tab_count);
 
-        write!(f, "{}asset data:\n", first_pad)?;
+        write!(f, "{}{}:\n", first_pad, "asset data".purple())?;
         // This left pads each of the lines in `AssetConfig` to a variable number of `\t`
         // (tabs).
-        write!(f, "{}asset type: {}\n", padding, asset_type)?;
-        write!(f, "{}aggregator address: {}\n", padding, aggregator_address)?;
-        write!(f, "{}minimum trade amount: {}\n", padding, minimum_trade_amount)?;
-        write!(f, "{}decimal places: {}\n", padding, decimal_places)
+        write!(f, "{}{}: {}\n", padding, "asset type".cyan(), asset_type)?;
+        write!(f, "{}{}: {}\n", padding, "aggregator address".cyan(), aggregator_address)?;
+        write!(f, "{}{}: {}\n", padding, "minimum trade amount".cyan(), minimum_trade_amount)?;
+        write!(f, "{}{}: {}\n", padding, "decimal places".cyan(), decimal_places)
     }
 }
 
@@ -115,21 +115,21 @@ impl Display for RAMMDeploymentConfig {
     /// Display a RAMM's deployment config in human-readable format, with indentation
     /// for nested data for better visibility.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "RAMM Deployment Configuration:\n")?;
-        write!(f, "\ttarget environment:{}\n", self.target_env)?;
-        match &self.ramm_pkg_addr_or_path {
-            RAMMPkgAddrSrc::FromTomlConfig(addr) => {
-                write!(f, "\tprovided RAMM package address: {}\n", addr)?
-            },
-            RAMMPkgAddrSrc::FromPkgPublication(path) => {
-                write!(f, "\tRAMM pkg ID will be obtained from publishing library at path: {}\n", path.display())?
-            }
-        };
-        write!(f, "\tasset list:\n")?;
+        write!(f, "{}:\n", "RAMM Deployment Configuration".on_bright_black())?;
+        write!(f, "\t{}: {}\n", "Target environment".green(), self.target_env)?;
+        write!(f, "\t{}: {}\n", "Fee collection address".green(), self.fee_collection_address)?;
+        write!(f, "\t{}:\n", "List of assets".green())?;
+        write!(f, "\t{}: {}\n", "Asset count".green(), self.asset_count)?;
         for asset in &self.assets {
             asset.asset_cfg_fmt(f, 3)?;
         }
-        write!(f, "\tfee collection address: {}\n", self.fee_collection_address)?;
-        write!(f, "\tasset count: {}", self.asset_count)
+        match &self.ramm_pkg_addr_or_path {
+            RAMMPkgAddrSrc::FromTomlConfig(addr) => {
+                write!(f, "\t{}: {}\n", "RAMM package address".green(),addr)
+            },
+            RAMMPkgAddrSrc::FromPkgPublication(path) => {
+                write!(f, "\t{}: {}\n", "RAMM package ID to be obtained from publishing library at path".green(), path.display())
+            }
+        }
     }
 }

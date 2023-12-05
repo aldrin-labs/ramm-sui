@@ -9,6 +9,7 @@ edition = "2021"
 anyhow = "1.0"
 bcs = "0.1.4"
 clap = "4.4.10"
+colored = "2.0.4"
 futures = "0.3"
 serde = {version = "1.0.188", features = ["derive"] }
 signature = "1.6.4"

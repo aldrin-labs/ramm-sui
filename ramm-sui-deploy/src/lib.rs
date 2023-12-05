@@ -29,8 +29,10 @@ fn parse_ramm_cfg(toml_path: PathBuf) -> Result<RAMMDeploymentConfig, RAMMDeploy
     let config_string: String = fs::read_to_string(toml_path)
         .map_err(RAMMDeploymentError::TOMLFileReadError)?;
 
-    toml::from_str(&config_string)
-        .map_err(RAMMDeploymentError::TOMLParseError)
+    let cfg = toml::from_str(&config_string)
+        .map_err(RAMMDeploymentError::TOMLParseError);
+
+    cfg
 }
 
 /// Build a [`RAMMDeploymentConfig`] from `main`'s `args` iterator.
@@ -153,6 +155,14 @@ pub async fn create_publish_tx(
         .map_err(RAMMDeploymentError::PublishTxCreationError)
 }
 
+/// Given
+/// * an instance of a Sui client, through which a tx will be sent to the network,
+/// * a keystore (to access an address' private/public keys)
+/// * a transaction's structured data, and
+/// * the address with which the tx is to be signed,
+///
+/// sign the transaction with the given key, and submit it, along with its signature, to the
+/// network for validation and inclusion in the ledger
 pub async fn sign_and_execute_tx(
     sui_client: &SuiClient,
     keystore: &Keystore,

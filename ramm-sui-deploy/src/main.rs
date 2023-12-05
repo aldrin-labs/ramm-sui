@@ -1,8 +1,8 @@
-use std::{env, path::PathBuf, process::ExitCode, str::FromStr};
+use std::{env, io, path::PathBuf, process::ExitCode, str::FromStr};
 
-use shared_crypto::intent::Intent;
-
+use colored::Colorize;
 use move_core_types::{ident_str, identifier::IdentStr};
+use shared_crypto::intent::Intent;
 use sui_json_rpc_types::{
     OwnedObjectRef,
     SuiTransactionBlockEffectsAPI,
@@ -59,7 +59,41 @@ async fn main() -> ExitCode {
         },
         Ok(ok) => ok
     };
-    println!("Using deployment config:\n{}", dplymt_cfg);
+
+    println!(
+        "The following configuration will be used to {}, {} with assets, and {} a RAMM.",
+        "create".bright_blue(),
+        "populate".bright_green(),
+        "initialize".bright_magenta()
+    );
+    println!("Please, {} analyze it:", "carefully".on_red());
+    println!("{}", dplymt_cfg);
+    println!("Is this information correct?");
+    println!("Reply with {} or {}.", "\"yes\"".green(), "\"no\"".red());
+    let mut input = String::new();
+    loop {
+        io::stdin()
+            .read_line(&mut input)
+            .expect("Failed to read line!");
+        match input.as_ref() {
+            "yes\n" => {
+                println!("{} with the displayed configuration.", "Proceeding".bright_blue());
+                break
+            },
+            "no\n" => {
+                println!(
+                    "{} the provided configuration {} as desired, and then {} this program",
+                    "Alter".purple(),
+                    "file".purple(),
+                    "rerun".purple()
+                );
+                println!("This program will now {}.", "exit".magenta());
+                return ExitCode::from(0)
+            },
+            _ => println!("Reply with {} or {}.", "\"yes\"".green(), "\"no\"".red()),
+        }
+        input.clear();
+    }
 
     /*
     Sui client creation, with the help of `suibase` for network selection
