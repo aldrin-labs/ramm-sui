@@ -1,9 +1,10 @@
 pub mod error;
 pub mod types;
 
-use std::{path::PathBuf, ffi::OsString, fs};
+use std::{io, path::PathBuf, ffi::OsString, fs};
 
 use clap::{Arg, Command, ArgMatches};
+use colored::Colorize;
 use error::RAMMDeploymentError;
 
 use shared_crypto::intent::Intent;
@@ -79,6 +80,61 @@ pub fn deployment_cfg_from_args(
     let ramm_cfg = parse_ramm_cfg(toml_path)?;
 
     Ok(ramm_cfg)
+}
+
+pub enum UserAssent {
+    Rejected,
+    Accepted
+}
+
+/// This function:
+///
+/// 1. Prints the RAMM deployment config parsed from the TOML to the user
+/// 2. Asks the user to check if all its information is correct
+/// 3. Returns the appropriate value to be handled by the caller on whether to proceed with
+///    program execution
+///
+/// Warning, this function:
+/// * Reads from `STDIN`
+/// * Writes to `STDOUT`
+/// * Uses [ANSI escape codes](https://en.wikipedia.org/wiki/ANSI_escape_code)
+pub fn user_assent_interaction(cfg: &RAMMDeploymentConfig) -> UserAssent {
+    println!(
+        "The following configuration will be used to {}, {} with assets, and {} a RAMM.",
+        "create".bright_blue(),
+        "populate".bright_green(),
+        "initialize".bright_magenta()
+    );
+    println!("Please, {} analyze it:", "carefully".on_red());
+    println!("{}", cfg);
+    println!("Is this information correct?");
+    println!("Reply with {} or {}.", "\"yes\"".green(), "\"no\"".red());
+    let mut input = String::new();
+    loop {
+        io::stdin()
+            .read_line(&mut input)
+            .expect("Failed to read line!");
+        match input.as_ref() {
+            "yes\n" => {
+                println!("{} with the displayed configuration.", "Proceeding".bright_blue());
+                break
+            },
+            "no\n" => {
+                println!(
+                    "{} the provided configuration {} as desired, and then {} this program",
+                    "Alter".purple(),
+                    "file".purple(),
+                    "rerun".purple()
+                );
+                println!("This program will now {}.", "exit".magenta());
+                return UserAssent::Rejected
+            },
+            _ => println!("Reply with {} or {}.", "\"yes\"".green(), "\"no\"".red()),
+        }
+        input.clear();
+    }
+
+    UserAssent::Accepted
 }
 
 /// Given an `&str` with the target environment, create a tuple with a Suibase helper, and a

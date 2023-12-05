@@ -129,6 +129,9 @@ impl RAMMDeploymentConfig {
 impl Display for RAMMDeploymentConfig {
     /// Display a RAMM's deployment config in human-readable format, with indentation
     /// for nested data for better visibility.
+    ///
+    /// This function uses [ANSI escape codes](https://en.wikipedia.org/wiki/ANSI_escape_code)
+    /// to color-code the output.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}:\n", "RAMM Deployment Configuration".on_bright_black())?;
         write!(f, "\t{}: {}\n", "Target environment".green(), self.target_env)?;
@@ -140,11 +143,12 @@ impl Display for RAMMDeploymentConfig {
         }
         match &self.ramm_pkg_addr_or_path {
             RAMMPkgAddrSrc::FromTomlConfig(addr) => {
-                write!(f, "\t{}: {}\n", "RAMM package address".green(),addr)
+                write!(f, "\t{}: {}\n", "RAMM package address".green(),addr)?;
             },
             RAMMPkgAddrSrc::FromPkgPublication(path) => {
-                write!(f, "\t{}: {}\n", "RAMM package ID to be obtained from publishing library at path".green(), path.display())
+                write!(f, "\t{}: {}\n", "RAMM package ID to be obtained from publishing library at path".green(), path.display())?;
             }
         }
+        write!(f, "{}\n", "End of RAMM Deployment Configuration".on_bright_black())
     }
 }
