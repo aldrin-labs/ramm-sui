@@ -1,24 +1,24 @@
 pub mod error;
 pub mod types;
 
-use std::{io, path::PathBuf, ffi::OsString, fs, str::FromStr};
+use std::{ffi::OsString, fs, io, path::PathBuf, str::FromStr};
 
-use clap::{Arg, Command, ArgMatches};
+use clap::{Arg, ArgMatches, Command};
 use colored::Colorize;
 use error::RAMMDeploymentError;
 
-use move_core_types::{identifier::IdentStr, ident_str};
+use move_core_types::{ident_str, identifier::IdentStr};
 use shared_crypto::intent::Intent;
-use sui_json_rpc_types::{SuiTransactionBlockResponseOptions, SuiTransactionBlockResponse};
+use sui_json_rpc_types::{SuiTransactionBlockResponse, SuiTransactionBlockResponseOptions};
 use suibase::Helper;
 
-use sui_keys::keystore::{Keystore, FileBasedKeystore, AccountKeystore};
+use sui_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use sui_move_build::{BuildConfig, CompiledPackage};
-use sui_sdk::{SuiClient, SuiClientBuilder, json::SuiJsonValue};
+use sui_sdk::{json::SuiJsonValue, SuiClient, SuiClientBuilder};
 use sui_types::{
-    base_types::{SuiAddress, ObjectID},
-    transaction::{TransactionData, Transaction},
-    quorum_driver_types::ExecuteTransactionRequestType
+    base_types::{ObjectID, SuiAddress},
+    quorum_driver_types::ExecuteTransactionRequestType,
+    transaction::{Transaction, TransactionData},
 };
 
 use types::RAMMDeploymentConfig;
@@ -40,15 +40,15 @@ const CREATE_RAMM_GAS_BUDGET: u64 = 100_000_000;
 /// It is assumed that configs are not sizable files, so they're read directly from the
 /// filesystem into a `String`, and from there parsed using `toml::from_str`.
 fn parse_ramm_cfg(toml_path: PathBuf) -> Result<RAMMDeploymentConfig, RAMMDeploymentError> {
-    let config_string: String = fs::read_to_string(toml_path)
-        .map_err(RAMMDeploymentError::TOMLFileReadError)?;
+    let config_string: String =
+        fs::read_to_string(toml_path).map_err(RAMMDeploymentError::TOMLFileReadError)?;
 
-    let cfg: RAMMDeploymentConfig = toml::from_str(&config_string)
-        .map_err(RAMMDeploymentError::TOMLParseError)?;
+    let cfg: RAMMDeploymentConfig =
+        toml::from_str(&config_string).map_err(RAMMDeploymentError::TOMLParseError)?;
 
     match cfg.validate_ramm_cfg() {
         true => Ok(cfg),
-        _ => Err(RAMMDeploymentError::InvalidConfigData)
+        _ => Err(RAMMDeploymentError::InvalidConfigData),
     }
 }
 
@@ -69,24 +69,24 @@ pub fn deployment_cfg_from_args(
     let deployer = Command::new("deployer")
         .about("Deploy a RAMM to a Sui target network with assets specified in a TOML config.")
         .help_expected(true)
-        .arg(Arg::new("TOML config")
-            .short('t')
-            .long("toml")
-            .help("Path to the TOML config containing the RAMM's deployment parameters.")
-            .required(true)
-            .num_args(1)
-            .value_parser(clap::value_parser!(PathBuf))
+        .arg(
+            Arg::new("TOML config")
+                .short('t')
+                .long("toml")
+                .help("Path to the TOML config containing the RAMM's deployment parameters.")
+                .required(true)
+                .num_args(1)
+                .value_parser(clap::value_parser!(PathBuf)),
         )
         .no_binary_name(true);
-    let deployer_m: ArgMatches = match deployer
-        .try_get_matches_from(args) {
-            Err(err) => return Err(RAMMDeploymentError::CLIError(err)),
-            Ok(sub_cmd) => sub_cmd
-        };
+    let deployer_m: ArgMatches = match deployer.try_get_matches_from(args) {
+        Err(err) => return Err(RAMMDeploymentError::CLIError(err)),
+        Ok(sub_cmd) => sub_cmd,
+    };
 
     let toml_path: PathBuf = match deployer_m.get_one::<PathBuf>("TOML config") {
         None => return Err(RAMMDeploymentError::NoTOMLConfigProvided),
-        Some(input) => input.to_path_buf()
+        Some(input) => input.to_path_buf(),
     };
 
     // Parse the deployment config from the provided filepath.
@@ -97,7 +97,7 @@ pub fn deployment_cfg_from_args(
 
 pub enum UserAssent {
     Rejected,
-    Accepted
+    Accepted,
 }
 
 /// This function:
@@ -129,9 +129,12 @@ pub fn user_assent_interaction(cfg: &RAMMDeploymentConfig) -> UserAssent {
             .expect("Failed to read line!");
         match input.as_ref() {
             "yes\n" => {
-                println!("{} with the displayed configuration.", "Proceeding".bright_blue());
-                break
-            },
+                println!(
+                    "{} with the displayed configuration.",
+                    "Proceeding".bright_blue()
+                );
+                break;
+            }
             "no\n" => {
                 println!(
                     "{} the provided configuration {} as desired, and then {} this program",
@@ -140,8 +143,8 @@ pub fn user_assent_interaction(cfg: &RAMMDeploymentConfig) -> UserAssent {
                     "rerun".purple()
                 );
                 println!("This program will now {}.", "exit".magenta());
-                return UserAssent::Rejected
-            },
+                return UserAssent::Rejected;
+            }
             _ => println!("Reply with {} or {}.", "\"yes\"".green(), "\"no\"".red()),
         }
         input.clear();
@@ -152,9 +155,9 @@ pub fn user_assent_interaction(cfg: &RAMMDeploymentConfig) -> UserAssent {
 
 /// Given an `&str` with the target environment, create a tuple with a Suibase helper, and a
 /// Sui client.
-pub async fn get_suibase_and_sui_client(target_env: &str) ->
-    Result<(Helper, SuiClient), RAMMDeploymentError>
-{
+pub async fn get_suibase_and_sui_client(
+    target_env: &str,
+) -> Result<(Helper, SuiClient), RAMMDeploymentError> {
     let suibase = Helper::new();
     suibase
         .select_workdir(target_env)
@@ -193,12 +196,11 @@ pub async fn publish_tx(
     sui_client: &SuiClient,
     package_path: PathBuf,
     client_address: SuiAddress,
-    ) -> Result<TransactionData, RAMMDeploymentError>
-{
+) -> Result<TransactionData, RAMMDeploymentError> {
     let build_config: BuildConfig = Default::default();
 
     let compiled_ramm_package: CompiledPackage = build_config
-        .build(package_path.clone())
+        .build(package_path)
         .map_err(RAMMDeploymentError::PkgBuildError)?;
 
     // The RAMM library has no unpublished deps - it depends on
@@ -225,31 +227,30 @@ pub async fn publish_tx(
             // Recall that choosing `None` allows the client to choose a gas object instead of
             // the user.
             None,
-            PACKAGE_PUBLICATION_GAS_BUDGET
+            PACKAGE_PUBLICATION_GAS_BUDGET,
         )
         .await
         .map_err(RAMMDeploymentError::PublishTxError)
 }
 
-pub async fn new_ramm_tx(
+async fn new_ramm_tx(
     sui_client: &SuiClient,
     dplymt_cfg: &RAMMDeploymentConfig,
     client_address: &SuiAddress,
     ramm_pkg_id: ObjectID,
-) -> Result<TransactionData, RAMMDeploymentError>
-{
+) -> Result<TransactionData, RAMMDeploymentError> {
     sui_client
         .transaction_builder()
         .move_call(
-        *client_address,
-        ramm_pkg_id,
-        RAMM_MODULE_NAME.as_str(),
-        "new_ramm",
-        vec![],
-        vec![SuiJsonValue::from_str(&dplymt_cfg.fee_collection_address.to_string()).unwrap()],
-        None,
-        CREATE_RAMM_GAS_BUDGET
-    )
+            *client_address,
+            ramm_pkg_id,
+            RAMM_MODULE_NAME.as_str(),
+            "new_ramm",
+            vec![],
+            vec![SuiJsonValue::from_str(&dplymt_cfg.fee_collection_address.to_string()).unwrap()],
+            None,
+            CREATE_RAMM_GAS_BUDGET,
+        )
         .await
         .map_err(RAMMDeploymentError::NewRammTxError)
 }
@@ -266,9 +267,8 @@ pub async fn sign_and_execute_tx(
     sui_client: &SuiClient,
     keystore: &Keystore,
     tx_data: TransactionData,
-    client_address: &SuiAddress
-) -> Result<SuiTransactionBlockResponse, RAMMDeploymentError>
-{
+    client_address: &SuiAddress,
+) -> Result<SuiTransactionBlockResponse, RAMMDeploymentError> {
     let signature = keystore
         .sign_secure(client_address, &tx_data, Intent::sui_transaction())
         .map_err(RAMMDeploymentError::TxSignatureError)?;
@@ -284,4 +284,40 @@ pub async fn sign_and_execute_tx(
         )
         .await
         .map_err(RAMMDeploymentError::TxBlockExecutionError)
+}
+
+/// Given a `SuiClient` and a path to the Sui Move RAMM library, this function
+/// 1. builds the transaction that publishes the Sui Move library
+/// 2. signs it given a `client_address` and a `Keystore`
+/// 3. sends the transaction to the network specified in the Sui client for execution
+///
+/// When `await`ed, it'll produce the network's response with the transaction's execution status.
+pub async fn publish_ramm_pkg_runner(
+    sui_client: &SuiClient,
+    keystore: &Keystore,
+    package_path: PathBuf,
+    client_address: &SuiAddress,
+) -> Result<SuiTransactionBlockResponse, RAMMDeploymentError> {
+    let publish_tx = publish_tx(&sui_client, package_path, *client_address).await?;
+
+    sign_and_execute_tx(&sui_client, &keystore, publish_tx, &client_address).await
+}
+
+/// Given a `SuiClient` and deployment data, this function
+/// 1. builds the transaction that calls the Sui Move entry function `ramm_sui::new_ramm`
+/// 2. signs it given a `client_address` and a `Keystore`
+/// 3. sends the transaction to the network specified in the Sui client for execution
+///
+/// When `await`ed, it'll produce the network's response with the transaction's execution status.
+pub async fn new_ramm_tx_runner(
+    sui_client: &SuiClient,
+    dplymt_cfg: &RAMMDeploymentConfig,
+    keystore: &Keystore,
+    client_address: &SuiAddress,
+    ramm_pkg_id: ObjectID,
+) -> Result<SuiTransactionBlockResponse, RAMMDeploymentError> {
+    let new_ramm_tx = new_ramm_tx(&sui_client, &dplymt_cfg, &client_address, ramm_pkg_id).await?;
+
+    // Sign, submit and await tx
+    sign_and_execute_tx(&sui_client, &keystore, new_ramm_tx, &client_address).await
 }

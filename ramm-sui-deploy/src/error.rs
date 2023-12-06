@@ -36,5 +36,5 @@ pub enum RAMMDeploymentError {
     #[error("Failed to execute transaction block: {0}")]
     TxBlockExecutionError(sui_sdk::error::Error),
     #[error("Failed to build RAMM creation tx: {0}")]
-    NewRammTxError(anyhow::Error)
+    NewRammTxError(anyhow::Error),
 }
