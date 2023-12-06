@@ -9,7 +9,9 @@ use error::RAMMDeploymentError;
 
 use move_core_types::{ident_str, identifier::IdentStr};
 use shared_crypto::intent::Intent;
-use sui_json_rpc_types::{SuiTransactionBlockResponse, SuiTransactionBlockResponseOptions};
+use sui_json_rpc_types::{
+    SuiObjectDataOptions, SuiTransactionBlockResponse, SuiTransactionBlockResponseOptions,
+};
 use suibase::Helper;
 
 use sui_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
@@ -17,8 +19,9 @@ use sui_move_build::{BuildConfig, CompiledPackage};
 use sui_sdk::{json::SuiJsonValue, SuiClient, SuiClientBuilder};
 use sui_types::{
     base_types::{ObjectID, SuiAddress},
+    object::Owner,
     quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::{Transaction, TransactionData},
+    transaction::{ObjectArg, Transaction, TransactionData},
 };
 
 use types::RAMMDeploymentConfig;
@@ -320,4 +323,59 @@ pub async fn new_ramm_tx_runner(
 
     // Sign, submit and await tx
     sign_and_execute_tx(&sui_client, &keystore, new_ramm_tx, &client_address).await
+}
+
+/*
+PTB-related code
+*/
+
+/// Given a `SuiClient` and a `RAMMDeploymentConfig`, this function
+/// 1. collects all of the object IDs for each of the deployment config's assets
+/// 2. queries the network for the objects' data
+/// 3. builds a vector of `ObjectArg`s to be used
+///
+/// This `Vec<ObjectArg>` is needed to later construct a `ProgrammableTransaction`.
+pub async fn build_aggr_obj_args(
+    sui_client: &SuiClient,
+    dplymt_cfg: &RAMMDeploymentConfig,
+) -> Result<Vec<ObjectArg>, RAMMDeploymentError> {
+    let aggr_ids = dplymt_cfg
+        .assets
+        .iter()
+        .map(|asset| Into::<ObjectID>::into(asset.aggregator_address))
+        .collect::<Vec<_>>();
+    let aggr_objs = sui_client
+        .read_api()
+        .multi_get_object_with_options(aggr_ids.clone(), SuiObjectDataOptions::new().with_owner())
+        .await
+        .map_err(RAMMDeploymentError::AggregatorDataQueryError)?;
+
+    let mut aggr_obj_args: Vec<ObjectArg> = Vec::new();
+    for (ix, aggr_obj) in aggr_objs.iter().enumerate() {
+        let aggr_owner = aggr_obj
+            .object()
+            .map_err(RAMMDeploymentError::AggregatorObjectResponseError)?
+            .owner
+            .ok_or(RAMMDeploymentError::AggregatorObjectOwnerError)?;
+        match aggr_owner {
+            Owner::Shared {
+                initial_shared_version,
+            } => {
+                let aggr_obj_arg = ObjectArg::SharedObject {
+                    id: aggr_ids[ix],
+                    initial_shared_version,
+                    mutable: false,
+                };
+                aggr_obj_args.push(aggr_obj_arg)
+            }
+            _ => {
+                // If the aggregator object isn't shared, the error should just be unrecoverable
+                panic!("`Owner` of Aggregator object must be `Shared`");
+            }
+        }
+    }
+
+    assert_eq!(aggr_obj_args.len(), dplymt_cfg.asset_count as usize);
+
+    Ok(aggr_obj_args)
 }

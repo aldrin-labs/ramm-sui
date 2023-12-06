@@ -171,17 +171,6 @@ impl Display for RAMMDeploymentConfig {
             "Target environment".green(),
             self.target_env
         )?;
-        write!(
-            f,
-            "\t{}: {}\n",
-            "Fee collection address".green(),
-            self.fee_collection_address
-        )?;
-        write!(f, "\t{}:\n", "List of assets".green())?;
-        write!(f, "\t{}: {}\n", "Asset count".green(), self.asset_count)?;
-        for asset in &self.assets {
-            asset.asset_cfg_fmt(f, 3)?;
-        }
         match &self.ramm_pkg_addr_or_path {
             RAMMPkgAddrSrc::FromTomlConfig(addr) => {
                 write!(f, "\t{}: {}\n", "RAMM package address".green(), addr)?;
@@ -194,6 +183,17 @@ impl Display for RAMMDeploymentConfig {
                     path.display()
                 )?;
             }
+        }
+        write!(
+            f,
+            "\t{}: {}\n",
+            "Fee collection address".green(),
+            self.fee_collection_address
+        )?;
+        write!(f, "\t{}:\n", "List of assets".green())?;
+        write!(f, "\t{}: {}\n", "Asset count".green(), self.asset_count)?;
+        for asset in &self.assets {
+            asset.asset_cfg_fmt(f, 3)?;
         }
         write!(
             f,

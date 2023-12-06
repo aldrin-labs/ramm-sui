@@ -19,7 +19,7 @@ use ramm_sui_deploy::{
     deployment_cfg_from_args, get_keystore, get_suibase_and_sui_client, new_ramm_tx_runner,
     publish_ramm_pkg_runner,
     types::{AssetConfig, RAMMPkgAddrSrc},
-    user_assent_interaction, UserAssent,
+    user_assent_interaction, UserAssent, build_aggr_obj_args,
 };
 
 /// Gas budget for the PTB that will add assets to the RAMM, and initialize it.
@@ -161,7 +161,7 @@ async fn main() -> ExitCode {
     };
     println!("Status of RAMM creation tx: {:?}", response.status_ok());
 
-    // Collect the RAMM's ID
+    // Collect the RAMM object from the tx response
     let owned_obj_refs = response
         .effects
         .as_ref()
@@ -194,15 +194,17 @@ async fn main() -> ExitCode {
         mutable: true,
     };
 
-    // 3. Disambiguate between created capability objects
-    //
-    // This is needed because when using regular transactions, the only information gleanable
-    // from the transaction response are created, mutated and deleted object IDs.
-    //
-    // Doing this, it is possible to get the object IDs of both
-    // a. the RAMM's admin capability
-    // b. the RAMM's new asset capability
-    // but not to tell which is which.
+/*
+    Disambiguate between created capability objects
+
+    This is needed because when using regular transactions, the only information gleanable
+    from the transaction response are created, mutated and deleted object IDs.
+    
+    Doing this, it is possible to get the object IDs of both
+    a. the RAMM's admin capability
+    b. the RAMM's new asset capability
+    but not to tell which is which.
+*/
 
     // `ObjectArg`s of both the admin cap, and the new asset cap
     let cap_obj_args: Vec<ObjectArg> = response
@@ -225,7 +227,7 @@ async fn main() -> ExitCode {
     assert!(cap_obj_args.len() == 2);
 
     // To tell both capability objects apart, the below must be done:
-    // 3.1. Use the SDK to query the network on one of the two object IDs in the RAMM creation
+    // 1. Use the SDK to query the network on one of the two object IDs in the RAMM creation
     //      response
     let cap_object = match sui_client
         .read_api()
@@ -241,7 +243,7 @@ async fn main() -> ExitCode {
             return ExitCode::from(1);
         }
     };
-    // 3.2. Extract the type from the queried object's information
+    // 2. Extract the type from the queried object's information
     let cap_obj_ty = cap_object.object().unwrap().object_type().unwrap();
     let cap_move_obj_ty: MoveObjectType = match cap_obj_ty {
         ObjectType::Package => {
@@ -250,7 +252,7 @@ async fn main() -> ExitCode {
         ObjectType::Struct(mot) => mot,
     };
 
-    // 3.3. Pattern match on the type, and assign `ObjectID`s to be used in the later PTB
+    // 3. Pattern match on the type, and assign `ObjectID`s to be used in the later PTB
     let (admin_cap_obj_arg, new_asset_cap_obj_arg): (ObjectArg, ObjectArg) =
         match cap_move_obj_ty.name().as_str() {
             "RAMMAdminCap" => (cap_obj_args[0], cap_obj_args[1]),
@@ -258,55 +260,20 @@ async fn main() -> ExitCode {
             _ => panic!("`MoveObjectType` must be of either capability: not supposed to happen!"),
         };
 
-    println!("\nRAMM: {:?}", ramm_obj_arg);
+    println!("RAMM: {:?}", ramm_obj_arg);
     println!("Admin cap : {:?}", admin_cap_obj_arg);
     println!("New asset cap: {:?}", new_asset_cap_obj_arg);
 
-    // 4. For each asset's aggregator address read from the TOML, use the `SuiClient`'s `ReadApi`
-    //    to query its `SuiObjectData`, and then use that to build an `ObjectArg` for use in the
-    //    PTB
-
-    let aggr_ids = dplymt_cfg
-        .assets
-        .iter()
-        .map(|asset| Into::<ObjectID>::into(asset.aggregator_address))
-        .collect::<Vec<_>>();
-    let aggr_objs = match sui_client
-        .read_api()
-        .multi_get_object_with_options(aggr_ids.clone(), SuiObjectDataOptions::new().with_owner())
-        .await
-    {
-        Ok(o) => o,
+    // For each asset's aggregator address read from the TOML, use the `SuiClient`'s `ReadApi`
+    // to query its `SuiObjectData`, and then use that to build an `ObjectArg` for use in the PTB.
+    let aggr_obj_args = match build_aggr_obj_args(&sui_client, &dplymt_cfg).await {
         Err(err) => {
-            eprintln!(
-                "Failed to fetch aggregator object data. Node response: {}",
-                err
-            );
+            eprintln!("{}", err);
             return ExitCode::from(1);
         }
+        Ok(a) => a,
     };
-    let mut aggr_obj_args: Vec<ObjectArg> = Vec::new();
-    for (ix, aggr_obj) in aggr_objs.iter().enumerate() {
-        let aggr_owner = aggr_obj.object().unwrap().owner.unwrap();
-        match aggr_owner {
-            Owner::Shared {
-                initial_shared_version,
-            } => {
-                let aggr_obj_arg = ObjectArg::SharedObject {
-                    id: aggr_ids[ix],
-                    initial_shared_version,
-                    mutable: false,
-                };
-                aggr_obj_args.push(aggr_obj_arg)
-            }
-            _ => {
-                eprintln!("`Owner` of Aggregator object must be `Shared`");
-                return ExitCode::from(1);
-            }
-        }
-    }
-    assert_eq!(aggr_obj_args.len(), dplymt_cfg.asset_count as usize);
-
+    
     /*
     Constructing the PTB that will populate and initialize the RAMM
     */

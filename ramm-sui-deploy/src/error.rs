@@ -37,4 +37,12 @@ pub enum RAMMDeploymentError {
     TxBlockExecutionError(sui_sdk::error::Error),
     #[error("Failed to build RAMM creation tx: {0}")]
     NewRammTxError(anyhow::Error),
+
+    #[error("Failed to fetch aggregator object data. Node response: {0}")]
+    AggregatorDataQueryError(sui_sdk::error::Error),
+    #[error("There is an issue with Aggregator object data: {0}")]
+    AggregatorObjectResponseError(sui_types::error::SuiObjectResponseError),
+    #[error("The `owner` field of Aggregator object *must* be requested; it was `None`.")]
+    AggregatorObjectOwnerError,
+
 }
