@@ -1,6 +1,5 @@
-use std::{env, path::PathBuf, process::ExitCode, str::FromStr};
+use std::{env, path::PathBuf, process::ExitCode};
 
-use move_core_types::{ident_str, identifier::IdentStr};
 use shared_crypto::intent::Intent;
 use sui_json_rpc_types::{
     OwnedObjectRef,
@@ -8,7 +7,6 @@ use sui_json_rpc_types::{
     SuiTransactionBlockResponseOptions, SuiObjectDataOptions
 };
 use sui_keys::keystore::AccountKeystore;
-use sui_sdk::json::SuiJsonValue;
 use sui_types::{
     base_types::{ObjectID, MoveObjectType, SuiAddress, ObjectType},
     Identifier,
@@ -23,20 +21,8 @@ use ramm_sui_deploy::{
     types::{AssetConfig, RAMMPkgAddrSrc},
     deployment_cfg_from_args,
     get_suibase_and_sui_client,
-    get_keystore, create_publish_tx, sign_and_execute_tx, user_assent_interaction, UserAssent
+    get_keystore, publish_tx, sign_and_execute_tx, user_assent_interaction, UserAssent, new_ramm_tx
 };
-
-/// Name of the module in the RAMM package that contains the API to create and initialize it.
-const RAMM_MODULE_NAME: &IdentStr = ident_str!("ramm");
-
-/// This represents the gas budget (in MIST units, where 10^9 MIST is 1 SUI) to be used
-/// when publishing the RAMM package.
-///
-/// Publishing it in the testnet in mid/late 2023 cost roughly 0.25 SUI, on average.
-const PACKAGE_PUBLICATION_GAS_BUDGET: u64 = 500_000_000;
-
-/// Gas budget for the transaction that creates the RAMM.
-const CREATE_RAMM_GAS_BUDGET: u64 = 100_000_000;
 
 /// Gas budget for the PTB that will add assets to the RAMM, and initialize it.
 const RAMM_PTB_GAS_BUDGET: u64 = 100_000_000;
@@ -99,15 +85,16 @@ async fn main() -> ExitCode {
     Building the RAMM package
     */
 
-    let ramm_package_id = match dplymt_cfg.ramm_pkg_addr_or_path {
-        RAMMPkgAddrSrc::FromTomlConfig(addr) => addr,
+    let ramm_package_id = match &dplymt_cfg.ramm_pkg_addr_or_path {
+        // RAMM package address provided in TOML
+        RAMMPkgAddrSrc::FromTomlConfig(addr) => *addr,
+        // RAMM package must be published to get a new package ID
         RAMMPkgAddrSrc::FromPkgPublication(path) => {
             let publish_tx =
-                match create_publish_tx(
+                match publish_tx(
                     &sui_client,
-                    path,
-                    client_address,
-                    PACKAGE_PUBLICATION_GAS_BUDGET
+                    path.to_path_buf(),
+                    client_address
                 )
                 .await {
                     Err(err) => {
@@ -132,7 +119,7 @@ async fn main() -> ExitCode {
                     Ok(r) => r
                 };
 
-            // 6. Get the package's ID from the tx response.
+            // Get the package's ID from the tx response.
             let ramm_package_id: ObjectID = response
                 .effects
                 .expect("Publish Tx *should* result in non-empty effects")
@@ -147,7 +134,6 @@ async fn main() -> ExitCode {
             ramm_package_id
         }
     };
-
     println!("RAMM package ID: {ramm_package_id}");
 
     /*
@@ -157,19 +143,8 @@ async fn main() -> ExitCode {
     a `sui_types::ObjectArg` for use in the PTB.
     */
 
-    // 1. Construct the non-PTB tx to create the RAMM and associated capability objects
-    let new_ramm_tx = match sui_client
-        .transaction_builder()
-        .move_call(
-            client_address,
-            ramm_package_id,
-            RAMM_MODULE_NAME.as_str(),
-            "new_ramm",
-            vec![],
-            vec![SuiJsonValue::from_str(&dplymt_cfg.fee_collection_address.to_string()).unwrap()],
-            None,
-            CREATE_RAMM_GAS_BUDGET
-        )
+    // Construct the non-PTB tx to create the RAMM and associated capability objects
+    let new_ramm_tx = match new_ramm_tx(&sui_client, &dplymt_cfg, &client_address, ramm_package_id)
         .await {
             Ok(tx) => tx,
             Err(err) => {
@@ -178,34 +153,20 @@ async fn main() -> ExitCode {
             }
         };
 
-    // 2. Sign, submit and await tx
-    let signature = match keystore.sign_secure(&client_address, &new_ramm_tx, Intent::sui_transaction()) {
-        Ok(sig) => sig,
-        Err(err) => {
-            eprintln!("Failed to sign publish tx: {:?}", err);
-            return ExitCode::from(1)
-        }
-    };
-    println!("Successfully signed ramm creation tx");
-
-    let new_ramm_tx = Transaction::from_data(
-        new_ramm_tx,
-        Intent::sui_transaction(),
-        vec![signature]
-    );
-    let response = match sui_client
-        .quorum_driver_api()
-        .execute_transaction_block(
+    // Sign, submit and await tx
+    let response =
+        match sign_and_execute_tx(
+            &sui_client,
+            &keystore,
             new_ramm_tx,
-            SuiTransactionBlockResponseOptions::new().with_effects(),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+            &client_address
         )
         .await {
-            Ok(r) => r,
             Err(err) => {
-                eprintln!("Failed to execute block containing RAMM creation tx. Node response: {}", err);
+                eprintln!("{}", err);
                 return ExitCode::from(1)
-            }
+            },
+            Ok(r) => r
         };
     println!("Status of RAMM creation tx: {:?}", response.status_ok());
 
@@ -406,7 +367,7 @@ async fn main() -> ExitCode {
         ptb
             .programmable_move_call(
                 ramm_package_id,
-                RAMM_MODULE_NAME.to_owned(),
+                ramm_sui_deploy::RAMM_MODULE_NAME.to_owned(),
                 Identifier::new("add_asset_to_ramm").unwrap(),
                 vec![asset_type_tag],
                 move_call_args,
@@ -417,7 +378,7 @@ async fn main() -> ExitCode {
     ptb
         .programmable_move_call(
             ramm_package_id,
-            RAMM_MODULE_NAME.to_owned(),
+            ramm_sui_deploy::RAMM_MODULE_NAME.to_owned(),
             Identifier::new("initialize_ramm").unwrap(),
             vec![],
             vec![ramm_arg, admin_cap_arg, new_asset_cap_arg]

@@ -29,12 +29,12 @@ pub enum RAMMDeploymentError {
     #[error("Failed to build the RAMM package: {0}")]
     PkgBuildError(sui_types::error::SuiError),
 
-    #[error("Failed to create publication transaction for RAMM library: {0}")]
-    PublishTxCreationError(anyhow::Error),
-
+    #[error("Failed to build publication transaction for RAMM library: {0}")]
+    PublishTxError(anyhow::Error),
     #[error("Failed to sign transaction: {0}")]
     TxSignatureError(signature::Error),
-
     #[error("Failed to execute transaction block: {0}")]
-    TxBlockExecutionError(sui_sdk::error::Error)
+    TxBlockExecutionError(sui_sdk::error::Error),
+    #[error("Failed to build RAMM creation tx: {0}")]
+    NewRammTxError(anyhow::Error)
 }

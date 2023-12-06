@@ -1,19 +1,20 @@
 pub mod error;
 pub mod types;
 
-use std::{io, path::PathBuf, ffi::OsString, fs};
+use std::{io, path::PathBuf, ffi::OsString, fs, str::FromStr};
 
 use clap::{Arg, Command, ArgMatches};
 use colored::Colorize;
 use error::RAMMDeploymentError;
 
+use move_core_types::{identifier::IdentStr, ident_str};
 use shared_crypto::intent::Intent;
 use sui_json_rpc_types::{SuiTransactionBlockResponseOptions, SuiTransactionBlockResponse};
 use suibase::Helper;
 
 use sui_keys::keystore::{Keystore, FileBasedKeystore, AccountKeystore};
 use sui_move_build::{BuildConfig, CompiledPackage};
-use sui_sdk::{SuiClient, SuiClientBuilder};
+use sui_sdk::{SuiClient, SuiClientBuilder, json::SuiJsonValue};
 use sui_types::{
     base_types::{SuiAddress, ObjectID},
     transaction::{TransactionData, Transaction},
@@ -21,6 +22,18 @@ use sui_types::{
 };
 
 use types::RAMMDeploymentConfig;
+
+/// This represents the gas budget (in MIST units, where 10^9 MIST is 1 SUI) to be used
+/// when publishing the RAMM package.
+///
+/// Publishing it in the testnet in mid/late 2023 cost roughly 0.25 SUI, on average.
+const PACKAGE_PUBLICATION_GAS_BUDGET: u64 = 500_000_000;
+
+/// Name of the module in the RAMM package that contains the API to create and initialize it.
+pub const RAMM_MODULE_NAME: &IdentStr = ident_str!("ramm");
+
+/// Gas budget for the transaction that creates the RAMM.
+const CREATE_RAMM_GAS_BUDGET: u64 = 100_000_000;
 
 /// Parse a RAMM's deployment configuration from a given `FilePath`.
 ///
@@ -176,19 +189,23 @@ pub fn get_keystore(suibase: &Helper) -> Result<Keystore, RAMMDeploymentError> {
 
 /// Given the path to a Sui Move library for the RAMM, create a Sui transaction datum
 /// to be signed and submitted to the network.
-pub async fn create_publish_tx(
+pub async fn publish_tx(
     sui_client: &SuiClient,
     package_path: PathBuf,
     client_address: SuiAddress,
-    gas_budget: u64,
     ) -> Result<TransactionData, RAMMDeploymentError>
-    {
+{
     let build_config: BuildConfig = Default::default();
 
     let compiled_ramm_package: CompiledPackage = build_config
         .build(package_path.clone())
         .map_err(RAMMDeploymentError::PkgBuildError)?;
 
+    // The RAMM library has no unpublished deps - it depends on
+    // 1. `move_stdlib`,
+    // 2. `sui_framework`, and
+    // 3. `switchboard`
+    // which are all published.
     let ramm_compiled_modules: Vec<Vec<u8>> =
         compiled_ramm_package.get_package_bytes(/* with_unpublished_deps */ false);
 
@@ -208,10 +225,33 @@ pub async fn create_publish_tx(
             // Recall that choosing `None` allows the client to choose a gas object instead of
             // the user.
             None,
-            gas_budget
+            PACKAGE_PUBLICATION_GAS_BUDGET
         )
         .await
-        .map_err(RAMMDeploymentError::PublishTxCreationError)
+        .map_err(RAMMDeploymentError::PublishTxError)
+}
+
+pub async fn new_ramm_tx(
+    sui_client: &SuiClient,
+    dplymt_cfg: &RAMMDeploymentConfig,
+    client_address: &SuiAddress,
+    ramm_pkg_id: ObjectID,
+) -> Result<TransactionData, RAMMDeploymentError>
+{
+    sui_client
+        .transaction_builder()
+        .move_call(
+        *client_address,
+        ramm_pkg_id,
+        RAMM_MODULE_NAME.as_str(),
+        "new_ramm",
+        vec![],
+        vec![SuiJsonValue::from_str(&dplymt_cfg.fee_collection_address.to_string()).unwrap()],
+        None,
+        CREATE_RAMM_GAS_BUDGET
+    )
+        .await
+        .map_err(RAMMDeploymentError::NewRammTxError)
 }
 
 /// Given
