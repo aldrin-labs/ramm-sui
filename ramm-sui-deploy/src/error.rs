@@ -45,4 +45,8 @@ pub enum RAMMDeploymentError {
     #[error("The `owner` field of Aggregator object *must* be requested; it was `None`.")]
     AggregatorObjectOwnerError,
 
+    #[error("Failed to fetch coin object from active address to pay for PTB: {0}")]
+    CoinQueryError(sui_sdk::error::Error),
+    #[error("Failed to fetch gas price for the PTB: {0}")]
+    GasPriceQueryError(sui_sdk::error::Error),
 }

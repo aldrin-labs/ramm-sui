@@ -10,21 +10,23 @@ use error::RAMMDeploymentError;
 use move_core_types::{ident_str, identifier::IdentStr};
 use shared_crypto::intent::Intent;
 use sui_json_rpc_types::{
-    SuiObjectDataOptions, SuiTransactionBlockResponse, SuiTransactionBlockResponseOptions,
+    Coin, SuiObjectDataOptions, SuiTransactionBlockResponse, SuiTransactionBlockResponseOptions,
 };
 use suibase::Helper;
 
-use sui_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
+use sui_keys::keystore::{self, AccountKeystore, FileBasedKeystore, Keystore};
 use sui_move_build::{BuildConfig, CompiledPackage};
 use sui_sdk::{json::SuiJsonValue, SuiClient, SuiClientBuilder};
 use sui_types::{
     base_types::{ObjectID, SuiAddress},
     object::Owner,
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::{ObjectArg, Transaction, TransactionData},
+    transaction::{Argument, ObjectArg, ProgrammableTransaction, Transaction, TransactionData},
+    Identifier, TypeTag,
 };
 
-use types::RAMMDeploymentConfig;
+use crate::types::{AssetConfig, RAMMDeploymentConfig};
 
 /// This represents the gas budget (in MIST units, where 10^9 MIST is 1 SUI) to be used
 /// when publishing the RAMM package.
@@ -37,6 +39,9 @@ pub const RAMM_MODULE_NAME: &IdentStr = ident_str!("ramm");
 
 /// Gas budget for the transaction that creates the RAMM.
 const CREATE_RAMM_GAS_BUDGET: u64 = 100_000_000;
+
+/// Gas budget for the PTB that will add assets to the RAMM, and initialize it.
+const RAMM_PTB_GAS_BUDGET: u64 = 100_000_000;
 
 /// Parse a RAMM's deployment configuration from a given `FilePath`.
 ///
@@ -378,4 +383,141 @@ pub async fn build_aggr_obj_args(
     assert_eq!(aggr_obj_args.len(), dplymt_cfg.asset_count as usize);
 
     Ok(aggr_obj_args)
+}
+
+/// Given a `SuiClient` and a `SuiAddress`, this function, returns a tuple with
+/// 1. a `Coin` object associated to the address, and
+/// 2. the gas price to be used for the PTB
+///
+/// It is used to find the coin object to be used as gas for the PTB that populates that RAMM.
+pub async fn get_coin_and_gas(
+    sui_client: &SuiClient,
+    client_address: SuiAddress,
+) -> Result<(Coin, u64), RAMMDeploymentError> {
+    let coins = sui_client
+        .coin_read_api()
+        .get_coins(client_address, None, None, None)
+        .await
+        .map_err(RAMMDeploymentError::CoinQueryError)?;
+
+    let coin = coins
+        .data
+        .into_iter()
+        .next()
+        .expect("No coins associated to active address!");
+    let gas_price = sui_client
+        .read_api()
+        .get_reference_gas_price()
+        .await
+        .map_err(RAMMDeploymentError::GasPriceQueryError)?;
+
+    Ok((coin, gas_price))
+}
+
+/// Create PTB to perform the following actions:
+/// 1. Add assets specified in the RAMM deployment config
+/// 2. Initialize it
+pub async fn add_assets_and_init_ramm(
+    dplymt_cfg: &RAMMDeploymentConfig,
+    client_address: SuiAddress,
+    ramm_package_id: ObjectID,
+    ramm_obj_arg: ObjectArg,
+    admin_cap_obj_arg: ObjectArg,
+    new_asset_cap_obj_arg: ObjectArg,
+    aggr_obj_args: Vec<ObjectArg>,
+    coin: Coin,
+    gas_price: u64,
+) -> Result<TransactionData, RAMMDeploymentError> {
+    // 1. Build the PTB object via the `sui-sdk` builder API
+    let mut ptb = ProgrammableTransactionBuilder::new();
+    let ramm_arg: Argument = ptb.obj(ramm_obj_arg).unwrap();
+    // Add the cap objects as inputs to the PTB. Recall: inputs to PTBs are added before it is
+    // built, and accessible to all subsequent commands.
+    let admin_cap_arg: Argument = ptb.obj(admin_cap_obj_arg).unwrap();
+    let new_asset_cap_arg: Argument = ptb.obj(new_asset_cap_obj_arg).unwrap();
+
+    // 2. Add all of the assets specified in the TOML config
+    for ix in 0..(dplymt_cfg.asset_count as usize) {
+        // `N`-th asset to be added to the RAMM
+        let asset_data: &AssetConfig = &dplymt_cfg.assets[ix];
+        let aggr_arg = ptb.obj(aggr_obj_args[ix]).unwrap();
+
+        // Arguments for the `add_asset_to_ramm` Move call
+        let move_call_args: Vec<Argument> = vec![
+            ramm_arg,
+            aggr_arg,
+            ptb.pure(asset_data.minimum_trade_amount).unwrap(),
+            ptb.pure(asset_data.decimal_places).unwrap(),
+            admin_cap_arg,
+            new_asset_cap_arg,
+        ];
+
+        // Type argument to the `add_asset_to_ramm` Move call
+        let asset_type_tag: TypeTag = asset_data.asset_type.clone();
+
+        ptb.programmable_move_call(
+            ramm_package_id,
+            RAMM_MODULE_NAME.to_owned(),
+            Identifier::new("add_asset_to_ramm").unwrap(),
+            vec![asset_type_tag],
+            move_call_args,
+        );
+    }
+
+    // Initialize the RAMM
+    ptb.programmable_move_call(
+        ramm_package_id,
+        RAMM_MODULE_NAME.to_owned(),
+        Identifier::new("initialize_ramm").unwrap(),
+        vec![],
+        vec![ramm_arg, admin_cap_arg, new_asset_cap_arg],
+    );
+
+    // 3. Finalize the PTB object
+    let pt: ProgrammableTransaction = ptb.finish();
+
+    // 4. Convert PTB into tx data to be signed and sent to the network for execution
+    Ok(TransactionData::new_programmable(
+        client_address,
+        vec![coin.object_ref()],
+        pt,
+        RAMM_PTB_GAS_BUDGET,
+        gas_price,
+    ))
+}
+
+pub async fn add_assets_and_init_ramm_runner(
+    sui_client: &SuiClient,
+    keystore: &Keystore,
+    dplymt_cfg: &RAMMDeploymentConfig,
+    client_address: SuiAddress,
+    ramm_package_id: ObjectID,
+    ramm_obj_arg: ObjectArg,
+    admin_cap_obj_arg: ObjectArg,
+    new_asset_cap_obj_arg: ObjectArg,
+    aggr_obj_args: Vec<ObjectArg>,
+    coin: Coin,
+    gas_price: u64,
+) -> Result<SuiTransactionBlockResponse, RAMMDeploymentError> {
+    let add_assets_and_init_tx = add_assets_and_init_ramm(
+        dplymt_cfg,
+        client_address,
+        ramm_package_id,
+        ramm_obj_arg,
+        admin_cap_obj_arg,
+        new_asset_cap_obj_arg,
+        aggr_obj_args,
+        coin,
+        gas_price,
+    )
+    .await?;
+
+    // Sign, submit and await tx
+    sign_and_execute_tx(
+        &sui_client,
+        &keystore,
+        add_assets_and_init_tx,
+        &client_address,
+    )
+    .await
 }

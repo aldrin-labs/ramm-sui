@@ -1,29 +1,17 @@
 use std::{env, path::PathBuf, process::ExitCode};
 
-use shared_crypto::intent::Intent;
-use sui_json_rpc_types::{
-    OwnedObjectRef, SuiObjectDataOptions, SuiTransactionBlockEffectsAPI,
-    SuiTransactionBlockResponseOptions,
-};
-use sui_keys::keystore::AccountKeystore;
+use sui_json_rpc_types::{OwnedObjectRef, SuiObjectDataOptions, SuiTransactionBlockEffectsAPI};
 use sui_types::{
     base_types::{MoveObjectType, ObjectID, ObjectType, SuiAddress},
     object::Owner,
-    programmable_transaction_builder::ProgrammableTransactionBuilder,
-    quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::{Argument, ObjectArg, ProgrammableTransaction, Transaction, TransactionData},
-    Identifier, TypeTag,
+    transaction::ObjectArg,
 };
 
 use ramm_sui_deploy::{
-    deployment_cfg_from_args, get_keystore, get_suibase_and_sui_client, new_ramm_tx_runner,
-    publish_ramm_pkg_runner,
-    types::{AssetConfig, RAMMPkgAddrSrc},
-    user_assent_interaction, UserAssent, build_aggr_obj_args,
+    add_assets_and_init_ramm_runner, build_aggr_obj_args, deployment_cfg_from_args,
+    get_coin_and_gas, get_keystore, get_suibase_and_sui_client, new_ramm_tx_runner,
+    publish_ramm_pkg_runner, types::RAMMPkgAddrSrc, user_assent_interaction, UserAssent,
 };
-
-/// Gas budget for the PTB that will add assets to the RAMM, and initialize it.
-const RAMM_PTB_GAS_BUDGET: u64 = 100_000_000;
 
 #[tokio::main]
 async fn main() -> ExitCode {
@@ -194,17 +182,17 @@ async fn main() -> ExitCode {
         mutable: true,
     };
 
-/*
-    Disambiguate between created capability objects
+    /*
+        Disambiguate between created capability objects
 
-    This is needed because when using regular transactions, the only information gleanable
-    from the transaction response are created, mutated and deleted object IDs.
-    
-    Doing this, it is possible to get the object IDs of both
-    a. the RAMM's admin capability
-    b. the RAMM's new asset capability
-    but not to tell which is which.
-*/
+        This is needed because when using regular transactions, the only information gleanable
+        from the transaction response are created, mutated and deleted object IDs.
+
+        Doing this, it is possible to get the object IDs of both
+        a. the RAMM's admin capability
+        b. the RAMM's new asset capability
+        but not to tell which is which.
+    */
 
     // `ObjectArg`s of both the admin cap, and the new asset cap
     let cap_obj_args: Vec<ObjectArg> = response
@@ -273,119 +261,33 @@ async fn main() -> ExitCode {
         }
         Ok(a) => a,
     };
-    
+
     /*
     Constructing the PTB that will populate and initialize the RAMM
     */
 
-    // 1. Find the coin object to be used as gas for the PTB
-    let coins = match sui_client
-        .coin_read_api()
-        .get_coins(client_address, None, None, None)
-        .await
-    {
+    let (coin, gas_price) = match get_coin_and_gas(&sui_client, client_address).await {
         Err(err) => {
-            eprintln!(
-                "Failed to fetch coin object from active address to pay for PTB. Error: {}",
-                err
-            );
+            eprintln!("{}", err);
             return ExitCode::from(1);
         }
-        Ok(c) => c,
-    };
-    let coin = coins.data.into_iter().next().unwrap();
-    let gas_price = match sui_client.read_api().get_reference_gas_price().await {
-        Err(err) => {
-            eprintln!("Failed to fetch gas price for the PTB. Error: {}", err);
-            return ExitCode::from(1);
-        }
-        Ok(g) => g,
+        Ok(a) => a,
     };
 
-    // 2. Build the PTB object via the `sui-sdk` builder API
-    let mut ptb = ProgrammableTransactionBuilder::new();
-    let ramm_arg: Argument = ptb.obj(ramm_obj_arg).unwrap();
-    // Add the cap objects as inputs to the PTB. Recall: inputs to PTBs are added before it is
-    // built, and accessible to all subsequent commands.
-    let admin_cap_arg: Argument = ptb.obj(admin_cap_obj_arg).unwrap();
-    let new_asset_cap_arg: Argument = ptb.obj(new_asset_cap_obj_arg).unwrap();
-
-    /*
-    Create PTB to perform the following actions:
-    1. Add assets specified in the RAMM deployment config
-    2. Initialize it
-    */
-
-    // Add all of the assets specified in the TOML config
-    for ix in 0..(dplymt_cfg.asset_count as usize) {
-        // `N`-th asset to be added to the RAMM
-        let asset_data: &AssetConfig = &dplymt_cfg.assets[ix];
-        let aggr_arg = ptb.obj(aggr_obj_args[ix]).unwrap();
-
-        // Arguments for the `add_asset_to_ramm` Move call
-        let move_call_args: Vec<Argument> = vec![
-            ramm_arg,
-            aggr_arg,
-            ptb.pure(asset_data.minimum_trade_amount).unwrap(),
-            ptb.pure(asset_data.decimal_places).unwrap(),
-            admin_cap_arg,
-            new_asset_cap_arg,
-        ];
-
-        // Type argument to the `add_asset_to_ramm` Move call
-        let asset_type_tag: TypeTag = asset_data.asset_type.clone();
-
-        ptb.programmable_move_call(
-            ramm_package_id,
-            ramm_sui_deploy::RAMM_MODULE_NAME.to_owned(),
-            Identifier::new("add_asset_to_ramm").unwrap(),
-            vec![asset_type_tag],
-            move_call_args,
-        );
-    }
-
-    // Initialize the RAMM
-    ptb.programmable_move_call(
-        ramm_package_id,
-        ramm_sui_deploy::RAMM_MODULE_NAME.to_owned(),
-        Identifier::new("initialize_ramm").unwrap(),
-        vec![],
-        vec![ramm_arg, admin_cap_arg, new_asset_cap_arg],
-    );
-
-    // 3. Finalize the PTB object
-    let pt: ProgrammableTransaction = ptb.finish();
-
-    // 4. Convert PTB into tx data to be signed and sent to the network for execution
-    let ptx_data = TransactionData::new_programmable(
+    match add_assets_and_init_ramm_runner(
+        &sui_client,
+        &keystore,
+        &dplymt_cfg,
         client_address,
-        vec![coin.object_ref()],
-        pt,
-        RAMM_PTB_GAS_BUDGET,
+        ramm_package_id,
+        ramm_obj_arg,
+        admin_cap_obj_arg,
+        new_asset_cap_obj_arg,
+        aggr_obj_args,
+        coin,
         gas_price,
-    );
-
-    // 4.1 Sign the tx data with the same key used to publish the package and create the RAMM
-    let signature =
-        match keystore.sign_secure(&client_address, &ptx_data, Intent::sui_transaction()) {
-            Ok(sig) => sig,
-            Err(err) => {
-                eprintln!("Failed to sign PTx: {:?}", err);
-                return ExitCode::from(1);
-            }
-        };
-    println!("Successfully signed PTx");
-
-    // 4.2 Submit the tx to the network, and await execution result
-    println!("\nExecuting the PTB\n");
-    match sui_client
-        .quorum_driver_api()
-        .execute_transaction_block(
-            Transaction::from_data(ptx_data, Intent::sui_transaction(), vec![signature]),
-            SuiTransactionBlockResponseOptions::full_content(),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
-        )
-        .await
+    )
+    .await
     {
         Err(err) => {
             eprintln!("Programmable transaction failed with: {:?}", err);
