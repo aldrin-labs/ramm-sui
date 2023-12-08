@@ -10,15 +10,16 @@ use error::RAMMDeploymentError;
 use move_core_types::{ident_str, identifier::IdentStr};
 use shared_crypto::intent::Intent;
 use sui_json_rpc_types::{
-    Coin, SuiObjectDataOptions, SuiTransactionBlockResponse, SuiTransactionBlockResponseOptions,
+    Coin, SuiObjectDataOptions, SuiTransactionBlockEffectsAPI, SuiTransactionBlockResponse,
+    SuiTransactionBlockResponseOptions,
 };
 use suibase::Helper;
 
-use sui_keys::keystore::{self, AccountKeystore, FileBasedKeystore, Keystore};
+use sui_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use sui_move_build::{BuildConfig, CompiledPackage};
 use sui_sdk::{json::SuiJsonValue, SuiClient, SuiClientBuilder};
 use sui_types::{
-    base_types::{ObjectID, SuiAddress},
+    base_types::{MoveObjectType, ObjectID, ObjectType, SuiAddress},
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -330,6 +331,152 @@ pub async fn new_ramm_tx_runner(
     sign_and_execute_tx(&sui_client, &keystore, new_ramm_tx, &client_address).await
 }
 
+pub struct RAMMObjectArgs {
+    pub ramm: ObjectArg,
+    pub admin_cap: ObjectArg,
+    pub new_asset_cap: ObjectArg,
+}
+
+/// Given a `SuiTransactionBlockResponse` to the transaction that creates a RAMM, this function
+/// returns an `ObjectArg` corresponding to the shared Move object containing the RAMM.
+///
+/// There should be exactly 1 shared object created in the tx response:
+/// 1. the RAMM itself
+async fn build_ramm_obj_arg(
+    new_ramm_rx_response: &SuiTransactionBlockResponse,
+) -> Result<ObjectArg, RAMMDeploymentError> {
+    let owned_obj_refs = new_ramm_rx_response
+        .effects
+        .as_ref()
+        .expect("RAMM creation tx *should* result in non-empty effects")
+        .created()
+        .into_iter()
+        .filter(|oor| oor.owner.is_shared())
+        .collect::<Vec<_>>();
+    let ramm_owned_obj_ref = owned_obj_refs
+        .first()
+        .expect("The RAMM creation should result in *exactly* 1 new shared object");
+
+    // The above `sui_json_rpc_types::OwnedObjectRef` must be converted into a
+    // `sui_types::ObjectArg`, for use in a PTB later.
+    let ramm_obj_seq_num = match ramm_owned_obj_ref.owner {
+        Owner::Shared {
+            initial_shared_version,
+        } => initial_shared_version,
+        // This should never happened, as above the created objects are filtered to be shared
+        _ => panic!("The RAMM's `OwnedObjectRef::owner` is supposed to be shared!"),
+    };
+    let ramm_obj_arg = ObjectArg::SharedObject {
+        id: ramm_owned_obj_ref.object_id(),
+        initial_shared_version: ramm_obj_seq_num,
+        // Recall that
+        // 1. to add assets to the RAMM, and
+        // 2. initialize it
+        // it must be passed in as `ramm: &mut RAMM`, so the below must be set to true.
+        mutable: true,
+    };
+
+    Ok(ramm_obj_arg)
+}
+
+/// Given a `SuiClient`, the response to the transaction that creates a RAMM, and a client
+/// address, disambiguate between the created capability objects in the tx response.
+///
+/// There should be exactly 2 owned objects created in the tx response:
+/// 1. the RAMM's admin capability, and
+/// 2. the RAMM's new asset capability
+///
+/// but the order in which they're created, and thus displayed in the response, is not known.
+///
+/// This function
+///
+/// 1. inspects the `OwnedObjectRef`s in the tx response,
+/// 2. transforms them into `ObjectArg`s via the `sui_types::ObjectArg::ImmOrOwnedObject` variant,
+/// 3. queries the network for data of one of the object's, chosen at random,
+/// 4. extracts the type from the queried object's information, and
+/// 5. pattern matches on the type, and then assigns the correct name to each of the two
+async fn build_ramm_cap_obj_args(
+    sui_client: &SuiClient,
+    new_ramm_rx_response: SuiTransactionBlockResponse,
+    client_address: SuiAddress,
+) -> Result<(ObjectArg, ObjectArg), RAMMDeploymentError> {
+    // `ObjectArg`s of both the admin cap, and the new asset cap
+    let cap_obj_args: Vec<ObjectArg> = new_ramm_rx_response
+        .effects
+        .expect("RAMM creation tx *should* result in non-empty effects")
+        .created()
+        .into_iter()
+        // the ramm creation tx should have created 2 objects owned by the tx sender
+        .filter(|oor| oor.owner == client_address)
+        .map(|oor| match oor.owner {
+            Owner::AddressOwner(addr) => {
+                assert!(addr == client_address);
+                ObjectArg::ImmOrOwnedObject((oor.object_id(), oor.version(), oor.reference.digest))
+            }
+            _ => {
+                panic!("RAMM Cap OwnedObjectRef::owner supposed to be AddressOwner!")
+            }
+        })
+        .collect::<Vec<_>>();
+    assert!(cap_obj_args.len() == 2);
+
+    // To tell both capability objects apart, the below must be done:
+    // 1. Use the SDK to query the network on one of the two object IDs in the RAMM creation
+    //      response
+    let cap_object = sui_client
+        .read_api()
+        .get_object_with_options(
+            cap_obj_args[0].id(),
+            SuiObjectDataOptions::new().with_type(),
+        )
+        .await
+        .map_err(RAMMDeploymentError::CapObjectQueryError)?;
+
+    // 2. Extract the type from the queried object's information
+    let cap_obj_ty = cap_object.object().unwrap().object_type().unwrap();
+    let cap_move_obj_ty: MoveObjectType = match cap_obj_ty {
+        ObjectType::Package => {
+            panic!("Type of cap object is `ObjectType::Package`: not supposed to happen!")
+        }
+        ObjectType::Struct(mot) => mot,
+    };
+
+    // 3. Pattern match on the type, and assign `ObjectID`s to be used in the later PTB
+    let (admin_cap_obj_arg, new_asset_cap_obj_arg): (ObjectArg, ObjectArg) =
+        match cap_move_obj_ty.name().as_str() {
+            "RAMMAdminCap" => (cap_obj_args[0], cap_obj_args[1]),
+            "RAMMNewAssetCap" => (cap_obj_args[1], cap_obj_args[0]),
+            _ => panic!("`MoveObjectType` must be of either capability: not supposed to happen!"),
+        };
+
+    Ok((admin_cap_obj_arg, new_asset_cap_obj_arg))
+}
+
+/// Given a `SuiClient`, the response to the transaction that creates a RAMM, and a client address,
+/// this function creates a `struct` with 3 `ObjectArg`s:
+/// 1. the `ObjectArg` corresponding to the shared Move object containing the RAMM,
+/// 2. the `ObjectArg` corresponding to the RAMM's admin capability, and
+/// 3. the `ObjectArg` corresponding to the RAMM's new asset capability
+///
+/// These `ObjectArg`s can then be used to construct a `ProgrammableTransaction` that adds
+/// the assets specified in the deployment config to the RAMM, and initialize it.
+pub async fn build_ramm_obj_args(
+    sui_client: &SuiClient,
+    new_ramm_rx_response: SuiTransactionBlockResponse,
+    client_address: SuiAddress,
+) -> Result<RAMMObjectArgs, RAMMDeploymentError> {
+    let ramm = build_ramm_obj_arg(&new_ramm_rx_response).await?;
+
+    let (admin_cap, new_asset_cap) =
+        build_ramm_cap_obj_args(&sui_client, new_ramm_rx_response, client_address).await?;
+
+    Ok(RAMMObjectArgs {
+        ramm,
+        admin_cap,
+        new_asset_cap,
+    })
+}
+
 /*
 PTB-related code
 */
@@ -496,9 +643,9 @@ pub async fn add_assets_and_init_ramm_runner(
     admin_cap_obj_arg: ObjectArg,
     new_asset_cap_obj_arg: ObjectArg,
     aggr_obj_args: Vec<ObjectArg>,
-    coin: Coin,
-    gas_price: u64,
 ) -> Result<SuiTransactionBlockResponse, RAMMDeploymentError> {
+    let (coin, gas_price) = get_coin_and_gas(&sui_client, client_address).await?;
+
     let add_assets_and_init_tx = add_assets_and_init_ramm(
         dplymt_cfg,
         client_address,

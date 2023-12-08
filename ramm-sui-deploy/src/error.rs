@@ -38,6 +38,8 @@ pub enum RAMMDeploymentError {
     #[error("Failed to build RAMM creation tx: {0}")]
     NewRammTxError(anyhow::Error),
 
+    CapObjectQueryError(sui_sdk::error::Error),
+
     #[error("Failed to fetch aggregator object data. Node response: {0}")]
     AggregatorDataQueryError(sui_sdk::error::Error),
     #[error("There is an issue with Aggregator object data: {0}")]
