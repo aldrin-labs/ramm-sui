@@ -1,10 +1,9 @@
 use std::{env, path::PathBuf, process::ExitCode};
 
-use sui_json_rpc_types::{OwnedObjectRef, SuiObjectDataOptions, SuiTransactionBlockEffectsAPI};
+use sui_json_rpc_types::{OwnedObjectRef, SuiTransactionBlockEffectsAPI};
 use sui_types::{
-    base_types::{MoveObjectType, ObjectID, ObjectType, SuiAddress},
+    base_types::{ObjectID, SuiAddress},
     object::Owner,
-    transaction::ObjectArg,
 };
 
 use ramm_sui_deploy::{
@@ -150,7 +149,7 @@ async fn main() -> ExitCode {
     );
 
     let ramm_obj_args =
-        match build_ramm_obj_args(&sui_client, &new_ramm_tx_response, &client_address).await {
+        match build_ramm_obj_args(&sui_client, new_ramm_tx_response, client_address).await {
             Err(err) => {
                 eprintln!("{}", err);
                 return ExitCode::from(1);
@@ -186,9 +185,7 @@ async fn main() -> ExitCode {
         &dplymt_cfg,
         client_address,
         ramm_package_id,
-        ramm_obj_arg,
-        admin_cap_obj_arg,
-        new_asset_cap_obj_arg,
+        ramm_obj_args,
         aggr_obj_args,
     )
     .await

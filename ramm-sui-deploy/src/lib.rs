@@ -561,6 +561,8 @@ pub async fn get_coin_and_gas(
     Ok((coin, gas_price))
 }
 
+/// Given a `RAMMDeploymentConfig`, a `SuiAddress`, and the `ObjectID` of the RAMM package,
+/// plus other data
 /// Create PTB to perform the following actions:
 /// 1. Add assets specified in the RAMM deployment config
 /// 2. Initialize it
@@ -568,20 +570,18 @@ pub async fn add_assets_and_init_ramm(
     dplymt_cfg: &RAMMDeploymentConfig,
     client_address: SuiAddress,
     ramm_package_id: ObjectID,
-    ramm_obj_arg: ObjectArg,
-    admin_cap_obj_arg: ObjectArg,
-    new_asset_cap_obj_arg: ObjectArg,
+    ramm_obj_args: RAMMObjectArgs,
     aggr_obj_args: Vec<ObjectArg>,
     coin: Coin,
     gas_price: u64,
 ) -> Result<TransactionData, RAMMDeploymentError> {
     // 1. Build the PTB object via the `sui-sdk` builder API
     let mut ptb = ProgrammableTransactionBuilder::new();
-    let ramm_arg: Argument = ptb.obj(ramm_obj_arg).unwrap();
+    let ramm_arg: Argument = ptb.obj(ramm_obj_args.ramm).unwrap();
     // Add the cap objects as inputs to the PTB. Recall: inputs to PTBs are added before it is
     // built, and accessible to all subsequent commands.
-    let admin_cap_arg: Argument = ptb.obj(admin_cap_obj_arg).unwrap();
-    let new_asset_cap_arg: Argument = ptb.obj(new_asset_cap_obj_arg).unwrap();
+    let admin_cap_arg: Argument = ptb.obj(ramm_obj_args.admin_cap).unwrap();
+    let new_asset_cap_arg: Argument = ptb.obj(ramm_obj_args.new_asset_cap).unwrap();
 
     // 2. Add all of the assets specified in the TOML config
     for ix in 0..(dplymt_cfg.asset_count as usize) {
@@ -633,15 +633,30 @@ pub async fn add_assets_and_init_ramm(
     ))
 }
 
+/// Given
+/// * a `SuiClient`,
+/// * a `RAMMDeploymentConfig`,
+/// * a `Keystore`,
+///
+/// and further data: the client's active `SuiAddress`, a `Keystore` for tx-signing, and also
+/// * SDK representations of the Move RAMM object, its capabilities, and
+/// * SDK representations of the Move objects for the Switchboard aggregator of each of the assets
+///   to be added to the RAMM
+///
+/// this function
+/// 1. creates a `ProgrammableTransactionBlock` that adds the assets specified in the deployment config
+///   to the RAMM,
+/// 2. adds a command to the PTB that initializes it,
+/// 3. creates a `TransactionData` object from the PTB, and
+/// 4. signs and submits the transaction to the network for execution, and
+/// 5. awaits the network's response
 pub async fn add_assets_and_init_ramm_runner(
     sui_client: &SuiClient,
     keystore: &Keystore,
     dplymt_cfg: &RAMMDeploymentConfig,
     client_address: SuiAddress,
     ramm_package_id: ObjectID,
-    ramm_obj_arg: ObjectArg,
-    admin_cap_obj_arg: ObjectArg,
-    new_asset_cap_obj_arg: ObjectArg,
+    ramm_obj_args: RAMMObjectArgs,
     aggr_obj_args: Vec<ObjectArg>,
 ) -> Result<SuiTransactionBlockResponse, RAMMDeploymentError> {
     let (coin, gas_price) = get_coin_and_gas(&sui_client, client_address).await?;
@@ -650,9 +665,7 @@ pub async fn add_assets_and_init_ramm_runner(
         dplymt_cfg,
         client_address,
         ramm_package_id,
-        ramm_obj_arg,
-        admin_cap_obj_arg,
-        new_asset_cap_obj_arg,
+        ramm_obj_args,
         aggr_obj_args,
         coin,
         gas_price,
