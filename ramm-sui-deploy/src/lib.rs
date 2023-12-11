@@ -10,8 +10,8 @@ use error::RAMMDeploymentError;
 use move_core_types::{ident_str, identifier::IdentStr};
 use shared_crypto::intent::Intent;
 use sui_json_rpc_types::{
-    Coin, SuiObjectDataOptions, SuiTransactionBlockEffectsAPI, SuiTransactionBlockResponse,
-    SuiTransactionBlockResponseOptions,
+    Coin, OwnedObjectRef, SuiObjectDataOptions, SuiTransactionBlockEffectsAPI,
+    SuiTransactionBlockResponse, SuiTransactionBlockResponseOptions,
 };
 use suibase::Helper;
 
@@ -314,6 +314,24 @@ pub async fn publish_ramm_pkg_runner(
     let publish_tx = publish_tx(&sui_client, package_path, *client_address).await?;
 
     sign_and_execute_tx(&sui_client, &keystore, publish_tx, &client_address).await
+}
+
+/// Given a `SuiTransactionBlockResponse` to a transaction that publishes the RAMM package, this
+/// function returns the `ObjectID` of the published package.
+pub fn get_ramm_id_from_tx_response(publish_tx_response: SuiTransactionBlockResponse) -> ObjectID {
+    publish_tx_response
+        .effects
+        .expect("Publish Tx *should* result in non-empty effects")
+        .created()
+        .into_iter()
+        .filter(|oor| Owner::is_immutable(&oor.owner))
+        .collect::<Vec<&OwnedObjectRef>>()
+        .first()
+        .expect(
+            "Publish Tx *should* result in at least 1 immutable object i.e. the published package",
+        )
+        .reference
+        .object_id
 }
 
 /// Given a `SuiClient` and deployment data, this function

@@ -1,10 +1,6 @@
 use std::{env, path::PathBuf};
 
-use sui_json_rpc_types::{OwnedObjectRef, SuiTransactionBlockEffectsAPI};
-use sui_types::{
-    base_types::{ObjectID, SuiAddress},
-    object::Owner,
-};
+use sui_types::base_types::{ObjectID, SuiAddress};
 
 use ramm_sui_deploy::{self, error::RAMMDeploymentError, types::RAMMPkgAddrSrc, UserAssent};
 
@@ -28,7 +24,6 @@ async fn main() -> Result<(), RAMMDeploymentError> {
     /*
     Sui client creation, with the help of `suibase` for network selection
     */
-
     let (suibase, sui_client) =
         ramm_sui_deploy::get_suibase_and_sui_client(&dplymt_cfg.target_env).await?;
 
@@ -46,7 +41,6 @@ async fn main() -> Result<(), RAMMDeploymentError> {
     /*
     Obtaining the RAMM package ID, either from the TOML config or from publishing the package.
     */
-
     let ramm_package_id = match &dplymt_cfg.ramm_pkg_addr_or_path {
         // RAMM package address provided in TOML
         RAMMPkgAddrSrc::FromTomlConfig(addr) => {
@@ -73,28 +67,13 @@ async fn main() -> Result<(), RAMMDeploymentError> {
             );
 
             // Get the package's ID from the tx response.
-            let ramm_package_id: ObjectID = response
-                .effects
-                .expect("Publish Tx *should* result in non-empty effects")
-                .created()
-                .into_iter()
-                .filter(|oor| Owner::is_immutable(&oor.owner))
-                .collect::<Vec<&OwnedObjectRef>>()
-                .first()
-                .expect("Publish Tx *should* result in at least 1 immutable object i.e. the published package")
-                .reference
-                .object_id;
+            let ramm_package_id: ObjectID = ramm_sui_deploy::get_ramm_id_from_tx_response(response);
             ramm_package_id
         }
     };
     println!("RAMM package ID: {ramm_package_id}");
 
-    /*
-    Create the RAMM through a non-PTB tx, and then use the SDK to extract the created Move objects:
-    * the shared RAMM object,
-    * the admin capability, and
-    * the new asset capability.
-    */
+    // The response from the tx that creates the RAMM.
     let new_ramm_tx_response = ramm_sui_deploy::new_ramm_tx_runner(
         &sui_client,
         &dplymt_cfg,
@@ -108,6 +87,10 @@ async fn main() -> Result<(), RAMMDeploymentError> {
         new_ramm_tx_response.status_ok()
     );
 
+    /*
+    The RAMM and its capabilities, extracted from the tx response, and represented as
+    ObjectArg`s, which is the SDK's representation of Move objects.
+    */
     let ramm_obj_args =
         ramm_sui_deploy::build_ramm_obj_args(&sui_client, new_ramm_tx_response, client_address)
             .await?;
@@ -120,7 +103,6 @@ async fn main() -> Result<(), RAMMDeploymentError> {
     For each asset's aggregator address read from the TOML, use the `SuiClient`'s `ReadApi`
     to query its `SuiObjectData`, and then use that to build an `ObjectArg` for use in the PTB.
     */
-
     let aggr_obj_args = ramm_sui_deploy::build_aggr_obj_args(&sui_client, &dplymt_cfg).await?;
 
     /*
