@@ -14,6 +14,8 @@ pub enum RAMMDeploymentError {
     #[error("The parsed TOML config has bad data.")]
     InvalidConfigData,
 
+    #[error("Failed to fetch the Sui client's active address: {0}")]
+    SuiClientActiveAddressError(suibase::Error),
     #[error("Failed to fetch Suibase workdir specified in config: {0}")]
     SuibaseWorkdirError(suibase::Error),
     #[error("Failed to get the RPC URL for the selected workdir: {0}")]

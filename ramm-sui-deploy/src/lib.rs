@@ -199,6 +199,10 @@ pub fn get_keystore(suibase: &Helper) -> Result<Keystore, RAMMDeploymentError> {
         .map_err(RAMMDeploymentError::KeystoreOpenError)
 }
 
+/*
+Transaction creation and signing
+*/
+
 /// Given the path to a Sui Move library for the RAMM, create a Sui transaction datum
 /// to be signed and submitted to the network.
 pub async fn publish_tx(
