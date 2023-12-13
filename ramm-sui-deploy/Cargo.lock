@@ -3772,7 +3772,7 @@ dependencies = [
  "move-stackless-bytecode",
  "once_cell",
  "serde",
- "simplelog",
+ "simplelog 0.9.0",
  "toml 0.5.11",
 ]
 
@@ -4631,6 +4631,15 @@ dependencies = [
  "proc-macro2 1.0.67",
  "quote 1.0.33",
  "syn 2.0.37",
+]
+
+[[package]]
+name = "num_threads"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2819ce041d2ee131036f4fc9d6ae7ae125a3a40e97ba64d04fe799ad9dabbb44"
+dependencies = [
+ "libc",
 ]
 
 [[package]]
@@ -5606,10 +5615,12 @@ dependencies = [
  "clap",
  "colored",
  "futures",
+ "log",
  "move-core-types",
  "serde",
  "shared-crypto",
  "signature 1.6.4",
+ "simplelog 0.12.1",
  "sui-json-rpc-types",
  "sui-keys",
  "sui-move-build",
@@ -6580,6 +6591,17 @@ dependencies = [
  "chrono",
  "log",
  "termcolor",
+]
+
+[[package]]
+name = "simplelog"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "acee08041c5de3d5048c8b3f6f13fafb3026b24ba43c6a695a0c76179b844369"
+dependencies = [
+ "log",
+ "termcolor",
+ "time",
 ]
 
 [[package]]
@@ -7759,6 +7781,8 @@ checksum = "426f806f4089c493dcac0d24c29c01e2c38baf8e30f1b716ee37e83d200b18fe"
 dependencies = [
  "deranged",
  "itoa",
+ "libc",
+ "num_threads",
  "serde",
  "time-core",
  "time-macros",

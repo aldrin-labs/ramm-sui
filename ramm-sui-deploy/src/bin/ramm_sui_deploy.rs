@@ -2,25 +2,9 @@ use std::{env, path::PathBuf};
 
 use sui_types::base_types::{ObjectID, SuiAddress};
 
-use ramm_sui_deploy::{self, error::RAMMDeploymentError, types::RAMMPkgAddrSrc, UserAssent};
+use ramm_sui_deploy::{self, error::RAMMDeploymentError, types::{RAMMPkgAddrSrc, RAMMDeploymentConfig}, util, UserAssent, RAMMObjectIDs};
 
-#[tokio::main]
-async fn main() -> Result<(), RAMMDeploymentError> {
-    /*
-    RAMM deployment config parsing
-    */
-    let args = &mut env::args_os();
-    let exec_name: PathBuf = PathBuf::from(args.next().unwrap());
-    println!("Process name: {}", exec_name.display());
-
-    let dplymt_cfg = ramm_sui_deploy::deployment_cfg_from_args(args)?;
-
-    // Show deployment cfg to user, and ask them to confirm information.
-    // If user rejects, end the program.
-    if let UserAssent::Rejected = ramm_sui_deploy::user_assent_interaction(&dplymt_cfg) {
-        return Ok(());
-    }
-
+async fn ramm_deployment(dplymt_cfg: RAMMDeploymentConfig) -> Result<RAMMObjectIDs, RAMMDeploymentError> {
     /*
     Sui client creation, with the help of `suibase` for network selection
     */
@@ -31,7 +15,7 @@ async fn main() -> Result<(), RAMMDeploymentError> {
     let client_address: SuiAddress = suibase
         .client_sui_address("active")
         .map_err(RAMMDeploymentError::SuiClientActiveAddressError)?;
-    println!(
+    log::info!(
         "Using address {} for publishing and deployment.",
         client_address
     );
@@ -44,12 +28,12 @@ async fn main() -> Result<(), RAMMDeploymentError> {
     let ramm_package_id = match &dplymt_cfg.ramm_pkg_addr_or_path {
         // RAMM package address provided in TOML
         RAMMPkgAddrSrc::FromTomlConfig(addr) => {
-            println!("RAMM library package ID read from TOML config.");
+            log::info!("RAMM library package ID read from TOML config.");
             *addr
         }
         // RAMM package must be published to get a new package ID
         RAMMPkgAddrSrc::FromPkgPublication(path) => {
-            println!(
+            log::info!(
                 "RAMM library package ID to be obtained from publication of package at path {:?}",
                 path.as_os_str()
             );
@@ -61,7 +45,7 @@ async fn main() -> Result<(), RAMMDeploymentError> {
             )
             .await?;
 
-            println!(
+            log::info!(
                 "Status of RAMM library publication tx: {:?}",
                 response.status_ok()
             );
@@ -71,7 +55,7 @@ async fn main() -> Result<(), RAMMDeploymentError> {
             ramm_package_id
         }
     };
-    println!("RAMM package ID: {ramm_package_id}");
+    log::info!("RAMM package ID: {ramm_package_id}");
 
     // The response from the tx that creates the RAMM.
     let new_ramm_tx_response = ramm_sui_deploy::new_ramm_tx_runner(
@@ -82,7 +66,7 @@ async fn main() -> Result<(), RAMMDeploymentError> {
         ramm_package_id,
     )
     .await?;
-    println!(
+    log::info!(
         "Status of RAMM creation tx: {:?}",
         new_ramm_tx_response.status_ok()
     );
@@ -90,14 +74,12 @@ async fn main() -> Result<(), RAMMDeploymentError> {
     /*
     The RAMM and its capabilities, extracted from the tx response, and represented as
     ObjectArg`s, which is the SDK's representation of Move objects.
+
+    Also returned are the IDs of those objects, to display to the user at the end of the program.
     */
-    let ramm_obj_args =
+    let (ramm_obj_args, ramm_obj_ids) =
         ramm_sui_deploy::build_ramm_obj_args(&sui_client, new_ramm_tx_response, client_address)
             .await?;
-
-    println!("RAMM: {:?}", ramm_obj_args.ramm);
-    println!("Admin cap : {:?}", ramm_obj_args.admin_cap);
-    println!("New asset cap: {:?}", ramm_obj_args.new_asset_cap);
 
     /*
     For each asset's aggregator address read from the TOML, use the `SuiClient`'s `ReadApi`
@@ -121,7 +103,57 @@ async fn main() -> Result<(), RAMMDeploymentError> {
     )
     .await?;
 
-    println!("PTB response status: {:?}", ptb_response.status_ok());
+    log::info!("PTB response status: {:?}", ptb_response.status_ok());
 
-    Ok(())
+    Ok(ramm_obj_ids)
+}
+
+#[tokio::main]
+async fn main() {
+    /*
+    Logging infrastructure initialization
+    */
+    if let Err(err) = util::init_logging_infrastructure(None,log::LevelFilter::Info) {
+        eprintln!("Failed to initialize logging infrastructure: {}", err);
+        return ();
+    }
+
+    /*
+    RAMM deployment config parsing
+    */
+    let args = &mut env::args_os();
+    let exec_name: PathBuf = PathBuf::from(args.next().unwrap());
+    log::info!("Process name: {}", exec_name.display());
+
+    let dplymt_cfg = match ramm_sui_deploy::deployment_cfg_from_args(args) {
+        Ok(dplymt_cfg) => dplymt_cfg,
+        Err(e) => {
+            log::error!("Error reading the TOML config file into a `String`: {}", e);
+            return ();
+        }
+    };
+
+    // Show deployment cfg to user, and ask them to confirm information.
+    // If user rejects, end the program.
+    match ramm_sui_deploy::user_assent_interaction(&dplymt_cfg) {
+        UserAssent::Rejected => {
+            log::info!("User rejected the parsed configuration. Exiting.");
+            return ();
+        },
+        UserAssent::Accepted => {
+            log::info!("User accepted the parsed configuration. Continuing with deployment.");
+        }
+        
+    }
+
+    let ramm_ids = ramm_deployment(dplymt_cfg).await;
+    match ramm_ids {
+        Ok(ramm_ids) => {
+            println!("Success!");
+            println!("These are the IDs of the generated objects:\n{}", ramm_ids);
+        },
+        Err(e) => {
+            log::error!("RAMM deployment error: {}", e);
+        }
+    }
 }

@@ -1,7 +1,8 @@
 pub mod error;
 pub mod types;
+pub mod util;
 
-use std::{ffi::OsString, fs, io, path::PathBuf, str::FromStr};
+use std::{ffi::OsString, fmt::Display, fs, io, path::PathBuf, str::FromStr};
 
 use clap::{Arg, ArgMatches, Command};
 use colored::Colorize;
@@ -215,6 +216,7 @@ pub async fn publish_tx(
     let compiled_ramm_package: CompiledPackage = build_config
         .build(package_path)
         .map_err(RAMMDeploymentError::PkgBuildError)?;
+    log::info!("Compiled RAMM library.");
 
     // The RAMM library has no unpublished deps - it depends on
     // 1. `move_stdlib`,
@@ -353,10 +355,43 @@ pub async fn new_ramm_tx_runner(
     sign_and_execute_tx(&sui_client, &keystore, new_ramm_tx, &client_address).await
 }
 
+/// This data structure holds the SDK representations of the Move objects created in the
+/// transaction that creates a RAMM:
+/// 1. the RAMM itself
+/// 2. the RAMM's admin capability, and
+/// 3. the RAMM's new asset capability
 pub struct RAMMObjectArgs {
     pub ramm: ObjectArg,
     pub admin_cap: ObjectArg,
     pub new_asset_cap: ObjectArg,
+}
+
+/// This data structure holds the object IDs of the Move objects created in the transaction that
+/// creates a RAMM.
+///
+/// At the end of the program, it is printed to the user so that they can use the Sui client to
+/// query them for themselves.
+#[derive(Debug)]
+pub struct RAMMObjectIDs {
+    /// Object ID of the created RAMM
+    pub ramm: ObjectID,
+    /// Object ID of the created RAMM's admin capability
+    pub admin_cap: ObjectID,
+    /// Object ID of the created RAMM's new asset capability, which will have been deleted after
+    /// the RAMM is initialized; this is returned for auditing purposes.
+    pub new_asset_cap: ObjectID,
+}
+
+impl Display for RAMMObjectIDs {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}: {}\n{}: {}\n{}: {}",
+            "RAMM ID".red(), self.ramm,
+            "Admin Cap ID".green(), self.admin_cap,
+            "New Asset Cap ID".bright_blue(), self.new_asset_cap
+        )
+    }
 }
 
 /// Given a `SuiTransactionBlockResponse` to the transaction that creates a RAMM, this function
@@ -486,17 +521,24 @@ pub async fn build_ramm_obj_args(
     sui_client: &SuiClient,
     new_ramm_rx_response: SuiTransactionBlockResponse,
     client_address: SuiAddress,
-) -> Result<RAMMObjectArgs, RAMMDeploymentError> {
+) -> Result<(RAMMObjectArgs, RAMMObjectIDs), RAMMDeploymentError> {
     let ramm = build_ramm_obj_arg(&new_ramm_rx_response).await?;
 
     let (admin_cap, new_asset_cap) =
         build_ramm_cap_obj_args(&sui_client, new_ramm_rx_response, client_address).await?;
 
-    Ok(RAMMObjectArgs {
+    let obj_args = RAMMObjectArgs {
         ramm,
         admin_cap,
         new_asset_cap,
-    })
+    };
+    let obj_ids = RAMMObjectIDs {
+        ramm: obj_args.ramm.id(),
+        admin_cap: obj_args.admin_cap.id(),
+        new_asset_cap: obj_args.new_asset_cap.id(),
+    };
+
+    Ok((obj_args, obj_ids))
 }
 
 /*
@@ -559,7 +601,7 @@ pub async fn build_aggr_obj_args(
 /// 2. the gas price to be used for the PTB
 ///
 /// It is used to find the coin object to be used as gas for the PTB that populates that RAMM.
-pub async fn get_coin_and_gas(
+async fn get_coin_and_gas(
     sui_client: &SuiClient,
     client_address: SuiAddress,
 ) -> Result<(Coin, u64), RAMMDeploymentError> {
@@ -574,11 +616,13 @@ pub async fn get_coin_and_gas(
         .into_iter()
         .next()
         .expect("No coins associated to active address!");
+    log::info!("Fetched coin object");
     let gas_price = sui_client
         .read_api()
         .get_reference_gas_price()
         .await
         .map_err(RAMMDeploymentError::GasPriceQueryError)?;
+    log::info!("Fetched reference gas price");
 
     Ok((coin, gas_price))
 }
@@ -604,6 +648,7 @@ pub async fn add_assets_and_init_ramm(
     // built, and accessible to all subsequent commands.
     let admin_cap_arg: Argument = ptb.obj(ramm_obj_args.admin_cap).unwrap();
     let new_asset_cap_arg: Argument = ptb.obj(ramm_obj_args.new_asset_cap).unwrap();
+    log::info!("PTB: Added RAMM, and admin/new asset caps as inputs");
 
     // 2. Add all of the assets specified in the TOML config
     for ix in 0..(dplymt_cfg.asset_count as usize) {
@@ -632,6 +677,7 @@ pub async fn add_assets_and_init_ramm(
             move_call_args,
         );
     }
+    log::info!("PTB: Added all assets to the RAMM");
 
     // Initialize the RAMM
     ptb.programmable_move_call(
@@ -641,6 +687,7 @@ pub async fn add_assets_and_init_ramm(
         vec![],
         vec![ramm_arg, admin_cap_arg, new_asset_cap_arg],
     );
+    log::info!("PTB: Initialized the RAMM");
 
     // 3. Finalize the PTB object
     let pt: ProgrammableTransaction = ptb.finish();

@@ -2,6 +2,9 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum RAMMDeploymentError {
+    #[error("Failed to initialize logging infrastructure: {0}")]
+    LoggingInitError(log::SetLoggerError),
+
     #[error("Error reading the TOML config file into a `String`: {0}")]
     TOMLFileReadError(std::io::Error),
     #[error("Error parsing the executable's user input: {0}")]
