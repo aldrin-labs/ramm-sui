@@ -32,5 +32,5 @@ sui-keys = { path = "../../../../suibase/workdirs/active/sui-repo/crates/sui-key
 sui-move-build = { path = "../../../../suibase/workdirs/active/sui-repo/crates/sui-move-build/" }
 sui-types = { path = "../../../../suibase/workdirs/active/sui-repo/crates/sui-types" }
 shared-crypto = { path = "../../../../suibase/workdirs/active/sui-repo/crates/shared-crypto/" }
-move-core-types = { path = "../../../../suibase/workdirs/active/sui-repo/external-crates/move/move-core/types" }
+move-core-types = { path = "../../../../suibase/workdirs/active/sui-repo/external-crates/move/crates/move-core-types" }
 #
