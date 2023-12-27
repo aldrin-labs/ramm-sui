@@ -1,11 +1,14 @@
 # ramm-sui
 
-This repository hosts an implementation of a RAMM in Sui Move.
+This repository hosts an implementation of the RAMM in Sui Move.
+Here is the whitepaper describing the Rebalancing Automated Market Maker: https://aldrin.com/RAMM-whitepaper.pdf
 
-At present, there are 2 Sui Move packages:
-* `ramm-sui` contains an implementation for the RAMM, which is ongoing work.
-* `ramm-misc` has a faucet with tokens useful for testnet development/testing
-  - it also has a simple demo that showcases price information querying from [Switchboard](https://app.switchboard.xyz/sui/testnet) aggregators
+At present, the repository contains the following:
+* 2 Sui Move packages:
+  1.  `ramm-sui` contains an implementation for the RAMM, which is ongoing work.
+  2.  `ramm-misc` has a faucet with tokens useful for testnet development/testing
+      - this Move library also has a simple demo that showcases price information querying from [Switchboard](https://app.switchboard.xyz/sui/testnet) aggregators
+  3. a Rust crate that uses the Sui Rust SDK to automate the RAMM deployment process
 
 ## Table of contents
 1. [RAMM in Sui Move](#ramm-sui-ramm-in-sui-move)
@@ -14,8 +17,9 @@ At present, there are 2 Sui Move packages:
    - 2.2. [Regarding `suibase`](#regarding-suibase)
    - 2.3. [Requesting tokens from the faucet](#requesting-tokens-from-the-faucet)
    - 2.4. [RAMM creation/funding](#manually-creating-and-funding-a-ramm-on-the-testnet)
-3. [Testing a Switchboard price feed](#testing-a-price-feed)
-4. [Regarding AMMs with variable numbers of assets in Sui Move](#on-supporting-variable-sized-pools-with-a-single-implementation)
+3. Deployment automation tool
+4. [Testing a Switchboard price feed](#testing-a-price-feed)
+5. [Regarding AMMs with variable numbers of assets in Sui Move](#on-supporting-variable-sized-pools-with-a-single-implementation)
 
 ## `ramm-sui`: RAMM in Sui Move
 
@@ -473,6 +477,60 @@ tsui client call --package "$RAMM_PACKAGE_ID" \
   --gas-budget 1000000000 \
   --type-args "$FAUCET_PACKAGE_ID::test_coins::BTC" "$FAUCET_PACKAGE_ID::test_coins::ETH" \
      "$FAUCET_PACKAGE_ID::test_coins::SOL" "$FAUCET_PACKAGE_ID::test_coins::BTC"
+```
+
+## Automating the RAMM deployment process with the Sui SDK
+
+In order to automate part of the process described in the previous [section](#interacting-with-the-ramm-on-the-testnet),
+the `ramm-sui-deploy` Rust crate leverages the Sui Rust SDK to allow a user to
+1. create a TOML file specifying
+   1.1. the target network (i.e. Sui testnet or mainnet)
+   1.2. whether to publish a new version of `ramm-sui`, or to use an existing version
+   1.3. its asset count and fee collection address
+   1.4. its assets and their data
+2. create a RAMM with the specified parameters
+3. add the specified assets to it
+4. initialize it
+
+Below is an example TOML config for a 3-asset RAMM using assets from a published version of `ramm-misc`:
+
+```toml
+# The target network to which the RAMM will be published.
+target_env = "testnet"
+# Whether to publish `ramm-sui` at given location, or use already-published version.
+ramm_pkg_addr_or_path = "../ramm-sui"
+#ramm_pkg_addr_or_path = "0x0a31987c7298a1cf416f0ab7793fa9b519143e2032f472f407b295108390420a"
+asset_count = 3
+fee_collection_address = "0x1fad963ac9311c5f99685bc430dc022a5b0d36f6860603495ca0a0e3a46dd120"
+
+[[assets]]
+asset_type = "0x76a5ecf30b2cf49a342a9bd74a479702a1b321b0d45f06920618dbe7c2da52b1::test_coins::BTC"
+aggregator_address = "0x7c30e48db7dfd6a2301795be6cb99d00c87782e2547cf0c63869de244cfc7e47"
+minimum_trade_amount = 10_000
+decimal_places = 8
+
+[[assets]]
+asset_type = "0x76a5ecf30b2cf49a342a9bd74a479702a1b321b0d45f06920618dbe7c2da52b1::test_coins::ETH"
+aggregator_address = "0x68ed81c5dd07d12c629e5cdad291ca004a5cd3708d5659cb0b6bfe983e14778c"
+minimum_trade_amount = 100_000
+decimal_places = 8
+
+[[assets]]
+asset_type = "0x76a5ecf30b2cf49a342a9bd74a479702a1b321b0d45f06920618dbe7c2da52b1::test_coins::SOL"
+aggregator_address = "0x35c7c241fa2d9c12cd2e3bcfa7d77192a58fd94e9d6f482465d5e3c8d91b4b43"
+minimum_trade_amount = 10_000_000
+decimal_places = 8
+```
+
+### Running the deployment tool
+
+Assuming `suibase` is installed, and its workdir for the intended network has been initialized
+- see https://suibase.io/how-to/devnet-testnet.html - run the following command to deploy and initialize a RAMM:
+
+```bash
+cd ./ramm-sui-deploy
+# keep in mind the location of `deploy_cfg.toml` relative to ./ramm-sui-deploy
+cargo run --bin ramm_sui_deploy -- --toml ../deploy_cfg.toml
 ```
 
 ## Testing a Switchboard price feed

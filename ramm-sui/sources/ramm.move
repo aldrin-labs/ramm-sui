@@ -103,6 +103,19 @@ module ramm_sui::ramm {
     /// * etc.
     struct RAMMAdminCap has key { id: UID }
 
+    /// Transfer a RAMM's admin capability to another address.
+    ///
+    /// Note that because the admin cap is passed in by value, only an address with prior ownership
+    /// of an admin cap can transfer it to another address.
+    public fun transfer_admin_cap(admin_cap: RAMMAdminCap, recipient: address) {
+        transfer::transfer(admin_cap, recipient);
+    }
+
+    spec transfer_admin_cap {
+        ensures global<object::Ownership>(object::uid_to_address(admin_cap.id)).status == OWNED;
+        ensures global<object::Ownership>(object::uid_to_address(admin_cap.id)).owner == recipient;
+    }
+
     /// Capability to add assets to the RAMM pool.
     ///
     /// When the pool is initialized, it must be deleted.
@@ -434,7 +447,7 @@ These would not work:
     /// * `new_asset_cap_id` is the `ID` of the `RAMMNewAssetCap` object required to add assets
     ///   into an uninitialized RAMM
     ///
-    /// This function returns a triples of IDS for a reason:
+    /// This function returns a triple of IDS for a reason:
     /// * In order to write a specification in MSL asserting that the above objects were indeed
     ///   created, `spec new_ramm`
     public fun new_ramm(
