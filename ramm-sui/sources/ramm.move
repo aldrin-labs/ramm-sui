@@ -105,6 +105,11 @@ module ramm_sui::ramm {
 
     /// Transfer a RAMM's admin capability to another address.
     ///
+    /// This function is required for an admin to transfer the admin cap of a RAMM they control
+    /// to another of their addresses. If this function were not exposed, because `RAMMAdminCap`
+    /// does not (and should not) have the `store` ability, then it would be impossible to use
+    /// `sui::transfer::{public_transfer, transfer}` to transfer the admin cap.
+    ///
     /// Note that because the admin cap is passed in by value, only an address with prior ownership
     /// of an admin cap can transfer it to another address.
     public fun transfer_admin_cap(admin_cap: RAMMAdminCap, recipient: address) {
@@ -119,6 +124,11 @@ module ramm_sui::ramm {
     /// Capability to add assets to the RAMM pool.
     ///
     /// When the pool is initialized, it must be deleted.
+    ///
+    /// This cap cannot be transferred between addresses - it lacks a custom transfer
+    /// function like `transfer_admin_cap`, and it does not have `store` either.
+    /// This is by design, as it is not intended for a RAMM to be created and remain without assets
+    /// for long, and disallowing transfer of this cap disincentivizes delays.
     struct RAMMNewAssetCap has key { id: UID }
 
     /// RAMM data structure, allows
