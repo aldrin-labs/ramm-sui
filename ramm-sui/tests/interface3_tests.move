@@ -17,8 +17,6 @@ module ramm_sui::interface3_tests {
     const ALICE: address = @0xACE;
     const BOB: address = @0xBACE;
 
-    const BASE_WITHDRAWAL_FEE: u256 = 40 * 1_000_000_000_000 / 10000; // _BASE_WITHDRAWAL_FEE * 10**(PRECISION_DECIMAL_PLACES-4)
-
     const ETraderShouldNotHaveAsset: u64 = 0;
     const EFeeCollectionError: u64 = 1;
 

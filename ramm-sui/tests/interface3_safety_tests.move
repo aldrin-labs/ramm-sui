@@ -45,7 +45,6 @@ module ramm_sui::interface3_safety_tests {
 
     */
 
-    const ADMIN: address = @0xFACE;
     const ALICE: address = @0xACE;
     const BOB: address = @0xBACE;
 

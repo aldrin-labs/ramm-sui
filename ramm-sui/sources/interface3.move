@@ -768,10 +768,10 @@ module ramm_sui::interface3 {
     /// * If the RAMM does not contain any of the assets types provided
     public entry fun collect_fees_3<Asset1, Asset2, Asset3>(
         self: &mut RAMM,
-        a: &RAMMAdminCap,
+        admin_cap: &RAMMAdminCap,
         ctx: &mut TxContext
     ) {
-        assert!(ramm::get_admin_cap_id(self) == object::id(a), ENotAdmin);
+        assert!(ramm::get_admin_cap_id(self) == object::id(admin_cap), ENotAdmin);
         assert!(ramm::get_asset_count(self) == THREE, ERAMMInvalidSize);
 
         let fst = ramm::get_asset_index<Asset1>(self);
@@ -804,5 +804,16 @@ module ramm_sui::interface3 {
         );
 
         ramm::check_ramm_invariants_3<Asset1, Asset2, Asset3>(self);
+    }
+
+    spec collect_fees_3 {
+        pragma opaque = true;
+
+        pragma aborts_if_is_partial = true;
+
+        aborts_if self.admin_cap_id != object::id(admin_cap);
+        aborts_if self.asset_count != THREE;
+
+        ensures self.asset_count == THREE;
     }
 }

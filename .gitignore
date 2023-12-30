@@ -1,4 +1,13 @@
+# CLI executable artifacts, and IDE clutter
 sui.log*
+*.code-workspace
+
+# build artifacts
 build/
+
+# test artifacts
 .trace
 *.mvcov
+
+# prover artifacts
+*.bpl
