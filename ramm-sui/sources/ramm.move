@@ -103,9 +103,32 @@ module ramm_sui::ramm {
     /// * etc.
     struct RAMMAdminCap has key { id: UID }
 
+    /// Transfer a RAMM's admin capability to another address.
+    ///
+    /// This function is required for an admin to transfer the admin cap of a RAMM they control
+    /// to another of their addresses. If this function were not exposed, because `RAMMAdminCap`
+    /// does not (and should not) have the `store` ability, then it would be impossible to use
+    /// `sui::transfer::{public_transfer, transfer}` to transfer the admin cap.
+    ///
+    /// Note that because the admin cap is passed in by value, only an address with prior ownership
+    /// of an admin cap can transfer it to another address.
+    public fun transfer_admin_cap(admin_cap: RAMMAdminCap, recipient: address) {
+        transfer::transfer(admin_cap, recipient);
+    }
+
+    spec transfer_admin_cap {
+        ensures global<object::Ownership>(object::uid_to_address(admin_cap.id)).status == OWNED;
+        ensures global<object::Ownership>(object::uid_to_address(admin_cap.id)).owner == recipient;
+    }
+
     /// Capability to add assets to the RAMM pool.
     ///
     /// When the pool is initialized, it must be deleted.
+    ///
+    /// This cap cannot be transferred between addresses - it lacks a custom transfer
+    /// function like `transfer_admin_cap`, and it does not have `store` either.
+    /// This is by design, as it is not intended for a RAMM to be created and remain without assets
+    /// for long, and disallowing transfer of this cap disincentivizes delays.
     struct RAMMNewAssetCap has key { id: UID }
 
     /// RAMM data structure, allows
@@ -398,10 +421,26 @@ These would not work:
     /// `impl RAMM`
     /// -----------
 
+    /// Data returned after a RAMM's creation.
+    ///
+    /// These data are required to use PTBs to then interact with the created RAMM,
+    /// using the API in this module.
     struct NewRAMMIDs has copy, drop {
         ramm_id: ID,
         admin_cap_id: ID,
         new_asset_cap_id: ID,
+    }
+
+    public fun ramm_id(nrids: &NewRAMMIDs): ID {
+        nrids.ramm_id
+    }
+
+    public fun admin_cap_id(nrids: &NewRAMMIDs): ID {
+        nrids.admin_cap_id
+    }
+
+    public fun new_asset_cap_id(nrids: &NewRAMMIDs): ID {
+        nrids.new_asset_cap_id
     }
 
     /// Create a new RAMM structure, without any asset.
@@ -418,10 +457,10 @@ These would not work:
     /// * `new_asset_cap_id` is the `ID` of the `RAMMNewAssetCap` object required to add assets
     ///   into an uninitialized RAMM
     ///
-    /// In order to write a specification in MSL asserting that these objects were indeed created,
-    /// this intermediate function is used, which returns `ID`s to write
-    /// `spec new_ramm_internal` with.
-    fun new_ramm_internal(
+    /// This function returns a triple of IDS for a reason:
+    /// * In order to write a specification in MSL asserting that the above objects were indeed
+    ///   created, `spec new_ramm`
+    public fun new_ramm(
         fee_collector: address,
         ctx: &mut TxContext
     ): NewRAMMIDs {
@@ -485,8 +524,7 @@ These would not work:
     /// >
     /// > The soundness of the abstraction is the **responsibility** of the specifier, and
     /// > **not verified** by the prover.
-    ///
-     spec new_ramm_internal {
+     spec new_ramm {
         pragma opaque = true;
 
         ensures [abstract] global<RAMM>(object::id_to_address(result.ramm_id)).asset_count == 0;
@@ -510,17 +548,6 @@ These would not work:
         // Verify that the RAMM's new asset cap is transferred to the RAMM creator
         ensures global<object::Ownership>(object::id_to_address(result.new_asset_cap_id)).status == OWNED;
         ensures global<object::Ownership>(object::id_to_address(result.new_asset_cap_id)).owner == tx_context::sender(ctx);
-    }
-
-    /// Create a new RAMM structure, without any asset.
-    ///
-    /// A RAMM needs to have assets added to it before it can be initialized,
-    /// after which it can be used.
-    public entry fun new_ramm(
-        fee_collector: address,
-        ctx: &mut TxContext
-    ) {
-        new_ramm_internal(fee_collector, ctx);
     }
 
     #[test]
@@ -1927,7 +1954,7 @@ work well together
     ///
     /// This function can be used on a RAMM of any size.
     public(friend) fun trade_o<AssetIn, AssetOut>(
-        self: &mut RAMM,
+        self: &RAMM,
         // index of incoming token
         i: u8,
         // index of outgoing token
@@ -2006,7 +2033,7 @@ work well together
     ///
     /// Unlike the client-facing API, this function can be used on a RAMM of any size.
     public(friend) fun liq_dep<AssetIn>(
-        self: &mut RAMM,
+        self: &RAMM,
         i: u8,
         ai: u64,
         prices: VecMap<u8, u256>,
@@ -2058,7 +2085,7 @@ work well together
     /// In other words, by being called in the client facing modules of the package, e.g.
     /// `interface3` for 3-asset RAMMs.
     public(friend) fun liq_wthdrw<AssetOut>(
-        self: &mut RAMM,
+        self: &RAMM,
         o: u8,
         lpt: u64,
         prices: VecMap<u8, u256>,

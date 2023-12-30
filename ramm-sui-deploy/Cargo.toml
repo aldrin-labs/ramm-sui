@@ -1,0 +1,36 @@
+[package]
+name = "ramm_sui_deploy"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0"
+bcs = "0.1.4"
+clap = "4.4.10"
+colored = "2.0.4"
+futures = "0.3"
+log = "0.4.20"
+serde = {version = "1.0.188", features = ["derive"] }
+simplelog = "0.12.1"
+signature = "1.6.4"
+thiserror = "1.0"
+tokio = { version = "1", features = ["macros"] }
+toml = "0.8.1"
+
+# Careful with the absolute path here - must reflect the machine this deployment binary will be
+# run on.
+# To solve this, in the future it may be necessary to either
+# 1. bundle `suibase` with this package, or
+# 2. to fetch all below dependencies from Git, pinned to the same commit hash
+suibase = { path = "../../../../suibase/rust/helper" }
+
+sui-sdk = { path = "../../../../suibase/workdirs/active/sui-repo/crates/sui-sdk/" }
+sui-json-rpc-types = { path = "../../../../suibase/workdirs/active/sui-repo/crates/sui-json-rpc-types/" }
+sui-keys = { path = "../../../../suibase/workdirs/active/sui-repo/crates/sui-keys" }
+sui-move-build = { path = "../../../../suibase/workdirs/active/sui-repo/crates/sui-move-build/" }
+sui-types = { path = "../../../../suibase/workdirs/active/sui-repo/crates/sui-types" }
+shared-crypto = { path = "../../../../suibase/workdirs/active/sui-repo/crates/shared-crypto/" }
+move-core-types = { path = "../../../../suibase/workdirs/active/sui-repo/external-crates/move/crates/move-core-types" }
+#

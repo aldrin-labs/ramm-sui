@@ -1,5 +1,5 @@
 [package]
-name = "RAMM_Sui"
+name = "ramm_sui"
 version = "0.0.1"
 
 [dependencies]
