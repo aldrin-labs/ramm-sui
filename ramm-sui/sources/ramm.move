@@ -705,7 +705,7 @@ work well together
     /// * if its internal data is inconsistent e.g.
     ///   - there are no assets, or
     ///   - the number of held assets differs from the number of LP token issuers.
-    public entry fun initialize_ramm(
+    public fun initialize_ramm(
         self: &mut RAMM,
         admin_cap: &RAMMAdminCap,
         new_asset_cap: RAMMNewAssetCap,
@@ -791,7 +791,7 @@ work well together
 
         aborts_if self.admin_cap_id != object::id(admin_cap);
         aborts_if self.new_asset_cap_id != object::id(new_asset_cap);
-        // Verify that executing this entry function on a RAMM with 0 assets will *always* raise
+        // Verify that executing this function on a RAMM with 0 assets will *always* raise
         // an abort.
         aborts_if self.asset_count == 0;
         aborts_if self.is_initialized;

@@ -49,7 +49,7 @@ module ramm_sui::interface2 {
     /// * If the RAMM has not minted any LP tokens for the inbound asset
     /// * If the RAMM's balance for the outgoing token is 0
     /// * If the aggregator for each asset doesn't match the address in the RAMM's records
-    public entry fun trade_amount_in_2<AssetIn, AssetOut>(
+    public fun trade_amount_in_2<AssetIn, AssetOut>(
         self: &mut RAMM,
         amount_in: Coin<AssetIn>,
         min_ao: u64,
@@ -203,7 +203,7 @@ module ramm_sui::interface2 {
     /// * If the amount being traded out is lower than the RAMM's minimum for the corresponding asset
     /// * If the RAMM's balance for the outgoing token is 0
     /// * If the aggregator for each asset doesn't match the address in the RAMM's records
-    public entry fun trade_amount_out_2<AssetIn, AssetOut>(
+    public fun trade_amount_out_2<AssetIn, AssetOut>(
         self: &mut RAMM,
         amount_out: u64,
         max_ai: Coin<AssetIn>,
@@ -357,7 +357,7 @@ module ramm_sui::interface2 {
     /// * If the amount being traded in is zero
     /// * If the RAMM does not contain any of the asset types provided
     /// * If the aggregator for each asset doesn't match the address in the RAMM's records
-    public entry fun liquidity_deposit_2<AssetIn, Other>(
+    public fun liquidity_deposit_2<AssetIn, Other>(
         self: &mut RAMM,
         amount_in: Coin<AssetIn>,
         feed_in: &Aggregator,
@@ -463,7 +463,7 @@ module ramm_sui::interface2 {
     /// * If the pool does not have the asset for which the withdrawal is being requested
     /// * If the RAMM does not contain any of the asset types provided
     /// * If the aggregator for each asset doesn't match the address in the RAMM's records
-    public entry fun liquidity_withdrawal_2<Asset1, Asset2, AssetOut>(
+    public fun liquidity_withdrawal_2<Asset1, Asset2, AssetOut>(
         self: &mut RAMM,
         lp_token: Coin<ramm::LP<AssetOut>>,
         feed1: &Aggregator,
@@ -635,7 +635,7 @@ module ramm_sui::interface2 {
     /// * If the RAMM does not have exactly 2 assets, whose types match the ones provided
     ///   as parameters.
     /// * If the RAMM does not contain any of the assets types provided
-    public entry fun collect_fees_2<Asset1, Asset2>(
+    public fun collect_fees_2<Asset1, Asset2>(
         self: &mut RAMM,
         admin_cap: &RAMMAdminCap,
         ctx: &mut TxContext
