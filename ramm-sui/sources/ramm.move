@@ -13,6 +13,7 @@ module ramm_sui::ramm {
 
     use switchboard::aggregator::{Self, Aggregator};
 
+    use ramm_sui::oracles;
     use ramm_sui::math as ramm_math;
 
     friend ramm_sui::interface2;
@@ -86,6 +87,10 @@ module ramm_sui::ramm {
     const BASE_WITHDRAWAL_FEE: u256 = 40 * 1_000_000_000_000 / 10000; // _BASE_WITHDRAWAL_FEE * 10**(PRECISION_DECIMAL_PLACES-4)
     /// 30% of collected base fees go to the RAMM.
     const PROTOCOL_FEE: u256 = 30 * 1_000_000_000_000 / 100; // PROTOCOL_FEE = _PROTOCOL_FEE*10**(PRECISION_DECIMAL_PLACES-2)
+
+    /// Maximum age, in miliseconds, that an asset's pricing data can have - relative to a timestamp
+    /// obtained from Sui's global `sui::Clock`, residing at address `0x6`.
+    const PRICE_TIMESTAMP_STALENESS_THRESHOLD: u64 = 60 * 60 * 1000;
 
     /// ---------------------
     /// End of math constants
@@ -1603,25 +1608,9 @@ work well together
     ///
     /// If provided with an aggregator for an asset that does not exist in the
     /// pool, it will abort.
-    public(friend) fun check_feed_address(self: &RAMM, index: u8, feed: &Aggregator): bool {
+    fun check_feed_address(self: &RAMM, index: u8, feed: &Aggregator): bool {
         let addr = vec_map::get(&self.aggregator_addrs, &index);
         *addr == aggregator::aggregator_address(feed)
-    }
-
-    /// Given a Switchboard aggregator, fetch the price data within it.
-    /// Returns a tuple with the `u256` price, and the appropriate scaling
-    /// factor to use when working with `PRECISION_DECIMAL_PLACES`.
-    ///
-    /// This function is not public, as it is NOT safe to call this *without*
-    /// first checking that the aggregator's address matches the RAMM's records
-    /// for the given asset.
-    public fun get_price_from_oracle(feed: &Aggregator): (u256, u256, u64) {
-        // the timestamp can be used in the future to check for price staleness
-        let (latest_result, latest_timestamp) = aggregator::latest_value(feed);
-        // do something with the below, most likely scale it to our needs
-        let (price, scaling) = ramm_math::sbd_to_price_info(latest_result, PRECISION_DECIMAL_PLACES);
-
-        (price, scaling, latest_timestamp)
     }
 
     /// Verify that the address of the pricing feed for a certain asset matches the
@@ -1642,10 +1631,14 @@ work well together
         price_timestamps: &mut VecMap<u8, u64>,
     ) {
         assert!(check_feed_address(self, ix, feed), EInvalidAggregator);
-        let (price, factor_for_price, price_timestamp) = get_price_from_oracle(feed);
+        let (price, factor_for_price, price_timestamp) = oracles::get_price_from_oracle(
+            feed,
+            PRICE_TIMESTAMP_STALENESS_THRESHOLD,
+            PRECISION_DECIMAL_PLACES
+        );
         vec_map::insert(prices, ix, price);
-        vec_map::insert(factors_for_prices, ix, factor_for_price);
         vec_map::insert(price_timestamps, ix, price_timestamp);
+        vec_map::insert(factors_for_prices, ix, factor_for_price);
     }
 
     /// ----------------------------------
