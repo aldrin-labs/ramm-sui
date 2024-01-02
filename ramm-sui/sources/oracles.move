@@ -7,6 +7,7 @@ module ramm_sui::oracles {
     friend ramm_sui::ramm;
 
     const ENegativeSbD: u64 = 0;
+    const EStalePrice: u64 = 1;
 
     fun sbd_data_to_info(value: u128, scaling_factor: u8, neg: bool, prec: u8): (u256, u256) {
         assert!(!neg, ENegativeSbD);
@@ -69,13 +70,17 @@ module ramm_sui::oracles {
     /// matches the RAMM's record for the given asset.
     public(friend) fun get_price_from_oracle(
         feed: &Aggregator,
+        current_timestamp: u64,
         staleness_threshold: u64,
         prec: u8
     ): (u256, u256, u64) {
         // the timestamp can be used in the future to check for price staleness
         let (latest_result, latest_timestamp) = aggregator::latest_value(feed);
-
-        
+        // Recall that Sui Move will abort on underflow, so this is safe.
+        assert!(
+            math::abs_diff_u64(current_timestamp, latest_timestamp) <= staleness_threshold,
+            EStalePrice
+        );
 
         // do something with the below, most likely scale it to our needs
         let (price, scaling) = sbd_to_price_info(latest_result, prec);

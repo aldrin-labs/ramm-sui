@@ -17,6 +17,10 @@ module ramm_sui::math {
     /// Operators
     /// ---------
 
+    public(friend) fun abs_diff_u64(x: u64, y: u64): u64 {
+        if (x >= y) { x - y } else { y - x }
+    }
+
     /// Given a `u256` value, forecefully clamp it to the range `[0, max]`.
     public(friend) fun clamp(val: u256, max: u256): u256 {
         if (val >= max) { return max };

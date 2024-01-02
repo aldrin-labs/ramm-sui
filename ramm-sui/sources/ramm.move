@@ -1615,6 +1615,8 @@ work well together
 
     /// Verify that the address of the pricing feed for a certain asset matches the
     /// one supplied when the asset was initialized in the RAMM.
+    /// It takes a timestamp from the network's global clock to check the staleness of the
+    /// pricing data - if the data are too old, the function will abort.
     ///
     /// If it is, fetch its price and that price's timestamp, and add them to the mappings
     /// * from asset indices to their prices
@@ -1624,6 +1626,7 @@ work well together
     /// These maps are passed into the function as mutable arguments.
     public(friend) fun check_feed_and_get_price_data(
         self: &RAMM,
+        current_timestamp: u64,
         ix: u8,
         feed: &Aggregator,
         prices: &mut VecMap<u8, u256>,
@@ -1633,6 +1636,7 @@ work well together
         assert!(check_feed_address(self, ix, feed), EInvalidAggregator);
         let (price, factor_for_price, price_timestamp) = oracles::get_price_from_oracle(
             feed,
+            current_timestamp,
             PRICE_TIMESTAMP_STALENESS_THRESHOLD,
             PRECISION_DECIMAL_PLACES
         );
