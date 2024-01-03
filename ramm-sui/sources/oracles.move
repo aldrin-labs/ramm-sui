@@ -62,6 +62,22 @@ module ramm_sui::oracles {
         sbd_data_to_info(value, scaling_factor, neg, prec)
     }
 
+    fun check_price_staleness(
+        current_clock_timestamp: u64,
+        latest_feed_timestamp: u64,
+        staleness_threshold: u64,
+    ) {
+        // Recall that Sui Move will abort on underflow, so this is safe.
+        assert!(
+            math::abs_diff_u64(current_clock_timestamp, latest_feed_timestamp) <= staleness_threshold,
+            EStalePrice
+        );
+    }
+
+    spec check_price_staleness {
+        aborts_if math::abs_diff_u64(current_clock_timestamp, latest_feed_timestamp) > staleness_threshold with EStalePrice;
+    }
+
     /// Given a Switchboard aggregator, fetch the pricing data within it.
     /// Returns a tuple with the `u256` price, and the appropriate scaling factor to use when
     /// working with `PRECISION_DECIMAL_PLACES`.
@@ -70,21 +86,24 @@ module ramm_sui::oracles {
     /// matches the RAMM's record for the given asset.
     public fun get_price_from_oracle(
         feed: &Aggregator,
-        current_timestamp: u64,
+        current_clock_timestamp: u64,
         staleness_threshold: u64,
         prec: u8
     ): (u256, u256, u64) {
         // the timestamp can be used in the future to check for price staleness
-        let (latest_result, latest_timestamp) = aggregator::latest_value(feed);
-        // Recall that Sui Move will abort on underflow, so this is safe.
-        assert!(
-            math::abs_diff_u64(current_timestamp, latest_timestamp) <= staleness_threshold,
-            EStalePrice
-        );
+        let (latest_result, latest_feed_timestamp) = aggregator::latest_value(feed);
 
-        // do something with the below, most likely scale it to our needs
+        check_price_staleness(current_clock_timestamp, latest_feed_timestamp, staleness_threshold);
+
+        // Current price, and its scaling factor.
         let (price, scaling) = sbd_to_price_info(latest_result, prec);
 
-        (price, scaling, latest_timestamp)
+        (price, scaling, latest_feed_timestamp)
+
+    }
+
+    /// This `0x2` is the only abort raised by `switchboard_std::aggregator::latest_value`.
+    spec get_price_from_oracle {
+        aborts_with ENegativeSbD, EStalePrice, EXECUTION_FAILURE, 0x2;
     }
 }
