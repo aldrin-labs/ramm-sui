@@ -7,6 +7,7 @@ module ramm_sui::math_tests {
 
     use switchboard::math as sb_math;
 
+    use ramm_sui::oracles;
     use ramm_sui::ramm;
     use ramm_sui::test_util;
     use ramm_sui::math as ramm_math;
@@ -42,7 +43,7 @@ module ramm_sui::math_tests {
     #[test]
     fun test_switchboard_decimal() {
         let sbd = sb_math::new(1234567000, 9, false);
-        let (price, factor_for_price) = ramm_math::sbd_to_price_info(sbd, PRECISION_DECIMAL_PLACES);
+        let (price, factor_for_price) = oracles::sbd_to_price_info(sbd, PRECISION_DECIMAL_PLACES);
 
         test_utils::assert_eq(price, 1234567000u256);
         test_utils::assert_eq(factor_for_price, 1000u256);
@@ -52,7 +53,7 @@ module ramm_sui::math_tests {
     #[expected_failure(abort_code = ramm_math::ENegativeSbD)]
     fun test_switchboard_decimal_fail() {
         let sbd = sb_math::new(1234567000, 3, true);
-        let (_, _) = ramm_math::sbd_to_price_info(sbd, PRECISION_DECIMAL_PLACES);
+        let (_, _) = oracles::sbd_to_price_info(sbd, PRECISION_DECIMAL_PLACES);
     }
 
     #[test]
