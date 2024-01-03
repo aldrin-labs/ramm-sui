@@ -4,6 +4,7 @@ module ramm_sui::interface3 {
     use std::string;
 
     use sui::balance::{Self, Balance};
+    use sui::clock::{Self, Clock};
     use sui::coin::{Self, Coin};
     use sui::object;
     use sui::transfer;
@@ -50,6 +51,7 @@ module ramm_sui::interface3 {
     /// * If the aggregator for each asset doesn't match the address in the RAMM's records
     public fun trade_amount_in_3<AssetIn, AssetOut, Other>(
         self: &mut RAMM,
+        clock: &Clock,
         amount_in: Coin<AssetIn>,
         min_ao: u64,
         feed_in: &Aggregator,
@@ -73,11 +75,13 @@ module ramm_sui::interface3 {
 
         let oth = ramm::get_asset_index<Other>(self);
 
+        let current_timestamp: u64 = clock::timestamp_ms(clock);
         let new_prices = vec_map::empty<u8, u256>();
         let factors_for_prices = vec_map::empty<u8, u256>();
         let new_price_timestamps = vec_map::empty<u8, u64>();
         ramm::check_feed_and_get_price_data(
             self,
+            current_timestamp,
             i,
             feed_in,
             &mut new_prices,
@@ -86,6 +90,7 @@ module ramm_sui::interface3 {
         );
         ramm::check_feed_and_get_price_data(
             self,
+            current_timestamp,
             o,
             feed_out,
             &mut new_prices,
@@ -94,6 +99,7 @@ module ramm_sui::interface3 {
         );
         ramm::check_feed_and_get_price_data(
             self,
+            current_timestamp,
             oth,
             other,
             &mut new_prices,
@@ -237,6 +243,7 @@ module ramm_sui::interface3 {
     /// * If the aggregator for each asset doesn't match the address in the RAMM's records
     public fun trade_amount_out_3<AssetIn, AssetOut, Other>(
         self: &mut RAMM,
+        clock: &Clock,
         amount_out: u64,
         max_ai: Coin<AssetIn>,
         feed_in: &Aggregator,
@@ -261,11 +268,13 @@ module ramm_sui::interface3 {
         // of locking the oracle object only to have the tx abort anyway.
         ramm::check_trade_amount_out<AssetOut>(self, (amount_out as u256));
 
+        let current_timestamp: u64 = clock::timestamp_ms(clock);
         let new_prices = vec_map::empty<u8, u256>();
         let factors_for_prices = vec_map::empty<u8, u256>();
         let new_price_timestamps = vec_map::empty<u8, u64>();
         ramm::check_feed_and_get_price_data(
             self,
+            current_timestamp,
             i,
             feed_in,
             &mut new_prices,
@@ -274,6 +283,7 @@ module ramm_sui::interface3 {
         );
         ramm::check_feed_and_get_price_data(
             self,
+            current_timestamp,
             o,
             feed_out,
             &mut new_prices,
@@ -282,6 +292,7 @@ module ramm_sui::interface3 {
         );
         ramm::check_feed_and_get_price_data(
             self,
+            current_timestamp,
             oth,
             other,
             &mut new_prices,
@@ -430,6 +441,7 @@ module ramm_sui::interface3 {
     /// * If the aggregator for each asset doesn't match the address in the RAMM's records
     public fun liquidity_deposit_3<AssetIn, Other, Another>(
         self: &mut RAMM,
+        clock: &Clock,
         amount_in: Coin<AssetIn>,
         feed_in: &Aggregator,
         other: &Aggregator,
@@ -445,17 +457,36 @@ module ramm_sui::interface3 {
         let oth = ramm::get_asset_index<Other>(self);
         let anoth = ramm::get_asset_index<Another>(self);
 
+        let current_timestamp: u64 = clock::timestamp_ms(clock);
         let new_prices = vec_map::empty<u8, u256>();
         let factors_for_prices = vec_map::empty<u8, u256>();
         let new_price_timestamps = vec_map::empty<u8, u64>();
         ramm::check_feed_and_get_price_data(
-            self, i, feed_in, &mut new_prices, &mut factors_for_prices, &mut new_price_timestamps
+            self,
+            current_timestamp,
+            i,
+            feed_in,
+            &mut new_prices,
+            &mut factors_for_prices,
+            &mut new_price_timestamps
         );
         ramm::check_feed_and_get_price_data(
-            self, oth, other, &mut new_prices, &mut factors_for_prices, &mut new_price_timestamps
+            self,
+            current_timestamp,
+            oth,
+            other,
+            &mut new_prices,
+            &mut factors_for_prices,
+            &mut new_price_timestamps
         );
         ramm::check_feed_and_get_price_data(
-            self, anoth, another, &mut new_prices, &mut factors_for_prices, &mut new_price_timestamps
+            self,
+            current_timestamp,
+            anoth,
+            another,
+            &mut new_prices,
+            &mut factors_for_prices,
+            &mut new_price_timestamps
         );
 
         /*
@@ -563,6 +594,7 @@ module ramm_sui::interface3 {
     /// * If the aggregator for each asset doesn't match the address in the RAMM's records
     public fun liquidity_withdrawal_3<Asset1, Asset2, Asset3, AssetOut>(
         self: &mut RAMM,
+        clock: &Clock,
         lp_token: Coin<ramm::LP<AssetOut>>,
         feed1: &Aggregator,
         feed2: &Aggregator,
@@ -580,11 +612,13 @@ module ramm_sui::interface3 {
         // be specified, and the type of the outgoing asset as well, separately.
         let o   = ramm::get_asset_index<AssetOut>(self);
 
+        let current_timestamp: u64 = clock::timestamp_ms(clock);
         let new_prices = vec_map::empty<u8, u256>();
         let factors_for_prices = vec_map::empty<u8, u256>();
         let new_price_timestamps = vec_map::empty<u8, u64>();
         ramm::check_feed_and_get_price_data(
             self,
+            current_timestamp,
             fst,
             feed1,
             &mut new_prices,
@@ -593,6 +627,7 @@ module ramm_sui::interface3 {
         );
         ramm::check_feed_and_get_price_data(
             self,
+            current_timestamp,
             snd,
             feed2,
             &mut new_prices,
@@ -601,6 +636,7 @@ module ramm_sui::interface3 {
         );
         ramm::check_feed_and_get_price_data(
             self,
+            current_timestamp,
             trd,
             feed3,
             &mut new_prices,
