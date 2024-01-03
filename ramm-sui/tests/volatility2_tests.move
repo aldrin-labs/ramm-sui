@@ -39,7 +39,7 @@ module ramm_sui::volatility2_tests {
     ///     - 0.1% base trading fee
     /// - protocol fee is 30% of the total, so 3.03%
     fun trade_amount_in_2_volatility_test() {
-        let (ramm_id, eth_ag_id, usdt_ag_id, scenario_val, clock) = test_util::create_ramm_test_scenario_eth_usdt(ADMIN);
+        let (ramm_id, eth_ag_id, usdt_ag_id, scenario_val) = test_util::create_ramm_test_scenario_eth_usdt(ADMIN);
         let scenario = &mut scenario_val;
 
         // First part of the test: the RAMM's admin, who also happens to have administrative rights
@@ -48,6 +48,7 @@ module ramm_sui::volatility2_tests {
         test_scenario::next_tx(scenario, ADMIN);
 
         {
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
 
@@ -95,6 +96,7 @@ module ramm_sui::volatility2_tests {
                 test_scenario::ctx(scenario)
             );
 
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(usdt_aggr);
         };
@@ -105,6 +107,7 @@ module ramm_sui::volatility2_tests {
 
         {
             let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
 
@@ -138,8 +141,6 @@ module ramm_sui::volatility2_tests {
 
             // The trader sends 10k USDT to the RAMM
             let usdt_trade_amount: u256 = 10_000 * test_util::usdt_factor();
-
-            let clock: Clock = clock::create_for_testing(test_scenario::ctx(scenario));
 
             let amount_in = coin::mint_for_testing<USDT>((usdt_trade_amount as u64), test_scenario::ctx(scenario));
             interface2::trade_amount_in_2<USDT, ETH>(
@@ -189,6 +190,7 @@ module ramm_sui::volatility2_tests {
             test_utils::assert_eq(ramm::get_typed_lptokens_issued<USDT>(&ramm), 900_000 * test_util::usdt_factor());
 
             test_scenario::return_shared<RAMM>(ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(usdt_aggr);
         };
@@ -218,7 +220,7 @@ module ramm_sui::volatility2_tests {
     ///     - 0.1% base trading fee
     /// - protocol fee is 30% of the total, so 3.03%
     fun trade_amount_out_2_volatility_test() {
-        let (ramm_id, eth_ag_id, usdt_ag_id, scenario_val, clock) = test_util::create_ramm_test_scenario_eth_usdt(ADMIN);
+        let (ramm_id, eth_ag_id, usdt_ag_id, scenario_val) = test_util::create_ramm_test_scenario_eth_usdt(ADMIN);
         let scenario = &mut scenario_val;
 
         // First part of the test: the RAMM's admin, who also happens to have administrative rights
@@ -226,11 +228,12 @@ module ramm_sui::volatility2_tests {
 
         test_scenario::next_tx(scenario, ADMIN);
 
-        let current_timestamp: u64 = clock::timestamp_ms(&clock);
-
         {
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
+
+            let current_timestamp: u64 = clock::timestamp_ms(&clock);
 
             let (price_eth, scaling_eth, timestamp_eth) = oracles::get_price_from_oracle(
                     &eth_aggr,
@@ -274,6 +277,7 @@ module ramm_sui::volatility2_tests {
                 test_scenario::ctx(scenario)
             );
 
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(usdt_aggr);
         };
@@ -287,6 +291,7 @@ module ramm_sui::volatility2_tests {
         test_scenario::next_tx(scenario, ALICE);
         {
             let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
 
@@ -329,6 +334,7 @@ module ramm_sui::volatility2_tests {
             );
 
             test_scenario::return_shared<RAMM>(ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(usdt_aggr);
         };
@@ -405,12 +411,13 @@ module ramm_sui::volatility2_tests {
     /// Inbound/outbound deposit*LP token amounts should not be affected by volatility, but they should
     /// still update the RAMM's internal volatility data after each asset's respective oracle query.
     fun liquidity_deposit_2_volatility_test() {
-        let (ramm_id, btc_ag_id, eth_ag_id, scenario_val, clock) = test_util::create_ramm_test_scenario_btc_eth_no_liq(ADMIN);
+        let (ramm_id, btc_ag_id, eth_ag_id, scenario_val) = test_util::create_ramm_test_scenario_btc_eth_no_liq(ADMIN);
         let scenario = &mut scenario_val;
 
         test_scenario::next_tx(scenario, ADMIN);
         {
             let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
 
@@ -524,6 +531,7 @@ module ramm_sui::volatility2_tests {
             );
 
             test_scenario::return_shared<RAMM>(ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(btc_aggr);
             test_scenario::return_shared<Aggregator>(eth_aggr);
         };
@@ -583,7 +591,7 @@ module ramm_sui::volatility2_tests {
     /// - 5% volatility for outbound asset, plus
     /// - 0.4% base liquidity withdrawal fee
     fun liquidity_withdrawal_2_volatility_test() {
-        let (ramm_id, eth_ag_id, usdt_ag_id, scenario_val, clock) = test_util::create_ramm_test_scenario_eth_usdt(ADMIN);
+        let (ramm_id, eth_ag_id, usdt_ag_id, scenario_val) = test_util::create_ramm_test_scenario_eth_usdt(ADMIN);
         let scenario = &mut scenario_val;
 
         // First part of the test: the RAMM's admin, who also happens to have administrative rights
@@ -592,6 +600,7 @@ module ramm_sui::volatility2_tests {
         test_scenario::next_tx(scenario, ADMIN);
 
         {
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
 
@@ -639,6 +648,7 @@ module ramm_sui::volatility2_tests {
                 test_scenario::ctx(scenario)
             );
 
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(usdt_aggr);
         };
@@ -651,6 +661,7 @@ module ramm_sui::volatility2_tests {
 
         {
             let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
 
@@ -677,6 +688,7 @@ module ramm_sui::volatility2_tests {
             );
 
             test_scenario::return_shared<RAMM>(ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(usdt_aggr);
         };
