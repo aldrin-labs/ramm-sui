@@ -55,7 +55,7 @@ module ramm_sui::interface2_safety_tests {
     #[expected_failure(abort_code = interface2::ERAMMInvalidSize)]
     /// Check that calling `trade_amount_in_2` on a RAMM without *exactly* 2 assets fails.
     fun trade_amount_in_2_invalid_ramm_size() {
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, _, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, _, scenario_val, clock) =
             test_util::create_ramm_test_scenario_btc_eth_sol_with_liq(ALICE);
         let scenario = &mut scenario_val;
 
@@ -67,6 +67,7 @@ module ramm_sui::interface2_safety_tests {
 
             interface2::trade_amount_in_2<BTC, ETH>(
                 &mut alice_ramm,
+                                &clock,
                 amount_in,
                 0,
                 &btc_aggr,
@@ -89,7 +90,7 @@ module ramm_sui::interface2_safety_tests {
     /// This test *must* fail.
     fun trade_amount_in_2_invalid_asset() {
         // Create a 2-asset pool with BTC, ETH
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val, clock) =
             test_util::create_ramm_test_scenario_btc_eth_with_liq(ALICE);
         let scenario = &mut scenario_val;
 
@@ -101,6 +102,7 @@ module ramm_sui::interface2_safety_tests {
 
             interface2::trade_amount_in_2<USDC, ETH>(
                 &mut alice_ramm,
+                                &clock,
                 amount_in,
                 0,
                 &btc_aggr,
@@ -123,7 +125,7 @@ module ramm_sui::interface2_safety_tests {
     /// This *must* fail.
     fun trade_amount_in_2_insufficient_amount_in() {
         // Create a 2-asset pool with BTC, ETH
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val)
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val, clock)
             = test_util::create_ramm_test_scenario_btc_eth_with_liq(ALICE);
         let scenario = &mut scenario_val;
 
@@ -135,6 +137,7 @@ module ramm_sui::interface2_safety_tests {
 
             interface2::trade_amount_in_2<ETH, BTC>(
                 &mut alice_ramm,
+                &clock,
                 amount_in,
                 0,
                 &eth_aggr,
@@ -158,7 +161,7 @@ module ramm_sui::interface2_safety_tests {
     /// This test *must* fail.
     fun trade_amount_in_2_no_minted_lptoken() {
         // Create a 2-asset pool with BTC, ETH
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val, clock) =
             test_util::create_ramm_test_scenario_btc_eth_no_liq(ALICE);
         let scenario = &mut scenario_val;
 
@@ -170,6 +173,7 @@ module ramm_sui::interface2_safety_tests {
 
             interface2::trade_amount_in_2<BTC, ETH>(
                 &mut alice_ramm,
+                &clock,
                 amount_in,
                 0,
                 &btc_aggr,
@@ -197,7 +201,7 @@ module ramm_sui::interface2_safety_tests {
             vec_map::insert(&mut initial_asset_liquidity, 2, 0);
 
         // Create a 2-asset pool with BTC, ETH
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val, clock) =
                 test_util::create_ramm_test_scenario_btc_eth(ALICE, initial_asset_liquidity);
         let scenario = &mut scenario_val;
 
@@ -209,6 +213,7 @@ module ramm_sui::interface2_safety_tests {
             let amount_in = coin::mint_for_testing<BTC>(1 * (test_util::btc_factor() as u64), test_scenario::ctx(scenario));
             interface2::trade_amount_in_2<BTC, ETH>(
                 &mut alice_ramm,
+                &clock,
                 amount_in,
                 1,
                 &btc_aggr,
@@ -230,7 +235,7 @@ module ramm_sui::interface2_safety_tests {
     /// for the inbound asset will fail.
     fun trade_amount_in_2_excessive_amount_in() {
         // Create a 2-asset pool with BTC, ETH
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val, clock) =
             test_util::create_ramm_test_scenario_btc_eth_with_liq(ALICE);
         let scenario = &mut scenario_val;
 
@@ -244,6 +249,7 @@ module ramm_sui::interface2_safety_tests {
             let amount_in = coin::mint_for_testing<BTC>(53 * (test_util::btc_factor() as u64), test_scenario::ctx(scenario));
             interface2::trade_amount_in_2<BTC, ETH>(
                 &mut alice_ramm,
+                &clock,
                 amount_in,
                 0,
                 &btc_aggr,
@@ -265,7 +271,7 @@ module ramm_sui::interface2_safety_tests {
     /// for the outbound asset will fail.
     fun trade_amount_in_2_excessive_amount_out() {
         // Create a 2-asset pool with BTC, ETH
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val, clock) =
             test_util::create_ramm_test_scenario_btc_eth_with_liq(ALICE);
         let scenario = &mut scenario_val;
 
@@ -281,6 +287,7 @@ module ramm_sui::interface2_safety_tests {
             let amount_in = coin::mint_for_testing<BTC>(10 * (test_util::btc_factor() as u64), test_scenario::ctx(scenario));
             interface2::trade_amount_in_2<BTC, ETH>(
                 &mut alice_ramm,
+                &clock,
                 amount_in,
                 0,
                 &btc_aggr,
@@ -303,7 +310,7 @@ module ramm_sui::interface2_safety_tests {
     /// This *must* fail.
     fun trade_amount_in_2_invalid_aggregator() {
         // Create a 2-asset pool with BTC, ETH
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val, clock) =
             test_util::create_ramm_test_scenario_btc_eth_with_liq(ALICE);
         let scenario = &mut scenario_val;
 
@@ -317,6 +324,7 @@ module ramm_sui::interface2_safety_tests {
             // which should be reflected in the order of the aggregators (but is not, hence the error).
             interface2::trade_amount_in_2<BTC, ETH>(
                 &mut alice_ramm,
+                &clock,
                 amount_in,
                 0,
                 &eth_aggr,
@@ -340,7 +348,7 @@ module ramm_sui::interface2_safety_tests {
     #[expected_failure(abort_code = interface2::ERAMMInvalidSize)]
     /// Check that calling `trade_amount_out_2` on a RAMM without *exactly* 2 assets fails.
     fun trade_amount_out_2_invalid_ramm_size() {
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, _, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, _, scenario_val, clock) =
             test_util::create_ramm_test_scenario_btc_eth_sol_no_liq(ALICE);
         let scenario = &mut scenario_val;
 
@@ -352,6 +360,7 @@ module ramm_sui::interface2_safety_tests {
 
             interface2::trade_amount_out_2<BTC, ETH>(
                 &mut alice_ramm,
+                &clock,
                 1000,
                 max_amount_in,
                 &btc_aggr,
@@ -374,7 +383,7 @@ module ramm_sui::interface2_safety_tests {
     /// This test *must* fail.
     fun trade_amount_out_2_invalid_asset() {
         // Create a 2-asset pool with BTC, ETH
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val, clock) =
             test_util::create_ramm_test_scenario_btc_eth_with_liq(ALICE);
         let scenario = &mut scenario_val;
 
@@ -386,6 +395,7 @@ module ramm_sui::interface2_safety_tests {
 
             interface2::trade_amount_out_2<USDC, ETH>(
                 &mut alice_ramm,
+                &clock,
                 1000,
                 max_amount_in,
                 &btc_aggr,
@@ -408,7 +418,7 @@ module ramm_sui::interface2_safety_tests {
     /// This *must* fail.
     fun trade_amount_out_2_insufficient_amount_in() {
         // Create a 2-asset pool with BTC, ETH
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val)
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val, clock)
             = test_util::create_ramm_test_scenario_btc_eth_with_liq(ALICE);
         let scenario = &mut scenario_val;
 
@@ -422,6 +432,7 @@ module ramm_sui::interface2_safety_tests {
 
             interface2::trade_amount_out_2<ETH, BTC>(
                 &mut alice_ramm,
+                &clock,
                 0,
                 max_amount_in,
                 &eth_aggr,
@@ -445,7 +456,7 @@ module ramm_sui::interface2_safety_tests {
     /// This test *must* fail.
     fun trade_amount_out_2_no_minted_lptoken() {
         // Create a 2-asset pool with BTC, ETH
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val, clock) =
             test_util::create_ramm_test_scenario_btc_eth_no_liq(ALICE);
         let scenario = &mut scenario_val;
 
@@ -457,6 +468,7 @@ module ramm_sui::interface2_safety_tests {
 
             interface2::trade_amount_out_2<BTC, ETH>(
                 &mut alice_ramm,
+                &clock,
                 0,
                 max_amount_in,
                 &btc_aggr,
@@ -484,7 +496,7 @@ module ramm_sui::interface2_safety_tests {
             vec_map::insert(&mut initial_asset_liquidity, 2, 0);
 
         // Create a 2-asset pool with BTC, ETH
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val, clock) =
                 test_util::create_ramm_test_scenario_btc_eth(ALICE, initial_asset_liquidity);
         let scenario = &mut scenario_val;
 
@@ -496,6 +508,7 @@ module ramm_sui::interface2_safety_tests {
             let max_amount_in = coin::mint_for_testing<BTC>(1 * (test_util::btc_factor() as u64), test_scenario::ctx(scenario));
             interface2::trade_amount_out_2<BTC, ETH>(
                 &mut alice_ramm,
+                &clock,
                 1 * (test_util::btc_factor() as u64),
                 max_amount_in,
                 &btc_aggr,
@@ -517,7 +530,7 @@ module ramm_sui::interface2_safety_tests {
     /// for the outbound asset will fail.
     fun trade_amount_out_2_excessive_amount_out() {
         // Create a 2-asset pool with BTC, ETH
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val, clock) =
             test_util::create_ramm_test_scenario_btc_eth_with_liq(ALICE);
         let scenario = &mut scenario_val;
 
@@ -529,6 +542,7 @@ module ramm_sui::interface2_safety_tests {
             let max_amount_in = coin::mint_for_testing<BTC>(53 * (test_util::btc_factor() as u64), test_scenario::ctx(scenario));
             interface2::trade_amount_out_2<BTC, ETH>(
                 &mut alice_ramm,
+                &clock,
                 (52 * test_util::eth_factor() as u64),
                 max_amount_in,
                 &btc_aggr,
@@ -550,7 +564,7 @@ module ramm_sui::interface2_safety_tests {
     /// for the inbound asset will fail.
     fun trade_amount_out_2_excessive_amount_in() {
         // Create a 2-asset pool with BTC, ETH
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val, clock) =
             test_util::create_ramm_test_scenario_btc_eth_with_liq(ALICE);
         let scenario = &mut scenario_val;
 
@@ -564,6 +578,7 @@ module ramm_sui::interface2_safety_tests {
             let max_amount_in = coin::mint_for_testing<ETH>(145 * (test_util::btc_factor() as u64), test_scenario::ctx(scenario));
             interface2::trade_amount_out_2<ETH, BTC>(
                 &mut alice_ramm,
+                &clock,
                 (10 * test_util::btc_factor() as u64),
                 max_amount_in,
                 &eth_aggr,
@@ -586,7 +601,7 @@ module ramm_sui::interface2_safety_tests {
     /// This *must* fail.
     fun trade_amount_out_2_invalid_aggregator() {
         // Create a 2-asset pool with BTC, ETH
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val, clock) =
             test_util::create_ramm_test_scenario_btc_eth_with_liq(ALICE);
         let scenario = &mut scenario_val;
 
@@ -600,6 +615,7 @@ module ramm_sui::interface2_safety_tests {
             // which should be reflected in the order of the aggregators (but is not, hence the error).
             interface2::trade_amount_out_2<BTC, ETH>(
                 &mut alice_ramm,
+                &clock,
                 // here, any amount below the pool's liquidity is fine
                 1 * (test_util::btc_factor() as u64) / 10,
                 max_amount_in,
@@ -624,7 +640,7 @@ module ramm_sui::interface2_safety_tests {
     /// This *must* fail.
     fun trade_amount_out_2_balance_empty_balance_with_circ_lp_tokens() {
         // Create a 2-asset pool with BTC, ETH
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val, clock) =
             test_util::create_ramm_test_scenario_btc_eth_with_liq(ALICE);
         let scenario = &mut scenario_val;
 
@@ -640,6 +656,7 @@ module ramm_sui::interface2_safety_tests {
             // which should be reflected in the order of the aggregators (but is not, hence the error).
             interface2::trade_amount_out_2<BTC, ETH>(
                 &mut alice_ramm,
+                &clock,
                 amount,
                 max_amount_in,
                 &btc_aggr,
@@ -663,7 +680,7 @@ module ramm_sui::interface2_safety_tests {
     #[expected_failure(abort_code = interface2::ERAMMInvalidSize)]
     /// Check that calling `liquidity_deposit_2` on a RAMM without *exactly* 2 assets fails.
     fun liquidity_deposit_2_invalid_ramm_size() {
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, _, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, _, scenario_val, clock) =
             test_util::create_ramm_test_scenario_btc_eth_sol_no_liq(ALICE);
         let scenario = &mut scenario_val;
 
@@ -675,6 +692,7 @@ module ramm_sui::interface2_safety_tests {
 
             interface2::liquidity_deposit_2<BTC, ETH>(
                 &mut alice_ramm,
+                &clock,
                 amount_in,
                 &btc_aggr,
                 &eth_aggr,
@@ -696,7 +714,7 @@ module ramm_sui::interface2_safety_tests {
     /// This test *must* fail.
     fun liquidity_deposit_2_invalid_asset() {
         // Create a 2-asset pool with BTC, ETH
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val, clock) =
             test_util::create_ramm_test_scenario_btc_eth_with_liq(ALICE);
         let scenario = &mut scenario_val;
 
@@ -708,6 +726,7 @@ module ramm_sui::interface2_safety_tests {
 
             interface2::liquidity_deposit_2<USDC, ETH>(
                 &mut alice_ramm,
+                &clock,
                 amount_in,
                 &btc_aggr,
                 &eth_aggr,
@@ -729,7 +748,7 @@ module ramm_sui::interface2_safety_tests {
     /// This test *must* fail.
     fun liquidity_deposit_2_zero_deposit() {
         // Create a 2-asset pool with BTC, ETH
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val, clock) =
             test_util::create_ramm_test_scenario_btc_eth_with_liq(ALICE);
         let scenario = &mut scenario_val;
 
@@ -741,6 +760,7 @@ module ramm_sui::interface2_safety_tests {
 
             interface2::liquidity_deposit_2<BTC, ETH>(
                 &mut alice_ramm,
+                &clock,
                 amount_in,
                 &btc_aggr,
                 &eth_aggr,
@@ -762,7 +782,7 @@ module ramm_sui::interface2_safety_tests {
     /// This *must* fail.
     fun liquidity_deposit_2_invalid_aggregator() {
         // Create a 2-asset pool with BTC, ETH
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val, clock) =
             test_util::create_ramm_test_scenario_btc_eth_with_liq(ALICE);
         let scenario = &mut scenario_val;
 
@@ -776,6 +796,7 @@ module ramm_sui::interface2_safety_tests {
             // which should be reflected in the order of the aggregators (but is not, hence the error).
             interface2::liquidity_deposit_2<BTC, ETH>(
                 &mut alice_ramm,
+                &clock,
                 amount_in,
                 &eth_aggr,
                 &btc_aggr,
@@ -798,7 +819,7 @@ module ramm_sui::interface2_safety_tests {
     #[expected_failure(abort_code = interface2::ERAMMInvalidSize)]
     /// Check that calling `liquidity_withdrawal_2` on a RAMM without *exactly* 2 assets fails.
     fun liquidity_withdrawal_2_invalid_ramm_size() {
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, _, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, _, scenario_val, clock) =
             test_util::create_ramm_test_scenario_btc_eth_sol_no_liq(ALICE);
         let scenario = &mut scenario_val;
 
@@ -810,6 +831,7 @@ module ramm_sui::interface2_safety_tests {
 
             interface2::liquidity_withdrawal_2<BTC, ETH, BTC>(
                 &mut alice_ramm,
+                &clock,
                 lp_token,
                 &btc_aggr,
                 &eth_aggr,
@@ -831,7 +853,7 @@ module ramm_sui::interface2_safety_tests {
     /// This test *must* fail.
     fun liquidity_withdrawal_2_invalid_asset() {
         // Create a 2-asset pool with BTC, ETH
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val, clock) =
             test_util::create_ramm_test_scenario_btc_eth_with_liq(ALICE);
         let scenario = &mut scenario_val;
 
@@ -843,6 +865,7 @@ module ramm_sui::interface2_safety_tests {
 
             interface2::liquidity_withdrawal_2<USDC, ETH, USDC>(
                 &mut alice_ramm,
+                &clock,
                 lp_tokens,
                 &btc_aggr,
                 &eth_aggr,
@@ -864,7 +887,7 @@ module ramm_sui::interface2_safety_tests {
     /// This *must* fail.
     fun liquidity_withdrawal_2_invalid_aggregator() {
         // Create a 2-asset pool with BTC, ETH
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val, clock) =
             test_util::create_ramm_test_scenario_btc_eth_with_liq(ALICE);
         let scenario = &mut scenario_val;
 
@@ -878,6 +901,7 @@ module ramm_sui::interface2_safety_tests {
             // which should be reflected in the order of the aggregators (but is not, hence the error).
             interface2::liquidity_withdrawal_2<BTC, ETH, BTC>(
                 &mut alice_ramm,
+                &clock,
                 lp_tokens,
                 &eth_aggr,
                 &eth_aggr,
@@ -899,7 +923,7 @@ module ramm_sui::interface2_safety_tests {
     /// This test *must* fail.
     fun liquidity_withdrawal_2_zero_deposit() {
         // Create a 2-asset pool with BTC, ETH
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val, clock) =
             test_util::create_ramm_test_scenario_btc_eth_with_liq(ALICE);
         let scenario = &mut scenario_val;
 
@@ -911,6 +935,7 @@ module ramm_sui::interface2_safety_tests {
 
             interface2::liquidity_withdrawal_2<BTC, ETH, BTC>(
                 &mut alice_ramm,
+                &clock,
                 lp_tokens,
                 &btc_aggr,
                 &eth_aggr,
@@ -937,7 +962,7 @@ module ramm_sui::interface2_safety_tests {
     #[expected_failure(abort_code = interface2::ERAMMInvalidSize)]
     /// Check that calling `collect_fees_2` on a RAMM without *exactly* 2 assets fails.
     fun collect_fees_2_invalid_ramm_size() {
-        let (alice_ramm_id, _, _, _, scenario_val) =
+        let (alice_ramm_id, _, _, _, scenario_val, clock) =
             test_util::create_ramm_test_scenario_btc_eth_sol_no_liq(ALICE);
         let scenario = &mut scenario_val;
 
@@ -966,7 +991,7 @@ module ramm_sui::interface2_safety_tests {
     /// It *must* fail.
     fun collect_fees_2_wrong_admin_cap() {
         // Create a 2-asset pool with BTC, ETH
-        let (alice_ramm_id, _, _, scenario_val) = test_util::create_ramm_test_scenario_btc_eth_no_liq(ALICE);
+        let (alice_ramm_id, _, _, scenario_val, clock) = test_util::create_ramm_test_scenario_btc_eth_no_liq(ALICE);
         let scenario = &mut scenario_val;
         
         test_scenario::next_tx(scenario, BOB);

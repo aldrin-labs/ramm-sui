@@ -27,7 +27,7 @@ module ramm_sui::interface3_tests {
     /// asset the pool can provide.
     /// The trader receives no "change".
     fun trade_amount_in_3_test() {
-        let (ramm_id, eth_ag_id, matic_ag_id, usdt_ag_id, scenario_val) = test_util::create_ramm_test_scenario_eth_matic_usdt(ADMIN);
+        let (ramm_id, eth_ag_id, matic_ag_id, usdt_ag_id, scenario_val, clock) = test_util::create_ramm_test_scenario_eth_matic_usdt(ADMIN);
         let scenario = &mut scenario_val;
 
         test_scenario::next_tx(scenario, ALICE);
@@ -43,6 +43,7 @@ module ramm_sui::interface3_tests {
             let amount_in = coin::mint_for_testing<ETH>(10 * (test_util::eth_factor() as u64), test_scenario::ctx(scenario));
             interface3::trade_amount_in_3<ETH, USDT, MATIC>(
                 &mut ramm,
+                &clock,
                 amount_in,
                 16_000 * (test_util::usdt_factor() as u64),
                 &eth_aggr,
@@ -78,6 +79,7 @@ module ramm_sui::interface3_tests {
             let amount_in = coin::mint_for_testing<ETH>(5 * (test_util::eth_factor() as u64), test_scenario::ctx(scenario));
             interface3::trade_amount_in_3<ETH, MATIC, USDT>(
                 &mut ramm,
+                &clock,
                 amount_in,
                 7_400 * (test_util::matic_factor() as u64),
                 &eth_aggr,
@@ -142,6 +144,7 @@ module ramm_sui::interface3_tests {
 
             interface3::liquidity_withdrawal_3<ETH, USDT, MATIC, ETH>(
                 &mut ramm,
+                &clock,
                 lp_eth,
                 &eth_aggr,
                 &usdt_aggr,
@@ -177,7 +180,7 @@ module ramm_sui::interface3_tests {
     /// of an asset they desire, and provide an upper bound of the inbound asset,
     /// being returned the remainder.
     fun trade_amount_out_3_test() {
-        let (ramm_id, eth_ag_id, matic_ag_id, usdt_ag_id, scenario_val) = test_util::create_ramm_test_scenario_eth_matic_usdt(ADMIN);
+        let (ramm_id, eth_ag_id, matic_ag_id, usdt_ag_id, scenario_val, clock) = test_util::create_ramm_test_scenario_eth_matic_usdt(ADMIN);
         let scenario = &mut scenario_val;
 
         test_scenario::next_tx(scenario, BOB);
@@ -193,6 +196,7 @@ module ramm_sui::interface3_tests {
             // With the test scenario's price of `1800 USDT/ETH`, it'll take `16200 USDT` for `9 ETH`.
             interface3::trade_amount_out_3<ETH, USDT, MATIC>(
                 &mut ramm,
+                &clock,
                 16_200 * (test_util::usdt_factor() as u64),
                 max_ai,
                 &eth_aggr,
@@ -266,7 +270,7 @@ module ramm_sui::interface3_tests {
     ///   protocol fees from this trade, and 0 of any other asset.
     /// * futhermore, the RAMM's fees should be null after the collection
     fun collect_fees_3_test_1() {
-        let (ramm_id, eth_ag_id, matic_ag_id, usdt_ag_id, scenario_val) = test_util::create_ramm_test_scenario_eth_matic_usdt(ADMIN);
+        let (ramm_id, eth_ag_id, matic_ag_id, usdt_ag_id, scenario_val, clock) = test_util::create_ramm_test_scenario_eth_matic_usdt(ADMIN);
         let scenario = &mut scenario_val;
 
         let eth_trade_amount: u64 = 10 * (test_util::eth_factor() as u64);
@@ -298,6 +302,7 @@ module ramm_sui::interface3_tests {
             let amount_in = coin::mint_for_testing<ETH>(eth_trade_amount, test_scenario::ctx(scenario));
             interface3::trade_amount_in_3<ETH, USDT, MATIC>(
                 &mut ramm,
+                &clock,
                 amount_in,
                 16_000 * (test_util::usdt_factor() as u64),
                 &eth_aggr,
@@ -406,7 +411,7 @@ module ramm_sui::interface3_tests {
     ///   protocol fees from this withdrawal, and 0 of any other asset.
     /// * futhermore, the RAMM's fees should be null after the collection
     fun collect_fees_3_test_2() {
-        let (ramm_id, eth_ag_id, matic_ag_id, usdt_ag_id, scenario_val) = test_util::create_ramm_test_scenario_eth_matic_usdt(ADMIN);
+        let (ramm_id, eth_ag_id, matic_ag_id, usdt_ag_id, scenario_val, clock) = test_util::create_ramm_test_scenario_eth_matic_usdt(ADMIN);
         let scenario = &mut scenario_val;
 
         let prec: u8 = test_util::eth_dec_places();
@@ -431,6 +436,7 @@ module ramm_sui::interface3_tests {
 
             interface3::liquidity_withdrawal_3<ETH, USDT, MATIC, ETH>(
                 &mut ramm,
+                &clock,
                 lp_eth,
                 &eth_aggr,
                 &usdt_aggr,

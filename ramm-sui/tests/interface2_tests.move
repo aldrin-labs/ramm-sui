@@ -26,7 +26,7 @@ module ramm_sui::interface2_tests {
     /// 2. Next, a redemption of every LPETH token by a provider
     /// 3. Finally, a redemption of every LPUSDT token by a provider
     fun liquidity_withdrawal_2_test() {
-        let (ramm_id, eth_ag_id, usdt_ag_id, scenario_val) = test_util::create_ramm_test_scenario_eth_usdt(ADMIN);
+        let (ramm_id, eth_ag_id, usdt_ag_id, scenario_val, clock) = test_util::create_ramm_test_scenario_eth_usdt(ADMIN);
         let scenario = &mut scenario_val;
 
         // First part of the test: a trader, Alice, wishes to buy 20 ETH
@@ -62,6 +62,7 @@ module ramm_sui::interface2_tests {
             let max_ai = coin::mint_for_testing<USDT>(41_000 * (test_util::usdt_factor() as u64), test_scenario::ctx(scenario));
             interface2::trade_amount_out_2<USDT, ETH>(
                 &mut ramm,
+                &clock,
                 (20 * test_util::eth_factor() as u64),
                 max_ai,
                 &usdt_aggr,
@@ -120,6 +121,7 @@ module ramm_sui::interface2_tests {
 
             interface2::liquidity_withdrawal_2<ETH, USDT, ETH>(
                 &mut ramm,
+                &clock,
                 lp_eth,
                 &eth_aggr,
                 &usdt_aggr,
@@ -171,6 +173,7 @@ module ramm_sui::interface2_tests {
 
             interface2::liquidity_withdrawal_2<ETH, USDT, USDT>(
                 &mut ramm,
+                &clock,
                 lp_usdt,
                 &eth_aggr,
                 &usdt_aggr,
@@ -216,7 +219,7 @@ module ramm_sui::interface2_tests {
     ///   protocol fees from this trade, and 0 of any other asset.
     /// * futhermore, the RAMM's fees should be null after the collection
     fun collect_fees_2_test_1() {
-        let (ramm_id, eth_ag_id, usdt_ag_id, scenario_val) = test_util::create_ramm_test_scenario_eth_usdt(ADMIN);
+        let (ramm_id, eth_ag_id, usdt_ag_id, scenario_val, clock) = test_util::create_ramm_test_scenario_eth_usdt(ADMIN);
         let scenario = &mut scenario_val;
 
         let eth_trade_amount: u64 = 10 * (test_util::eth_factor() as u64);
@@ -245,6 +248,7 @@ module ramm_sui::interface2_tests {
             let amount_in = coin::mint_for_testing<ETH>(eth_trade_amount, test_scenario::ctx(scenario));
             interface2::trade_amount_in_2<ETH, USDT>(
                 &mut ramm,
+                &clock,
                 amount_in,
                 16_000 * (test_util::usdt_factor() as u64),
                 &eth_aggr,
@@ -344,7 +348,7 @@ module ramm_sui::interface2_tests {
     ///   protocol fees from this withdrawal, and 0 of any other asset.
     /// * futhermore, the RAMM's fees should be null after the collection
     fun collect_fees_2_test_2() {
-        let (ramm_id, eth_ag_id, usdt_ag_id, scenario_val) = test_util::create_ramm_test_scenario_eth_usdt(ADMIN);
+        let (ramm_id, eth_ag_id, usdt_ag_id, scenario_val, clock) = test_util::create_ramm_test_scenario_eth_usdt(ADMIN);
         let scenario = &mut scenario_val;
 
         let prec: u8 = test_util::eth_dec_places();
@@ -367,6 +371,7 @@ module ramm_sui::interface2_tests {
 
             interface2::liquidity_withdrawal_2<ETH, USDT, ETH>(
                 &mut ramm,
+                &clock,
                 lp_eth,
                 &eth_aggr,
                 &usdt_aggr,
