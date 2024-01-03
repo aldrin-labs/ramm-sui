@@ -1,16 +1,19 @@
 #[test_only]
 module ramm_sui::volatility3_tests {
-
+    use sui::clock;
     use sui::coin::{Self, Coin};
     use sui::test_scenario::{Self, TransactionEffects};
     use sui::test_utils;
 
     use ramm_sui::interface3;
+    use ramm_sui::oracles;
     use ramm_sui::ramm::{Self, LP, RAMM};
     use ramm_sui::test_util::{Self, BTC, ETH, MATIC, USDT, SOL};
 
     use switchboard::aggregator::Aggregator;
 
+    const PRECISION_DECIMAL_PLACES: u8 = 12;
+    const PRICE_TIMESTAMP_STALENESS_THRESHOLD: u64 = 60 * 60 * 1000;
     const ONE: u256 = 1_000_000_000_000;
     const BASE_FEE: u256 = 10 * 1_000_000_000_000 / 10000;
     const PROTOCOL_FEE: u256 = 30 * 1_000_000_000_000 / 100;
@@ -39,7 +42,7 @@ module ramm_sui::volatility3_tests {
     /// The uninvolved asset's volatility should not affect the result, but should still lead
     /// to an update of that asset's volatility data.
     fun trade_amount_in_3_volatility_test() {
-        let (ramm_id, eth_ag_id, matic_ag_id, usdt_ag_id, scenario_val) = test_util::create_ramm_test_scenario_eth_matic_usdt(ADMIN);
+        let (ramm_id, eth_ag_id, matic_ag_id, usdt_ag_id, scenario_val, clock) = test_util::create_ramm_test_scenario_eth_matic_usdt(ADMIN);
         let scenario = &mut scenario_val;
 
         // First part of the test: the RAMM's admin, who also happens to have administrative rights
@@ -52,9 +55,26 @@ module ramm_sui::volatility3_tests {
             let matic_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, matic_ag_id);
             let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
 
-            let (price_eth, scaling_eth, timestamp_eth) = ramm::get_price_from_oracle(&eth_aggr);
-            let (price_matic, scaling_matic, timestamp_matic) = ramm::get_price_from_oracle(&matic_aggr);
-            let (price_usdt, scaling_usdt, timestamp_usdt) = ramm::get_price_from_oracle(&usdt_aggr);
+            let current_timestamp: u64 = clock::timestamp_ms(&clock);
+
+            let (price_eth, scaling_eth, timestamp_eth) = oracles::get_price_from_oracle(
+                &eth_aggr,
+                current_timestamp,
+                PRICE_TIMESTAMP_STALENESS_THRESHOLD,
+                PRECISION_DECIMAL_PLACES
+                );
+            let (price_matic, scaling_matic, timestamp_matic) = oracles::get_price_from_oracle(
+                &matic_aggr,
+                current_timestamp,
+                PRICE_TIMESTAMP_STALENESS_THRESHOLD,
+                PRECISION_DECIMAL_PLACES
+            );
+            let (price_usdt, scaling_usdt, timestamp_usdt) = oracles::get_price_from_oracle(
+                &usdt_aggr,
+                current_timestamp,
+                PRICE_TIMESTAMP_STALENESS_THRESHOLD,
+                PRECISION_DECIMAL_PLACES
+            );
 
             // Check that the initial prices, price scaling factors, and price timestamps
             // all match their expected values.
@@ -147,6 +167,7 @@ module ramm_sui::volatility3_tests {
             let amount_in = coin::mint_for_testing<USDT>((usdt_trade_amount as u64), test_scenario::ctx(scenario));
             interface3::trade_amount_in_3<USDT, ETH, MATIC>(
                 &mut ramm,
+                &clock,
                 amount_in,
                 4 * (test_util::eth_factor() as u64),
                 &usdt_aggr,
@@ -227,7 +248,7 @@ module ramm_sui::volatility3_tests {
     /// The uninvolved asset's volatility should not affect the result, but its pricing/volatility
     /// data should still be updated.
     fun trade_amount_out_3_volatility_test() {
-        let (ramm_id, eth_ag_id, matic_ag_id, usdt_ag_id, scenario_val) = test_util::create_ramm_test_scenario_eth_matic_usdt(ADMIN);
+        let (ramm_id, eth_ag_id, matic_ag_id, usdt_ag_id, scenario_val, clock) = test_util::create_ramm_test_scenario_eth_matic_usdt(ADMIN);
         let scenario = &mut scenario_val;
 
         // First part of the test: the RAMM's admin, who also happens to have administrative rights
@@ -240,9 +261,26 @@ module ramm_sui::volatility3_tests {
             let matic_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, matic_ag_id);
             let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
 
-            let (price_eth, scaling_eth, timestamp_eth) = ramm::get_price_from_oracle(&eth_aggr);
-            let (price_matic, scaling_matic, timestamp_matic) = ramm::get_price_from_oracle(&matic_aggr);
-            let (price_usdt, scaling_usdt, timestamp_usdt) = ramm::get_price_from_oracle(&usdt_aggr);
+            let current_timestamp: u64 = clock::timestamp_ms(&clock);
+
+            let (price_eth, scaling_eth, timestamp_eth) = oracles::get_price_from_oracle(
+                &eth_aggr,
+                current_timestamp,
+                PRICE_TIMESTAMP_STALENESS_THRESHOLD,
+                PRECISION_DECIMAL_PLACES
+                );
+            let (price_matic, scaling_matic, timestamp_matic) = oracles::get_price_from_oracle(
+                &matic_aggr,
+                current_timestamp,
+                PRICE_TIMESTAMP_STALENESS_THRESHOLD,
+                PRECISION_DECIMAL_PLACES
+            );
+            let (price_usdt, scaling_usdt, timestamp_usdt) = oracles::get_price_from_oracle(
+                &usdt_aggr,
+                current_timestamp,
+                PRICE_TIMESTAMP_STALENESS_THRESHOLD,
+                PRECISION_DECIMAL_PLACES
+            );
 
             // Check that the initial prices, price scaling factors, and price timestamps
             // all match their expected values.
@@ -332,6 +370,7 @@ module ramm_sui::volatility3_tests {
             let max_ai = coin::mint_for_testing<USDT>((usdt_trade_amount as u64), test_scenario::ctx(scenario));
             interface3::trade_amount_out_3<USDT, ETH, MATIC>(
                 &mut ramm,
+                &clock,
                 5 * (test_util::eth_factor() as u64),
                 max_ai,
                 &usdt_aggr,
@@ -422,7 +461,7 @@ module ramm_sui::volatility3_tests {
     ///
     /// The uninvolved assets' volatility/pricing should also be updated.
     fun liquidity_deposit_3_volatility_test() {
-        let (ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val) = test_util::create_ramm_test_scenario_btc_eth_sol_no_liq(ADMIN);
+        let (ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val, clock) = test_util::create_ramm_test_scenario_btc_eth_sol_no_liq(ADMIN);
         let scenario = &mut scenario_val;
 
         test_scenario::next_tx(scenario, ADMIN);
@@ -432,9 +471,26 @@ module ramm_sui::volatility3_tests {
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let sol_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, sol_ag_id);
 
-            let (price_btc, scaling_btc, timestamp_btc) = ramm::get_price_from_oracle(&btc_aggr);
-            let (price_eth, scaling_eth, timestamp_eth) = ramm::get_price_from_oracle(&eth_aggr);
-            let (price_sol, scaling_sol, timestamp_sol) = ramm::get_price_from_oracle(&sol_aggr);
+            let current_timestamp: u64 = clock::timestamp_ms(&clock);
+
+            let (price_btc, scaling_btc, timestamp_btc) = oracles::get_price_from_oracle(
+                &btc_aggr,
+                current_timestamp,
+                PRICE_TIMESTAMP_STALENESS_THRESHOLD,
+                PRECISION_DECIMAL_PLACES
+                );
+            let (price_eth, scaling_eth, timestamp_eth) = oracles::get_price_from_oracle(
+                &eth_aggr,
+                current_timestamp,
+                PRICE_TIMESTAMP_STALENESS_THRESHOLD,
+                PRECISION_DECIMAL_PLACES
+            );
+            let (price_sol, scaling_sol, timestamp_sol) = oracles::get_price_from_oracle(
+                &sol_aggr,
+                current_timestamp,
+                PRICE_TIMESTAMP_STALENESS_THRESHOLD,
+                PRECISION_DECIMAL_PLACES
+            );
 
             //
             // First part of the test: pre-deposit, pre-aggregator checks
@@ -483,6 +539,7 @@ module ramm_sui::volatility3_tests {
             );
             interface3::liquidity_deposit_3<BTC, ETH, SOL>(
                 &mut ramm,
+                &clock,
                 amount_in,
                 &btc_aggr,
                 &eth_aggr,
@@ -544,6 +601,7 @@ module ramm_sui::volatility3_tests {
             );
             interface3::liquidity_deposit_3<ETH, BTC, SOL>(
                 &mut ramm,
+                &clock,
                 amount_in,
                 &eth_aggr,
                 &btc_aggr,
@@ -620,7 +678,7 @@ module ramm_sui::volatility3_tests {
     /// - 5% volatility for outbound asset, plus
     /// - 0.4% base liquidity withdrawal fee
     fun liquidity_withdrawal_3_volatility_test() {
-        let (ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val) = test_util::create_ramm_test_scenario_btc_eth_sol_with_liq(ADMIN);
+        let (ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val, clock) = test_util::create_ramm_test_scenario_btc_eth_sol_with_liq(ADMIN);
         let scenario = &mut scenario_val;
 
         // First part of the test: the RAMM's admin, who also happens to have administrative rights
@@ -633,10 +691,26 @@ module ramm_sui::volatility3_tests {
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let sol_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, sol_ag_id);
 
-            let (price_btc, scaling_btc, timestamp_btc) = ramm::get_price_from_oracle(&btc_aggr);
-            let (price_eth, scaling_eth, timestamp_eth) = ramm::get_price_from_oracle(&eth_aggr);
-            let (price_sol, scaling_sol, timestamp_sol) = ramm::get_price_from_oracle(&sol_aggr);
+            let current_timestamp: u64 = clock::timestamp_ms(&clock);
 
+            let (price_btc, scaling_btc, timestamp_btc) = oracles::get_price_from_oracle(
+                &btc_aggr,
+                current_timestamp,
+                PRICE_TIMESTAMP_STALENESS_THRESHOLD,
+                PRECISION_DECIMAL_PLACES
+                );
+            let (price_eth, scaling_eth, timestamp_eth) = oracles::get_price_from_oracle(
+                &eth_aggr,
+                current_timestamp,
+                PRICE_TIMESTAMP_STALENESS_THRESHOLD,
+                PRECISION_DECIMAL_PLACES
+            );
+            let (price_sol, scaling_sol, timestamp_sol) = oracles::get_price_from_oracle(
+                &sol_aggr,
+                current_timestamp,
+                PRICE_TIMESTAMP_STALENESS_THRESHOLD,
+                PRECISION_DECIMAL_PLACES
+            );
             // Check that the initial prices, price scaling factors, and price timestamps
             // all match their expected values.
             test_utils::assert_eq(price_btc, 27_800_000_000_000);
@@ -715,6 +789,7 @@ module ramm_sui::volatility3_tests {
             let lp_btc: Coin<LP<BTC>> = test_scenario::take_from_address<Coin<LP<BTC>>>(scenario, ADMIN);
             interface3::liquidity_withdrawal_3<BTC, ETH, SOL, BTC>(
                 &mut ramm,
+                &clock,
                 lp_btc,
                 &btc_aggr,
                 &eth_aggr,

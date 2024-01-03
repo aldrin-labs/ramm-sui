@@ -56,7 +56,7 @@ module ramm_sui::oracles {
     /// * If the `SwitchboardDecimal`'s `scaling_factor` is more than `prec`; in practice
     ///   this will not happen because it can be at most `9`; see documentation for
     ///   `SwitchboardDecimal`
-    public(friend) fun sbd_to_price_info(sbd: sb_math::SwitchboardDecimal, prec: u8): (u256, u256) {
+    public fun sbd_to_price_info(sbd: sb_math::SwitchboardDecimal, prec: u8): (u256, u256) {
         let (value, scaling_factor, neg) = sb_math::unpack(sbd);
 
         sbd_data_to_info(value, scaling_factor, neg, prec)
@@ -68,7 +68,7 @@ module ramm_sui::oracles {
     ///
     /// This function is NOT safe to call *without* first checking that the aggregator's address
     /// matches the RAMM's record for the given asset.
-    public(friend) fun get_price_from_oracle(
+    public fun get_price_from_oracle(
         feed: &Aggregator,
         current_timestamp: u64,
         staleness_threshold: u64,
