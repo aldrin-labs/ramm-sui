@@ -21,6 +21,13 @@ module ramm_sui::math {
         if (x >= y) { x - y } else { y - x }
     }
 
+    spec abs_diff_u64 {
+        aborts_if false;
+
+        ensures x >= y ==> result == x - y;
+        ensures x < y ==> result == y - x;
+    }
+
     /// Given a `u256` value, forecefully clamp it to the range `[0, max]`.
     public(friend) fun clamp(val: u256, max: u256): u256 {
         if (val >= max) { return max };
