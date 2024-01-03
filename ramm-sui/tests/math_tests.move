@@ -50,7 +50,7 @@ module ramm_sui::math_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = ramm_math::ENegativeSbD)]
+    #[expected_failure(abort_code = oracles::ENegativeSbD)]
     fun test_switchboard_decimal_fail() {
         let sbd = sb_math::new(1234567000, 3, true);
         let (_, _) = oracles::sbd_to_price_info(sbd, PRECISION_DECIMAL_PLACES);
