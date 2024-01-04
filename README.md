@@ -148,6 +148,22 @@ If `RAMM has key`, then
   `sui::transfer::share_object`
 * which it *must* be, to be readable and writable by all
 
+#### Regarding `Aggregator`s' pricing data staleness
+
+Every trading/liquidity provision function in the public interface requires an `Aggregator` to be
+passed as an argument, so that the RAMM can fetch each assets' most recent pricing data with which
+to run protocol operations.
+
+It is possible that an issue with Switchboard (or further upstream) causes an asset's pricing data
+to not be updated, leading its `Aggregator`, in turn, to return stale prices for that asset.
+
+In order to prevent these stale prices from being used by the RAMM, the public interface must be
+supplied with the address of the Sui network's global clock, with type `sui::clock::Clock`.
+
+As said in the [official documentation](https://docs.sui.io/guides/developer/sui-101/access-time):
+
+> An instance of Clock is provided at address `0x6`, no new instances can be created.
+
 ### Using the MSL to verify portions of the RAMM code.
 
 Sui Move (as well as other variants of Move) supports the usage of the [Move Prover](https://github.com/move-language/move/blob/main/language/move-prover/doc/user/prover-guide.md) to formally
@@ -430,7 +446,7 @@ All of the above results in the following:
 tsui client call --package "$RAMM_PACKAGE_ID" \
   --module interface3 \
   --function liquidity_deposit_3 \
-  --args "$RAMM_ID" "$BTC_ID" "$BTC_AGG_ID" "$ETH_AGG_ID" "$SOL_AGG_ID" \
+  --args "$RAMM_ID" 0x6 "$BTC_ID" "$BTC_AGG_ID" "$ETH_AGG_ID" "$SOL_AGG_ID" \
   --gas-budget 1000000000 \
   --type-args "$FAUCET_PACKAGE_ID::test_coins::BTC" "$FAUCET_PACKAGE_ID::test_coins::ETH" "$FAUCET_PACKAGE_ID::test_coins::SOL" 
 ```
@@ -463,7 +479,7 @@ Note that:
 tsui client call --package "$RAMM_PACKAGE_ID" \
   --module interface3 \
   --function trade_amount_in_3 \
-  --args "$RAMM_ID" "$ETH_ID" "$MIN_AMNT_OUT" "$ETH_AGG_ID" "$BTC_AGG_ID" "$SOL_AGG_ID" \
+  --args "$RAMM_ID" 0x6 "$ETH_ID" "$MIN_AMNT_OUT" "$ETH_AGG_ID" "$BTC_AGG_ID" "$SOL_AGG_ID" \
   --gas-budget 1000000000 \
   --type-args "$FAUCET_PACKAGE_ID::test_coins::ETH" "$FAUCET_PACKAGE_ID::test_coins::BTC" "$FAUCET_PACKAGE_ID::test_coins::SOL"
 ```
@@ -492,7 +508,7 @@ Note that:
 tsui client call --package "$RAMM_PACKAGE_ID" \
   --module interface3 \
   --function trade_amount_out_3 \
-  --args "$RAMM_ID" "$AMNT_OUT" "$BTC_ID"  "$BTC_AGG_ID" "$ETH_AGG_ID" "$SOL_AGG_ID" \
+  --args "$RAMM_ID" 0x6 "$AMNT_OUT" "$BTC_ID"  "$BTC_AGG_ID" "$ETH_AGG_ID" "$SOL_AGG_ID" \
   --gas-budget 1000000000 \
   --type-args "$FAUCET_PACKAGE_ID::test_coins::BTC" "$FAUCET_PACKAGE_ID::test_coins::ETH" "$FAUCET_PACKAGE_ID::test_coins::SOL"
 ```
@@ -521,7 +537,7 @@ Note that:
 tsui client call --package "$RAMM_PACKAGE_ID" \
   --module interface3 \
   --function liquidity_withdrawal_3 \
-  --args "$RAMM_ID" "$LP_ID" "$BTC_AGG_ID" "$ETH_AGG_ID" "$SOL_AGG_ID" \
+  --args "$RAMM_ID" 0x6 "$LP_ID" "$BTC_AGG_ID" "$ETH_AGG_ID" "$SOL_AGG_ID" \
   --gas-budget 1000000000 \
   --type-args "$FAUCET_PACKAGE_ID::test_coins::BTC" "$FAUCET_PACKAGE_ID::test_coins::ETH" \
      "$FAUCET_PACKAGE_ID::test_coins::SOL" "$FAUCET_PACKAGE_ID::test_coins::BTC"
