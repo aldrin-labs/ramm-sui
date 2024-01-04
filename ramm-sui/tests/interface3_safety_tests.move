@@ -1135,6 +1135,6 @@ module ramm_sui::interface3_safety_tests {
         };
 
         test_scenario::end(scenario_val);
-    } 
+    }
 
 }

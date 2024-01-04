@@ -1072,6 +1072,6 @@ module ramm_sui::interface2_safety_tests {
         };
 
         test_scenario::end(scenario_val);
-    } 
+    }
 
 }

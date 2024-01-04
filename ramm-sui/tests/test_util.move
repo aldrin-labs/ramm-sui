@@ -22,6 +22,7 @@ module ramm_sui::test_util {
     friend ramm_sui::math_tests;
     friend ramm_sui::ramm_tests;
     friend ramm_sui::interface2_safety_tests;
+    friend ramm_sui::interface2_oracle_safety_tests;
     friend ramm_sui::interface2_tests;
     friend ramm_sui::interface3_safety_tests;
     friend ramm_sui::interface3_tests;
