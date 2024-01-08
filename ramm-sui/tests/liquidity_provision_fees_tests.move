@@ -2,7 +2,8 @@
 module ramm_sui::liquidity_provision_fees_tests {
     use sui::clock::Clock;
     use sui::coin::{Self, Coin};
-    use sui::test_scenario;
+    use sui::object::ID;
+    use sui::test_scenario::{Scenario, Self};
     use sui::test_utils;
 
     use std::debug;
@@ -18,15 +19,18 @@ module ramm_sui::liquidity_provision_fees_tests {
 
     const ETraderShouldHaveAsset: u64 = 0;
 
-    #[test]
-    /// Given a 2-asset ETH/USDT RAMM, with an initial ETH price of 2000 USDT,
+     /// Given a 2-asset ETH/USDT RAMM, with an initial ETH price of 2000 USDT,
     /// perform the trades in the whitepaper's second practical example.
     /// 1. First, a purchase of 20 ETH
     /// 2. Next, a redemption of every LPETH token by a provider
     /// 3. Finally, a redemption of every LPUSDT token by a provider
-    fun liquidity_provision_fees_test() {
-        let (ramm_id, eth_ag_id, usdt_ag_id, scenario_val) = test_util::create_ramm_test_scenario_eth_usdt(ADMIN);
-        let scenario = &mut scenario_val;
+    fun liquidity_provision_fees_test(
+        ramm_id: ID,
+        eth_ag_id: ID,
+        usdt_ag_id: ID,
+        scenario: &mut Scenario,
+        max_iterations: u64
+        ) {
 
         // First part of the test: a trader, Alice, wishes to buy 20 ETH
         // from the ETH/USDT RAMM, with the current price of 2000 USDT per ETH.
@@ -41,12 +45,9 @@ module ramm_sui::liquidity_provision_fees_tests {
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
 
-            let ixs: vector<u16> = vector[1, 2, 3];
-
             let eth_amnt = (1 * test_util::eth_factor() as u64);
             let usdt_amnt = (2000 * test_util::usdt_factor() as u64);
-            let max_iterations: u16 = 512;
-            let i: u16 = 1;
+            let i: u64 = 1;
             while (i <= max_iterations) {
                 let amount_in = coin::mint_for_testing<ETH>(eth_amnt, test_scenario::ctx(scenario));
                 interface2::trade_amount_in_2<ETH, USDT>(
@@ -165,6 +166,24 @@ module ramm_sui::liquidity_provision_fees_tests {
             test_scenario::return_to_address(ADMIN, usdt);
         };
 
+    }
+
+    #[test]
+    fun liquidity_provision_fees_test_runner() {
+        let (ramm_id, eth_ag_id, usdt_ag_id, scenario_val) = test_util::create_ramm_test_scenario_eth_usdt(ADMIN);
+        let scenario = &mut scenario_val;
+
+        let i = 0;
+        while (i < 10) {
+            liquidity_provision_fees_test(
+                ramm_id,
+                eth_ag_id,
+                usdt_ag_id,
+                scenario,
+                sui::math::pow(2, i)
+            );
+        };
+    
 
         test_scenario::end(scenario_val);
     }
