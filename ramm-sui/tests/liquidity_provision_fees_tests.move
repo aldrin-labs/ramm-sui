@@ -2,11 +2,11 @@
 module ramm_sui::liquidity_provision_fees_tests {
     use sui::clock::Clock;
     use sui::coin::{Self, Coin};
-    use sui::object::ID;
-    use sui::test_scenario::{Scenario, Self};
+    use sui::test_scenario;
     use sui::test_utils;
 
     use std::debug;
+    use std::vector;
 
     use ramm_sui::interface2;
     use ramm_sui::ramm::{LP, RAMM, RAMMAdminCap};
@@ -14,23 +14,29 @@ module ramm_sui::liquidity_provision_fees_tests {
 
     use switchboard::aggregator::Aggregator;
 
-    const ADMIN: address = @0xFACE;
     const ALICE: address = @0xACE;
 
     const ETraderShouldHaveAsset: u64 = 0;
 
-     /// Given a 2-asset ETH/USDT RAMM, with an initial ETH price of 2000 USDT,
+    fun is_power_of_two(x: u64): bool {
+        if ((x & (x - 1)) == 0) {
+            return true
+        } else {
+            return false
+        }
+    }
+
+    /// Given a 2-asset ETH/USDT RAMM, with an initial ETH price of 2000 USDT,
     /// perform the trades in the whitepaper's second practical example.
     /// 1. First, a purchase of 20 ETH
     /// 2. Next, a redemption of every LPETH token by a provider
     /// 3. Finally, a redemption of every LPUSDT token by a provider
     fun liquidity_provision_fees_test(
-        ramm_id: ID,
-        eth_ag_id: ID,
-        usdt_ag_id: ID,
-        scenario: &mut Scenario,
+        admin_address: address,
         max_iterations: u64
-        ) {
+    ) {
+        let (ramm_id, eth_ag_id, usdt_ag_id, scenario_val) = test_util::create_ramm_test_scenario_eth_usdt(admin_address);
+        let scenario = &mut scenario_val;
 
         // First part of the test: a trader, Alice, wishes to buy 20 ETH
         // from the ETH/USDT RAMM, with the current price of 2000 USDT per ETH.
@@ -82,7 +88,7 @@ module ramm_sui::liquidity_provision_fees_tests {
 
         //
 
-        test_scenario::next_tx(scenario, ADMIN);
+        test_scenario::next_tx(scenario, admin_address);
 
         {
             let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
@@ -90,9 +96,9 @@ module ramm_sui::liquidity_provision_fees_tests {
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
 
-            let lp_eth = test_scenario::take_from_address<Coin<LP<ETH>>>(scenario, ADMIN);
+            let lp_eth = test_scenario::take_from_address<Coin<LP<ETH>>>(scenario, admin_address);
             test_utils::assert_eq(coin::value(&lp_eth), (500 * test_util::eth_factor() as u64));
-            let lp_usdt = test_scenario::take_from_address<Coin<LP<USDT>>>(scenario, ADMIN);
+            let lp_usdt = test_scenario::take_from_address<Coin<LP<USDT>>>(scenario, admin_address);
             test_utils::assert_eq(coin::value(&lp_usdt), (900_000 * test_util::usdt_factor() as u64));
 
             interface2::liquidity_withdrawal_2<ETH, USDT, ETH>(
@@ -121,27 +127,27 @@ module ramm_sui::liquidity_provision_fees_tests {
             // Remember to remove trading fees from total fee count to avoid counting them twice
         };
 
-        test_scenario::next_tx(scenario, ADMIN);
+        test_scenario::next_tx(scenario, admin_address);
         let (withdrawn_eth, withdrawn_usdt) = {
-            let eth = test_scenario::take_from_address<Coin<ETH>>(scenario, ADMIN);
-            let usdt = test_scenario::take_from_address<Coin<USDT>>(scenario, ADMIN);
+            let eth = test_scenario::take_from_address<Coin<ETH>>(scenario, admin_address);
+            let usdt = test_scenario::take_from_address<Coin<USDT>>(scenario, admin_address);
 
             let eth_value: u64 = coin::value(&eth);
             let usdt_value: u64 = coin::value(&usdt);
 
-            test_scenario::return_to_address(ADMIN, eth);
-            test_scenario::return_to_address(ADMIN, usdt);
+            test_scenario::return_to_address(admin_address, eth);
+            test_scenario::return_to_address(admin_address, usdt);
 
             (eth_value, usdt_value)
         };
 
-        // Next step: collect the RAMM fees to the collection address (in this case, the admin's)
+        // Next step: collect the RAMM fees to the collection address (in this case, the admin's address)
 
-        test_scenario::next_tx(scenario, ADMIN);
+        test_scenario::next_tx(scenario, admin_address);
 
         {
             let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
-            let admin_cap: RAMMAdminCap = test_scenario::take_from_address<RAMMAdminCap>(scenario, ADMIN);
+            let admin_cap: RAMMAdminCap = test_scenario::take_from_address<RAMMAdminCap>(scenario, admin_address);
 
             interface2::collect_fees_2<ETH, USDT>(
                 &mut ramm,
@@ -150,41 +156,46 @@ module ramm_sui::liquidity_provision_fees_tests {
             );
 
             test_scenario::return_shared<RAMM>(ramm);
-            test_scenario::return_to_address<RAMMAdminCap>(ADMIN, admin_cap);
+            test_scenario::return_to_address<RAMMAdminCap>(admin_address, admin_cap);
         };
 
-        test_scenario::next_tx(scenario, ADMIN);
+        test_scenario::next_tx(scenario, admin_address);
 
         {
-            let eth = test_scenario::take_from_address<Coin<ETH>>(scenario, ADMIN);
-            let usdt = test_scenario::take_from_address<Coin<USDT>>(scenario, ADMIN);
+            let eth = test_scenario::take_from_address<Coin<ETH>>(scenario, admin_address);
+            let usdt = test_scenario::take_from_address<Coin<USDT>>(scenario, admin_address);
 
             debug::print(&(withdrawn_eth + coin::value(&eth)));
             debug::print(&(withdrawn_usdt + coin::value(&usdt)));
 
-            test_scenario::return_to_address(ADMIN, eth);
-            test_scenario::return_to_address(ADMIN, usdt);
+            test_scenario::return_to_address(admin_address, eth);
+            test_scenario::return_to_address(admin_address, usdt);
         };
 
+        test_scenario::end(scenario_val);
     }
 
     #[test]
     fun liquidity_provision_fees_test_runner() {
-        let (ramm_id, eth_ag_id, usdt_ag_id, scenario_val) = test_util::create_ramm_test_scenario_eth_usdt(ADMIN);
-        let scenario = &mut scenario_val;
+        let addresses: vector<address> = vector[
+            @0x1,
+            @0x2,
+            @0x3,
+            @0x4,
+            @0x5,
+            @0x6,
+            @0x7,
+            @0x8,
+            @0x9,
+            @0xA
+        ];
 
         let i = 0;
         while (i < 10) {
             liquidity_provision_fees_test(
-                ramm_id,
-                eth_ag_id,
-                usdt_ag_id,
-                scenario,
-                sui::math::pow(2, i)
+                *vector::borrow(&addresses, i),
+                sui::math::pow(2, (i as u8))
             );
         };
-    
-
-        test_scenario::end(scenario_val);
     }
 }
