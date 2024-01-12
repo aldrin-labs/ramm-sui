@@ -81,7 +81,8 @@ module ramm_sui::liquidity_provision_fees_tests {
 
         test_scenario::next_tx(scenario, ALICE);
 
-        //
+        // First part of the test: `ALICE` performs a set number of trades in the same tx,
+        // printing the RAMM's balances after each trade, if the trade's ordinal is a power of two
 
         {
             let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
@@ -133,7 +134,8 @@ module ramm_sui::liquidity_provision_fees_tests {
             test_scenario::return_shared<Aggregator>(usdt_aggr);
         };
 
-        //
+        // Second part of the trade: the admin, and only LP to the pool, withdraws all of their
+        // LP tokens
 
         test_scenario::next_tx(scenario, admin_address);
 
@@ -176,8 +178,6 @@ module ramm_sui::liquidity_provision_fees_tests {
             test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(usdt_aggr);
-
-            // Remember to remove trading fees from total fee count to avoid counting them twice
         };
 
         test_scenario::next_tx(scenario, admin_address);
@@ -195,7 +195,7 @@ module ramm_sui::liquidity_provision_fees_tests {
             test_scenario::return_to_address(admin_address, withdrawn_usdt);
         };
 
-        // Next step: collect the RAMM fees to the collection address (in this case, the admin's address)
+        // Next step: the admin collects the resulting fees, for display purposes only.
 
         test_scenario::next_tx(scenario, admin_address);
 
