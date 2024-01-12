@@ -166,6 +166,18 @@ As said in the [official documentation](https://docs.sui.io/guides/developer/sui
 
 ### Using the MSL to verify portions of the RAMM code.
 
+#### NOTE ABOUT MSL/MOVE PROVER
+
+As of January 2024, Mysten Labs has sunset Sui Move support for the MSL and the Move Prover;
+see:
+1. https://github.com/MystenLabs/sui/pull/15480
+2. https://github.com/MystenLabs/sui/issues/14062#issuecomment-1885996796
+
+Thus, the below notes are no longer accurate. They are kept for future reference, should such
+support return in the future.
+
+---
+
 Sui Move (as well as other variants of Move) supports the usage of the [Move Prover](https://github.com/move-language/move/blob/main/language/move-prover/doc/user/prover-guide.md) to formally
 verify the behavior of Move programs that have been annotated with sentences in MSL, or
 [_Move Specification Language_](https://github.com/move-language/move/blob/main/language/move-prover/doc/user/spec-lang.md), a subset of Move.
