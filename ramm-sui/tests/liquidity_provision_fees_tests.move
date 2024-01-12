@@ -234,6 +234,11 @@ module ramm_sui::liquidity_provision_fees_tests {
     }
 
     #[test]
+    /// Note: this must be run with the `--gas-limit` flag set to a very high value, as running it
+    /// with hundreds operations in a tx will exhaust the default gas for tests, and lead to a
+    /// timeout:
+    ///
+    /// `sui move test --gas-limit 10000000000`
     fun liquidity_provision_fees_test_512() {
         liquidity_provision_fees_test(ADMIN, 512);
     }
