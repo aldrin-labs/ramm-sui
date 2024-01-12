@@ -6,14 +6,14 @@ module ramm_sui::liquidity_provision_fees_tests {
     use sui::test_utils;
 
     use std::debug;
-    use std::vector;
 
     use ramm_sui::interface2;
-    use ramm_sui::ramm::{LP, RAMM, RAMMAdminCap};
+    use ramm_sui::ramm::{Self, LP, RAMM, RAMMAdminCap};
     use ramm_sui::test_util::{Self, ETH, USDT};
 
     use switchboard::aggregator::Aggregator;
 
+    const ADMIN: address = @0xFACE;
     const ALICE: address = @0xACE;
 
     const ETraderShouldHaveAsset: u64 = 0;
@@ -51,8 +51,8 @@ module ramm_sui::liquidity_provision_fees_tests {
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
 
-            let eth_amnt = (1 * test_util::eth_factor() as u64);
-            let usdt_amnt = (2000 * test_util::usdt_factor() as u64);
+            let eth_amnt = (10 * test_util::eth_factor() as u64);
+            let usdt_amnt = (20_000 * test_util::usdt_factor() as u64);
             let i: u64 = 1;
             while (i <= max_iterations) {
                 let amount_in = coin::mint_for_testing<ETH>(eth_amnt, test_scenario::ctx(scenario));
@@ -77,6 +77,15 @@ module ramm_sui::liquidity_provision_fees_tests {
                     test_scenario::ctx(scenario)
                 );
 
+                if (is_power_of_two(i)) {
+                    // just in case!
+                    test_utils::assert_eq(ramm::get_typed_balance<ETH>(&ramm), ramm::get_balance<ETH>(&ramm));
+                    test_utils::assert_eq(ramm::get_typed_balance<USDT>(&ramm), ramm::get_balance<USDT>(&ramm));
+
+                    debug::print(&ramm::get_typed_balance<ETH>(&ramm));
+                    debug::print(&ramm::get_typed_balance<USDT>(&ramm));
+                };
+
                 i = i + 1;
             };
 
@@ -96,10 +105,16 @@ module ramm_sui::liquidity_provision_fees_tests {
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
 
+            test_utils::print(b"quick sanity check");
+            debug::print(&ramm::get_typed_balance<ETH>(&ramm));
+            debug::print(&ramm::get_typed_balance<USDT>(&ramm));
+
             let lp_eth = test_scenario::take_from_address<Coin<LP<ETH>>>(scenario, admin_address);
             test_utils::assert_eq(coin::value(&lp_eth), (500 * test_util::eth_factor() as u64));
             let lp_usdt = test_scenario::take_from_address<Coin<LP<USDT>>>(scenario, admin_address);
             test_utils::assert_eq(coin::value(&lp_usdt), (900_000 * test_util::usdt_factor() as u64));
+
+            test_utils::print(b"LPETH/LPUSDT Liquidity withdrawals");
 
             interface2::liquidity_withdrawal_2<ETH, USDT, ETH>(
                 &mut ramm,
@@ -128,17 +143,18 @@ module ramm_sui::liquidity_provision_fees_tests {
         };
 
         test_scenario::next_tx(scenario, admin_address);
-        let (withdrawn_eth, withdrawn_usdt) = {
-            let eth = test_scenario::take_from_address<Coin<ETH>>(scenario, admin_address);
-            let usdt = test_scenario::take_from_address<Coin<USDT>>(scenario, admin_address);
+        {
+            let withdrawn_eth = test_scenario::take_from_address<Coin<ETH>>(scenario, admin_address);
+            let withdrawn_usdt = test_scenario::take_from_address<Coin<USDT>>(scenario, admin_address);
 
-            let eth_value: u64 = coin::value(&eth);
-            let usdt_value: u64 = coin::value(&usdt);
+            let withdrawn_eth_value: u64 = coin::value(&withdrawn_eth);
+            let withdrawn_usdt_value: u64 = coin::value(&withdrawn_usdt);
 
-            test_scenario::return_to_address(admin_address, eth);
-            test_scenario::return_to_address(admin_address, usdt);
+            debug::print(&withdrawn_eth_value);
+            debug::print(&withdrawn_usdt_value);
 
-            (eth_value, usdt_value)
+            test_scenario::return_to_address(admin_address, withdrawn_eth);
+            test_scenario::return_to_address(admin_address, withdrawn_usdt);
         };
 
         // Next step: collect the RAMM fees to the collection address (in this case, the admin's address)
@@ -162,40 +178,25 @@ module ramm_sui::liquidity_provision_fees_tests {
         test_scenario::next_tx(scenario, admin_address);
 
         {
-            let eth = test_scenario::take_from_address<Coin<ETH>>(scenario, admin_address);
-            let usdt = test_scenario::take_from_address<Coin<USDT>>(scenario, admin_address);
+            let eth_fees = test_scenario::take_from_address<Coin<ETH>>(scenario, admin_address);
+            let usdt_fees = test_scenario::take_from_address<Coin<USDT>>(scenario, admin_address);
 
-            debug::print(&(withdrawn_eth + coin::value(&eth)));
-            debug::print(&(withdrawn_usdt + coin::value(&usdt)));
+            let eth_fees_value: u64 = coin::value(&eth_fees);
+            let usdt_fees_value: u64 = coin::value(&usdt_fees);
 
-            test_scenario::return_to_address(admin_address, eth);
-            test_scenario::return_to_address(admin_address, usdt);
+            test_utils::print(b"value of fees (ETH, USDT):");
+            debug::print(&eth_fees_value);
+            debug::print(&usdt_fees_value);
+
+            test_scenario::return_to_address(admin_address, eth_fees);
+            test_scenario::return_to_address(admin_address, usdt_fees);
         };
 
         test_scenario::end(scenario_val);
     }
 
     #[test]
-    fun liquidity_provision_fees_test_runner() {
-        let addresses: vector<address> = vector[
-            @0x1,
-            @0x2,
-            @0x3,
-            @0x4,
-            @0x5,
-            @0x6,
-            @0x7,
-            @0x8,
-            @0x9,
-            @0xA
-        ];
-
-        let i = 0;
-        while (i < 10) {
-            liquidity_provision_fees_test(
-                *vector::borrow(&addresses, i),
-                sui::math::pow(2, (i as u8))
-            );
-        };
+    fun liquidity_provision_fees_test_512() {
+        liquidity_provision_fees_test(ADMIN, 512);
     }
 }
