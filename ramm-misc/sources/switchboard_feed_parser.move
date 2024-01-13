@@ -29,7 +29,7 @@ module ramm_misc::switchboard_feed_parser {
     }
 
     // add AggregatorInfo resource with latest value + aggregator address
-    public entry fun log_aggregator_info(
+    public fun log_aggregator_info(
         feed: &Aggregator, 
         ctx: &mut TxContext
     ) {       

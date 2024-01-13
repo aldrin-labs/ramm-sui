@@ -1,5 +1,6 @@
 #[test_only]
 module ramm_sui::interface3_safety_tests {
+    use sui::clock::Clock;
     use sui::coin;
     use sui::test_scenario;
     use sui::vec_map::{Self, VecMap};
@@ -56,17 +57,19 @@ module ramm_sui::interface3_safety_tests {
     #[expected_failure(abort_code = interface3::ERAMMInvalidSize)]
     /// Check that calling `trade_amount_in_3` on a RAMM without *exactly* 3 assets fails.
     fun trade_amount_in_3_invalid_ramm_size() {
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) = test_util::create_ramm_test_scenario_btc_eth_with_liq(ALICE);
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val)= test_util::create_ramm_test_scenario_btc_eth_with_liq(ALICE);
         let scenario = &mut scenario_val;
 
         {
             let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let amount_in = coin::mint_for_testing<BTC>(1000, test_scenario::ctx(scenario));
             let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
 
             interface3::trade_amount_in_3<BTC, ETH, SOL>(
                 &mut alice_ramm,
+                &clock,
                 amount_in,
                 0,
                 &btc_aggr,
@@ -76,6 +79,7 @@ module ramm_sui::interface3_safety_tests {
             );
 
             test_scenario::return_shared<RAMM>(alice_ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(btc_aggr);
             test_scenario::return_shared<Aggregator>(eth_aggr);
         };
@@ -90,12 +94,13 @@ module ramm_sui::interface3_safety_tests {
     /// This test *must* fail.
     fun trade_amount_in_3_invalid_asset() {
         // Create a 3-asset pool with BTC, ETH, SOL
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val)=
             test_util::create_ramm_test_scenario_btc_eth_sol_with_liq(ALICE);
         let scenario = &mut scenario_val;
 
         {
             let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let amount_in = coin::mint_for_testing<USDC>(1000, test_scenario::ctx(scenario));
             let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
@@ -103,6 +108,7 @@ module ramm_sui::interface3_safety_tests {
 
             interface3::trade_amount_in_3<USDC, ETH, SOL>(
                 &mut alice_ramm,
+                &clock,
                 amount_in,
                 0,
                 &btc_aggr,
@@ -112,6 +118,7 @@ module ramm_sui::interface3_safety_tests {
             );
 
             test_scenario::return_shared<RAMM>(alice_ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(btc_aggr);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(sol_aggr);
@@ -133,6 +140,7 @@ module ramm_sui::interface3_safety_tests {
 
         {
             let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let amount_in = coin::mint_for_testing<ETH>(999, test_scenario::ctx(scenario));
             let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
@@ -140,6 +148,7 @@ module ramm_sui::interface3_safety_tests {
 
             interface3::trade_amount_in_3<ETH, BTC, SOL>(
                 &mut alice_ramm,
+                &clock,
                 amount_in,
                 0,
                 &eth_aggr,
@@ -149,6 +158,7 @@ module ramm_sui::interface3_safety_tests {
             );
 
             test_scenario::return_shared<RAMM>(alice_ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(btc_aggr);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(sol_aggr);
@@ -165,12 +175,13 @@ module ramm_sui::interface3_safety_tests {
     /// This test *must* fail.
     fun trade_amount_in_3_no_minted_lptoken() {
         // Create a 3-asset pool with BTC, ETH, SOL
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val)=
             test_util::create_ramm_test_scenario_btc_eth_sol_no_liq(ALICE);
         let scenario = &mut scenario_val;
 
         {
             let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let amount_in = coin::mint_for_testing<BTC>(1 * (test_util::btc_factor() as u64), test_scenario::ctx(scenario));
             let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
@@ -178,6 +189,7 @@ module ramm_sui::interface3_safety_tests {
 
             interface3::trade_amount_in_3<BTC, ETH, SOL>(
                 &mut alice_ramm,
+                &clock,
                 amount_in,
                 0,
                 &btc_aggr,
@@ -187,6 +199,7 @@ module ramm_sui::interface3_safety_tests {
             );
 
             test_scenario::return_shared<RAMM>(alice_ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(btc_aggr);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(sol_aggr);
@@ -207,12 +220,13 @@ module ramm_sui::interface3_safety_tests {
             vec_map::insert(&mut initial_asset_liquidity, 2, 0);
 
         // Create a 3-asset pool with BTC, ETH, SOL
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val)=
                 test_util::create_ramm_test_scenario_btc_eth_sol(ALICE, initial_asset_liquidity);
         let scenario = &mut scenario_val;
 
         {
             let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let sol_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, sol_ag_id);
@@ -220,6 +234,7 @@ module ramm_sui::interface3_safety_tests {
             let amount_in = coin::mint_for_testing<BTC>(1 * (test_util::btc_factor() as u64), test_scenario::ctx(scenario));
             interface3::trade_amount_in_3<BTC, ETH, SOL>(
                 &mut alice_ramm,
+                &clock,
                 amount_in,
                 1,
                 &btc_aggr,
@@ -229,6 +244,7 @@ module ramm_sui::interface3_safety_tests {
             );
 
             test_scenario::return_shared<RAMM>(alice_ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(btc_aggr);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(sol_aggr);
@@ -243,12 +259,13 @@ module ramm_sui::interface3_safety_tests {
     /// for the inbound asset will fail.
     fun trade_amount_in_3_excessive_amount_in() {
         // Create a 3-asset pool with BTC, ETH
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val)=
             test_util::create_ramm_test_scenario_btc_eth_sol_with_liq(ALICE);
         let scenario = &mut scenario_val;
 
         {
             let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let sol_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, sol_ag_id);
@@ -258,6 +275,7 @@ module ramm_sui::interface3_safety_tests {
             let amount_in = coin::mint_for_testing<BTC>(53 * (test_util::btc_factor() as u64), test_scenario::ctx(scenario));
             interface3::trade_amount_in_3<BTC, ETH, SOL>(
                 &mut alice_ramm,
+                &clock,
                 amount_in,
                 0,
                 &btc_aggr,
@@ -267,6 +285,7 @@ module ramm_sui::interface3_safety_tests {
             );
 
             test_scenario::return_shared<RAMM>(alice_ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(btc_aggr);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(sol_aggr);
@@ -281,12 +300,13 @@ module ramm_sui::interface3_safety_tests {
     /// for the outbound asset will fail.
     fun trade_amount_in_3_excessive_amount_out() {
         // Create a 3-asset pool with BTC, ETH, SOL
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val)=
             test_util::create_ramm_test_scenario_btc_eth_sol_with_liq(ALICE);
         let scenario = &mut scenario_val;
 
         {
             let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let sol_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, sol_ag_id);
@@ -298,6 +318,7 @@ module ramm_sui::interface3_safety_tests {
             let amount_in = coin::mint_for_testing<BTC>(5 * (test_util::btc_factor() as u64) / 10, test_scenario::ctx(scenario));
             interface3::trade_amount_in_3<BTC, SOL, ETH>(
                 &mut alice_ramm,
+                &clock,
                 amount_in,
                 0,
                 &btc_aggr,
@@ -307,6 +328,7 @@ module ramm_sui::interface3_safety_tests {
             );
 
             test_scenario::return_shared<RAMM>(alice_ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(btc_aggr);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(sol_aggr);
@@ -322,12 +344,13 @@ module ramm_sui::interface3_safety_tests {
     /// This *must* fail.
     fun trade_amount_in_3_invalid_aggregator() {
         // Create a 3-asset pool with BTC, ETH, SOL
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val)=
             test_util::create_ramm_test_scenario_btc_eth_sol_with_liq(ALICE);
         let scenario = &mut scenario_val;
 
         {
             let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let sol_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, sol_ag_id);
@@ -337,6 +360,7 @@ module ramm_sui::interface3_safety_tests {
             // which should be reflected in the order of the aggregators (but is not, hence the error).
             interface3::trade_amount_in_3<BTC, SOL, ETH>(
                 &mut alice_ramm,
+                &clock,
                 amount_in,
                 0,
                 &btc_aggr,
@@ -346,6 +370,7 @@ module ramm_sui::interface3_safety_tests {
             );
 
             test_scenario::return_shared<RAMM>(alice_ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(btc_aggr);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(sol_aggr);
@@ -362,17 +387,19 @@ module ramm_sui::interface3_safety_tests {
     #[expected_failure(abort_code = interface3::ERAMMInvalidSize)]
     /// Check that calling `trade_amount_out_3` on a RAMM without *exactly* 3 assets fails.
     fun trade_amount_out_3_invalid_ramm_size() {
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) = test_util::create_ramm_test_scenario_btc_eth_no_liq(ALICE);
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val)= test_util::create_ramm_test_scenario_btc_eth_no_liq(ALICE);
         let scenario = &mut scenario_val;
 
         {
             let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let max_amount_in = coin::mint_for_testing<BTC>(1000, test_scenario::ctx(scenario));
             let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
 
             interface3::trade_amount_out_3<BTC, ETH, SOL>(
                 &mut alice_ramm,
+                &clock,
                 1000,
                 max_amount_in,
                 &btc_aggr,
@@ -382,6 +409,7 @@ module ramm_sui::interface3_safety_tests {
             );
 
             test_scenario::return_shared<RAMM>(alice_ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(btc_aggr);
             test_scenario::return_shared<Aggregator>(eth_aggr);
         };
@@ -396,12 +424,13 @@ module ramm_sui::interface3_safety_tests {
     /// This test *must* fail.
     fun trade_amount_out_3_invalid_asset() {
         // Create a 3-asset pool with BTC, ETH, SOL
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val)=
             test_util::create_ramm_test_scenario_btc_eth_sol_with_liq(ALICE);
         let scenario = &mut scenario_val;
 
         {
             let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let max_amount_in = coin::mint_for_testing<USDC>(1000, test_scenario::ctx(scenario));
             let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
@@ -409,6 +438,7 @@ module ramm_sui::interface3_safety_tests {
 
             interface3::trade_amount_out_3<USDC, ETH, SOL>(
                 &mut alice_ramm,
+                &clock,
                 1000,
                 max_amount_in,
                 &btc_aggr,
@@ -418,6 +448,7 @@ module ramm_sui::interface3_safety_tests {
             );
 
             test_scenario::return_shared<RAMM>(alice_ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(btc_aggr);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(sol_aggr);
@@ -439,6 +470,7 @@ module ramm_sui::interface3_safety_tests {
 
         {
             let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             // Recall that `create_ramm_3_test_scenario_with_liquidity_in` sets a 0.001 ETH
             // minimum trade amount, and that this ETH has 8 decimal places of precision
             let max_amount_in = coin::mint_for_testing<ETH>(1, test_scenario::ctx(scenario));
@@ -448,6 +480,7 @@ module ramm_sui::interface3_safety_tests {
 
             interface3::trade_amount_out_3<ETH, BTC, SOL>(
                 &mut alice_ramm,
+                &clock,
                 0,
                 max_amount_in,
                 &eth_aggr,
@@ -457,6 +490,7 @@ module ramm_sui::interface3_safety_tests {
             );
 
             test_scenario::return_shared<RAMM>(alice_ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(btc_aggr);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(sol_aggr);
@@ -473,12 +507,13 @@ module ramm_sui::interface3_safety_tests {
     /// This test *must* fail.
     fun trade_amount_out_3_no_minted_lptoken() {
         // Create a 3-asset pool with BTC, ETH, SOL
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val)=
             test_util::create_ramm_test_scenario_btc_eth_sol_no_liq(ALICE);
         let scenario = &mut scenario_val;
 
         {
             let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let max_amount_in = coin::mint_for_testing<BTC>(1 * (test_util::btc_factor() as u64), test_scenario::ctx(scenario));
             let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
@@ -486,6 +521,7 @@ module ramm_sui::interface3_safety_tests {
 
             interface3::trade_amount_out_3<BTC, ETH, SOL>(
                 &mut alice_ramm,
+                &clock,
                 0,
                 max_amount_in,
                 &btc_aggr,
@@ -495,6 +531,7 @@ module ramm_sui::interface3_safety_tests {
             );
 
             test_scenario::return_shared<RAMM>(alice_ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(btc_aggr);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(sol_aggr);
@@ -515,12 +552,13 @@ module ramm_sui::interface3_safety_tests {
             vec_map::insert(&mut initial_asset_liquidity, 2, 0);
 
         // Create a 3-asset pool with BTC, ETH, SOL
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val)=
                 test_util::create_ramm_test_scenario_btc_eth_sol(ALICE, initial_asset_liquidity);
         let scenario = &mut scenario_val;
 
         {
             let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let sol_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, sol_ag_id);
@@ -528,6 +566,7 @@ module ramm_sui::interface3_safety_tests {
             let max_amount_in = coin::mint_for_testing<BTC>(1 * (test_util::btc_factor() as u64), test_scenario::ctx(scenario));
             interface3::trade_amount_out_3<BTC, ETH, SOL>(
                 &mut alice_ramm,
+                &clock,
                 1 * (test_util::btc_factor() as u64),
                 max_amount_in,
                 &btc_aggr,
@@ -537,6 +576,7 @@ module ramm_sui::interface3_safety_tests {
             );
 
             test_scenario::return_shared<RAMM>(alice_ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(btc_aggr);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(sol_aggr);
@@ -551,12 +591,13 @@ module ramm_sui::interface3_safety_tests {
     /// for the outbound asset will fail.
     fun trade_amount_out_3_excessive_amount_out() {
         // Create a 3-asset pool with BTC, ETH, SOL
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val)=
             test_util::create_ramm_test_scenario_btc_eth_sol_with_liq(ALICE);
         let scenario = &mut scenario_val;
 
         {
             let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let sol_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, sol_ag_id);
@@ -564,6 +605,7 @@ module ramm_sui::interface3_safety_tests {
             let max_amount_in = coin::mint_for_testing<BTC>(53 * (test_util::btc_factor() as u64), test_scenario::ctx(scenario));
             interface3::trade_amount_out_3<BTC, ETH, SOL>(
                 &mut alice_ramm,
+                &clock,
                 (52 * test_util::eth_factor() as u64),
                 max_amount_in,
                 &btc_aggr,
@@ -573,6 +615,7 @@ module ramm_sui::interface3_safety_tests {
             );
 
             test_scenario::return_shared<RAMM>(alice_ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(btc_aggr);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(sol_aggr);
@@ -587,12 +630,13 @@ module ramm_sui::interface3_safety_tests {
     /// for the inbound asset will fail.
     fun trade_amount_out_3_excessive_amount_in() {
         // Create a 3-asset pool with BTC, ETH, SOL
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val)=
             test_util::create_ramm_test_scenario_btc_eth_sol_with_liq(ALICE);
         let scenario = &mut scenario_val;
 
         {
             let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let sol_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, sol_ag_id);
@@ -604,6 +648,7 @@ module ramm_sui::interface3_safety_tests {
             let max_amount_in = coin::mint_for_testing<ETH>(6 * (test_util::eth_factor() as u64), test_scenario::ctx(scenario));
             interface3::trade_amount_out_3<ETH, BTC, SOL>(
                 &mut alice_ramm,
+                &clock,
                 (4 * test_util::btc_factor() as u64) / 10,
                 max_amount_in,
                 &eth_aggr,
@@ -613,6 +658,7 @@ module ramm_sui::interface3_safety_tests {
             );
 
             test_scenario::return_shared<RAMM>(alice_ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(btc_aggr);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(sol_aggr);
@@ -628,12 +674,13 @@ module ramm_sui::interface3_safety_tests {
     /// This *must* fail.
     fun trade_amount_out_3_invalid_aggregator() {
         // Create a 3-asset pool with BTC, ETH, SOL
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val)=
             test_util::create_ramm_test_scenario_btc_eth_sol_with_liq(ALICE);
         let scenario = &mut scenario_val;
 
         {
             let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let sol_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, sol_ag_id);
@@ -643,6 +690,7 @@ module ramm_sui::interface3_safety_tests {
             // which should be reflected in the order of the aggregators (but is not, hence the error).
             interface3::trade_amount_out_3<BTC, SOL, ETH>(
                 &mut alice_ramm,
+                &clock,
                 // here, any amount below the pool's liquidity is fine
                 1 * (test_util::btc_factor() as u64) / 10,
                 max_amount_in,
@@ -653,6 +701,7 @@ module ramm_sui::interface3_safety_tests {
             );
 
             test_scenario::return_shared<RAMM>(alice_ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(btc_aggr);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(sol_aggr);
@@ -669,12 +718,13 @@ module ramm_sui::interface3_safety_tests {
     /// This *must* fail.
     fun trade_amount_out_3_balance_empty_balance_with_circ_lp_tokens() {
         // Create a 3-asset pool with BTC, ETH, SOL
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val)=
             test_util::create_ramm_test_scenario_btc_eth_sol_with_liq(ALICE);
         let scenario = &mut scenario_val;
 
         {
             let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let sol_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, sol_ag_id);
@@ -683,6 +733,7 @@ module ramm_sui::interface3_safety_tests {
             // Recall that the type argument order here implies that ETH is inbound, SOL is outbound
             interface3::trade_amount_out_3<ETH, SOL, BTC>(
                 &mut alice_ramm,
+                &clock,
                 10_000 * (test_util::sol_factor() as u64),
                 max_amount_in,
                 &eth_aggr,
@@ -692,6 +743,7 @@ module ramm_sui::interface3_safety_tests {
             );
 
             test_scenario::return_shared<RAMM>(alice_ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(btc_aggr);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(sol_aggr);
@@ -708,18 +760,20 @@ module ramm_sui::interface3_safety_tests {
     #[expected_failure(abort_code = interface3::ERAMMInvalidSize)]
     /// Check that calling `liquidity_deposit_3` on a RAMM without *exactly* 3 assets fails.
     fun liquidity_deposit_3_invalid_ramm_size() {
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val)=
             test_util::create_ramm_test_scenario_btc_eth_no_liq(ALICE);
         let scenario = &mut scenario_val;
 
         {
             let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let amount_in = coin::mint_for_testing<BTC>(1000, test_scenario::ctx(scenario));
             let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
 
             interface3::liquidity_deposit_3<BTC, ETH, SOL>(
                 &mut alice_ramm,
+                &clock,
                 amount_in,
                 &btc_aggr,
                 &eth_aggr,
@@ -728,6 +782,7 @@ module ramm_sui::interface3_safety_tests {
             );
 
             test_scenario::return_shared<RAMM>(alice_ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(btc_aggr);
             test_scenario::return_shared<Aggregator>(eth_aggr);
         };
@@ -742,12 +797,13 @@ module ramm_sui::interface3_safety_tests {
     /// This test *must* fail.
     fun liquidity_deposit_3_invalid_asset() {
         // Create a 3-asset pool with BTC, ETH, SOL
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val)=
             test_util::create_ramm_test_scenario_btc_eth_sol_with_liq(ALICE);
         let scenario = &mut scenario_val;
 
         {
             let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let amount_in = coin::mint_for_testing<USDC>(1000, test_scenario::ctx(scenario));
             let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
@@ -755,6 +811,7 @@ module ramm_sui::interface3_safety_tests {
 
             interface3::liquidity_deposit_3<USDC, ETH, SOL>(
                 &mut alice_ramm,
+                &clock,
                 amount_in,
                 &btc_aggr,
                 &eth_aggr,
@@ -763,6 +820,7 @@ module ramm_sui::interface3_safety_tests {
             );
 
             test_scenario::return_shared<RAMM>(alice_ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(btc_aggr);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(sol_aggr);
@@ -778,12 +836,13 @@ module ramm_sui::interface3_safety_tests {
     /// This test *must* fail.
     fun liquidity_deposit_3_zero_deposit() {
         // Create a 3-asset pool with BTC, ETH, SOL
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val)=
             test_util::create_ramm_test_scenario_btc_eth_sol_with_liq(ALICE);
         let scenario = &mut scenario_val;
 
         {
             let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let amount_in = coin::mint_for_testing<BTC>(0, test_scenario::ctx(scenario));
             let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
@@ -791,6 +850,7 @@ module ramm_sui::interface3_safety_tests {
 
             interface3::liquidity_deposit_3<BTC, ETH, SOL>(
                 &mut alice_ramm,
+                &clock,
                 amount_in,
                 &btc_aggr,
                 &eth_aggr,
@@ -799,6 +859,7 @@ module ramm_sui::interface3_safety_tests {
             );
 
             test_scenario::return_shared<RAMM>(alice_ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(btc_aggr);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(sol_aggr);
@@ -814,12 +875,13 @@ module ramm_sui::interface3_safety_tests {
     /// This *must* fail.
     fun liquidity_deposit_3_invalid_aggregator() {
         // Create a 3-asset pool with BTC, ETH, SOL
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val)=
             test_util::create_ramm_test_scenario_btc_eth_sol_with_liq(ALICE);
         let scenario = &mut scenario_val;
 
         {
             let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let sol_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, sol_ag_id);
@@ -829,6 +891,7 @@ module ramm_sui::interface3_safety_tests {
             // which should be reflected in the order of the aggregators (but is not, hence the error).
             interface3::liquidity_deposit_3<BTC, ETH, SOL>(
                 &mut alice_ramm,
+                &clock,
                 amount_in,
                 &btc_aggr,
                 &eth_aggr,
@@ -837,6 +900,7 @@ module ramm_sui::interface3_safety_tests {
             );
 
             test_scenario::return_shared<RAMM>(alice_ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(btc_aggr);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(sol_aggr);
@@ -853,17 +917,19 @@ module ramm_sui::interface3_safety_tests {
     #[expected_failure(abort_code = interface3::ERAMMInvalidSize)]
     /// Check that calling `liquidity_withdrawal_3` on a RAMM without *exactly* 3 assets fails.
     fun liquidity_withdrawal_3_invalid_ramm_size() {
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) = test_util::create_ramm_test_scenario_btc_eth_no_liq(ALICE);
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val)= test_util::create_ramm_test_scenario_btc_eth_no_liq(ALICE);
         let scenario = &mut scenario_val;
 
         {
             let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let lp_token = coin::mint_for_testing<LP<BTC>>(1000, test_scenario::ctx(scenario));
             let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
 
             interface3::liquidity_withdrawal_3<BTC, ETH, SOL, BTC>(
                 &mut alice_ramm,
+                &clock,
                 lp_token,
                 &btc_aggr,
                 &eth_aggr,
@@ -872,6 +938,7 @@ module ramm_sui::interface3_safety_tests {
             );
 
             test_scenario::return_shared<RAMM>(alice_ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(btc_aggr);
             test_scenario::return_shared<Aggregator>(eth_aggr);
         };
@@ -886,12 +953,13 @@ module ramm_sui::interface3_safety_tests {
     /// This test *must* fail.
     fun liquidity_withdrawal_3_invalid_asset() {
         // Create a 3-asset pool with BTC, ETH, SOL
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val)=
             test_util::create_ramm_test_scenario_btc_eth_sol_with_liq(ALICE);
         let scenario = &mut scenario_val;
 
         {
             let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let lp_tokens = coin::mint_for_testing<LP<USDC>>(1000, test_scenario::ctx(scenario));
             let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
@@ -899,6 +967,7 @@ module ramm_sui::interface3_safety_tests {
 
             interface3::liquidity_withdrawal_3<USDC, ETH, SOL, USDC>(
                 &mut alice_ramm,
+                &clock,
                 lp_tokens,
                 &btc_aggr,
                 &eth_aggr,
@@ -907,6 +976,7 @@ module ramm_sui::interface3_safety_tests {
             );
 
             test_scenario::return_shared<RAMM>(alice_ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(btc_aggr);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(sol_aggr);
@@ -922,12 +992,13 @@ module ramm_sui::interface3_safety_tests {
     /// This *must* fail.
     fun liquidity_withdrawal_3_invalid_aggregator() {
         // Create a 3-asset pool with BTC, ETH, SOL
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val)=
             test_util::create_ramm_test_scenario_btc_eth_sol_with_liq(ALICE);
         let scenario = &mut scenario_val;
 
         {
             let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let sol_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, sol_ag_id);
@@ -937,6 +1008,7 @@ module ramm_sui::interface3_safety_tests {
             // which should be reflected in the order of the aggregators (but is not, hence the error).
             interface3::liquidity_withdrawal_3<BTC, ETH, SOL, BTC>(
                 &mut alice_ramm,
+                &clock,
                 lp_tokens,
                 &btc_aggr,
                 &eth_aggr,
@@ -945,6 +1017,7 @@ module ramm_sui::interface3_safety_tests {
             );
 
             test_scenario::return_shared<RAMM>(alice_ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(btc_aggr);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(sol_aggr);
@@ -960,12 +1033,13 @@ module ramm_sui::interface3_safety_tests {
     /// This test *must* fail.
     fun liquidity_withdrawal_3_zero_deposit() {
         // Create a 3-asset pool with BTC, ETH, SOL
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val)=
             test_util::create_ramm_test_scenario_btc_eth_sol_with_liq(ALICE);
         let scenario = &mut scenario_val;
 
         {
             let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let lp_tokens = coin::mint_for_testing<LP<BTC>>(0, test_scenario::ctx(scenario));
             let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
@@ -973,6 +1047,7 @@ module ramm_sui::interface3_safety_tests {
 
             interface3::liquidity_withdrawal_3<BTC, ETH, SOL, BTC>(
                 &mut alice_ramm,
+                &clock,
                 lp_tokens,
                 &btc_aggr,
                 &eth_aggr,
@@ -981,6 +1056,7 @@ module ramm_sui::interface3_safety_tests {
             );
 
             test_scenario::return_shared<RAMM>(alice_ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(btc_aggr);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(sol_aggr);
@@ -1001,11 +1077,12 @@ module ramm_sui::interface3_safety_tests {
     #[expected_failure(abort_code = interface3::ERAMMInvalidSize)]
     /// Check that calling `collect_fees_3` on a RAMM without *exactly* 3 assets fails.
     fun collect_fees_3_invalid_ramm_size() {
-        let (alice_ramm_id, _, _, scenario_val) = test_util::create_ramm_test_scenario_btc_eth_no_liq(ALICE);
+        let (alice_ramm_id, _, _, scenario_val)= test_util::create_ramm_test_scenario_btc_eth_no_liq(ALICE);
         let scenario = &mut scenario_val;
 
         {
             let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let admin_cap = test_scenario::take_from_address<RAMMAdminCap>(scenario, ALICE);
 
             interface3::collect_fees_3<BTC, ETH, SOL>(
@@ -1015,6 +1092,7 @@ module ramm_sui::interface3_safety_tests {
             );
 
             test_scenario::return_shared<RAMM>(alice_ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_to_address<RAMMAdminCap>(ALICE, admin_cap);
         };
 
@@ -1029,7 +1107,7 @@ module ramm_sui::interface3_safety_tests {
     /// It *must* fail.
     fun collect_fees_3_wrong_admin_cap() {
         // Create a 3-asset pool with BTC, ETH, SOL
-        let (alice_ramm_id, _, _, _, scenario_val) = test_util::create_ramm_test_scenario_btc_eth_sol_no_liq(ALICE);
+        let (alice_ramm_id, _, _, _, scenario_val)= test_util::create_ramm_test_scenario_btc_eth_sol_no_liq(ALICE);
         let scenario = &mut scenario_val;
         
         test_scenario::next_tx(scenario, BOB);
@@ -1042,6 +1120,7 @@ module ramm_sui::interface3_safety_tests {
 
         {
             let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let bob_admin_cap = test_scenario::take_from_address<RAMMAdminCap>(scenario, BOB);
 
             interface3::collect_fees_3<BTC, ETH, SOL>(
@@ -1052,9 +1131,10 @@ module ramm_sui::interface3_safety_tests {
 
             test_scenario::return_to_address<RAMMAdminCap>(BOB, bob_admin_cap);
             test_scenario::return_shared<RAMM>(alice_ramm);
+            test_scenario::return_shared<Clock>(clock);
         };
 
         test_scenario::end(scenario_val);
-    } 
+    }
 
 }

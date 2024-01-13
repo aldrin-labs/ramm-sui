@@ -48,7 +48,7 @@ module ramm_misc::test_coin_faucet {
     /// * If the provided coin type is not part of the `Faucet`'s `Bag`
     /// * if the amount provided would cause more than `u64::MAX` of type `Coin<T>` to be in
     ///   circulation
-    public entry fun mint_test_coins<T>(
+    public fun mint_test_coins<T>(
         faucet: &mut Faucet,
         amount: u64,
         ctx: &mut TxContext

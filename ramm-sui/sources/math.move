@@ -1,76 +1,31 @@
 module ramm_sui::math {
     //use std::debug;
-
     use sui::vec_map::{Self, VecMap};
 
-    use switchboard::math as sb_math;
-
+    friend ramm_sui::oracles;
     friend ramm_sui::ramm;
 
-    const ENegativeSbD: u64 = 0;
-    const EMulOverflow: u64 = 1;
-    const EDividendTooLarge: u64 = 2;
-    const EDivOverflow: u64 = 3;
-    const EPowNExponentTooLarge: u64 = 4;
-    const EPowNBaseTooLarge: u64 = 5;
-    const EPowDBaseOutOfBounds: u64 = 6;
-    const EPowDExpTooLarge: u64 = 7;
+    const EMulOverflow: u64 = 0;
+    const EDividendTooLarge: u64 = 1;
+    const EDivOverflow: u64 = 2;
+    const EPowNExponentTooLarge: u64 = 3;
+    const EPowNBaseTooLarge: u64 = 4;
+    const EPowDBaseOutOfBounds: u64 = 5;
+    const EPowDExpTooLarge: u64 = 6;
 
     /// ---------
     /// Operators
     /// ---------
 
-    fun sbd_data_to_info(value: u128, scaling_factor: u8, neg: bool, prec: u8): (u256, u256) {
-        assert!(!neg, ENegativeSbD);
-
-        ((value as u256), pow(10u256, prec - scaling_factor))
+    public(friend) fun abs_diff_u64(x: u64, y: u64): u64 {
+        if (x >= y) { x - y } else { y - x }
     }
 
-    /// This isn't a mistake - several spec blocks are required in order to
-    /// 1. Specify all possible aborts for this function
-    /// 2. Specify all (or some of the) conditions in which they occur
-    ///
-    /// Overflows can occur in two distinct locations:
-    /// 1. in `pow`, and
-    /// 2. when calculating `prec - scaling_factor`
-    ///
-    /// The first cannot be encoded without exponentiation specified in the MSL.
-    /// That means an `aborts_if` clause for it cannot be written, which is unnecessary
-    /// if all the specification asserts in which kinds of aborts occur, not how.
-    ///
-    /// A partial specification for how they can occur is below.
-    spec sbd_data_to_info {
-        aborts_with ENegativeSbD, EXECUTION_FAILURE;
-    }
+    spec abs_diff_u64 {
+        aborts_if false;
 
-    spec sbd_data_to_info {
-        pragma verify = true;
-
-        // In order to have the below set to false, it'd be necessary to specify the behavior of
-        // `pow`, which is not possible at the moment.
-        //
-        // As such, it is not possible to cover aborts caused by that function's overflow.
-        pragma aborts_if_is_partial = true;
-
-        aborts_if neg with ENegativeSbD;
-        aborts_if scaling_factor > prec with EXECUTION_FAILURE;
-    }
-
-    /// Given a `switchboard::aggregator::SwitchboardDecimal`, returns:
-    /// * the price as a `u256`
-    /// * the scaling factor by which the price can be multiplied in order to bring it to `prec`
-    ///   decimal places of precision
-    ///
-    /// # Aborts
-    ///
-    /// * If the `SwitchboardDecimal`'s `neg`ative flag was set to `true`.
-    /// * If the `SwitchboardDecimal`'s `scaling_factor` is more than `prec`; in practice
-    ///   this will not happen because it can be at most `9`; see documentation for
-    ///   `SwitchboardDecimal`
-    public fun sbd_to_price_info(sbd: sb_math::SwitchboardDecimal, prec: u8): (u256, u256) {
-        let (value, scaling_factor, neg) = sb_math::unpack(sbd);
-
-        sbd_data_to_info(value, scaling_factor, neg, prec)
+        ensures x >= y ==> result == x - y;
+        ensures x < y ==> result == y - x;
     }
 
     /// Given a `u256` value, forecefully clamp it to the range `[0, max]`.

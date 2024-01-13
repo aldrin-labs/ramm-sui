@@ -8,7 +8,7 @@ At present, the repository contains the following:
   1.  `ramm-sui` contains an implementation for the RAMM, which is ongoing work.
   2.  `ramm-misc` has a faucet with tokens useful for testnet development/testing
       - this Move library also has a simple demo that showcases price information querying from [Switchboard](https://app.switchboard.xyz/sui/testnet) aggregators
-  3. a Rust crate that uses the Sui Rust SDK to automate the RAMM deployment process
+* a Rust crate that uses the Sui Rust SDK to automate the RAMM deployment process
 
 ## Table of contents
 1. [RAMM in Sui Move](#ramm-sui-ramm-in-sui-move)
@@ -17,7 +17,7 @@ At present, the repository contains the following:
    - 2.2. [Regarding `suibase`](#regarding-suibase)
    - 2.3. [Requesting tokens from the faucet](#requesting-tokens-from-the-faucet)
    - 2.4. [RAMM creation/funding](#manually-creating-and-funding-a-ramm-on-the-testnet)
-3. Deployment automation tool
+3. [Deployment automation tool](#automating-the-ramm-deployment-process-with-the-sui-sdk)
 4. [Testing a Switchboard price feed](#testing-a-price-feed)
 5. [Regarding AMMs with variable numbers of assets in Sui Move](#on-supporting-variable-sized-pools-with-a-single-implementation)
 
@@ -147,6 +147,70 @@ If `RAMM has key`, then
 * Meaning it cannot be used be turned into a shared object with 
   `sui::transfer::share_object`
 * which it *must* be, to be readable and writable by all
+
+#### Regarding `Aggregator`s' pricing data staleness
+
+Every trading/liquidity provision function in the public interface requires an `Aggregator` to be
+passed as an argument, so that the RAMM can fetch each assets' most recent pricing data with which
+to run protocol operations.
+
+It is possible that an issue with Switchboard (or further upstream) causes an asset's pricing data
+to not be updated, leading its `Aggregator`, in turn, to return stale prices for that asset.
+
+In order to prevent these stale prices from being used by the RAMM, the public interface must be
+supplied with the address of the Sui network's global clock, with type `sui::clock::Clock`.
+
+As said in the [official documentation](https://docs.sui.io/guides/developer/sui-101/access-time):
+
+> An instance of Clock is provided at address `0x6`, no new instances can be created.
+
+### Using the MSL to verify portions of the RAMM code.
+
+Sui Move (as well as other variants of Move) supports the usage of the [Move Prover](https://github.com/move-language/move/blob/main/language/move-prover/doc/user/prover-guide.md) to formally
+verify the behavior of Move programs that have been annotated with sentences in MSL, or
+[_Move Specification Language_](https://github.com/move-language/move/blob/main/language/move-prover/doc/user/spec-lang.md), a subset of Move.
+
+The `ramm-sui` library leverages, where possible, the MSL and the Move Prover to verify parts of
+its code, taking into account at least 2 limitations:
+1. An AMM is a complex object whose behavior can be difficult, or even _impossible_ to **fully**
+   specify in MSL
+2. Mysten Labs is currently offering only limited support to the integration of the Move Prover
+   with the Sui dialect of Move; see: https://github.com/MystenLabs/sui/pull/14348
+   - With planned future editions of Sui Move evolving the language further, this situation is
+     unlikely to change, as MP/MSL were originally developed for the Diem/Libra dialects of Move;
+     see https://github.com/MystenLabs/sui/issues/14062
+
+#### Running the prover on `ramm-sui`
+
+With the above caveats, here's how to leverage the prover to verify annotated functions from
+`ramm-sui`.
+
+```bash
+# Assume one is at the root of the repository
+cd ramm-sui
+
+# Select a function for which a `spec` has been written
+sui move prove --path . -- --verify-only transfer_admin_cap
+```
+
+It is currently not possible to simply run
+
+```bash
+cd ramm-sui
+sui move prove --path .
+```
+
+over the whole Move package due to the prover timing out.
+
+Furthermore, although there is a flag to run the prover on a single module,
+
+```bash
+cd ramm-sui
+
+sui move prove --path ~/Work/aldrin/ramm-sui/ramm-sui/ --target ramm
+```
+
+it is currently malfunctioning.
 
 ## Interacting with the RAMM on the testnet
 
@@ -382,7 +446,7 @@ All of the above results in the following:
 tsui client call --package "$RAMM_PACKAGE_ID" \
   --module interface3 \
   --function liquidity_deposit_3 \
-  --args "$RAMM_ID" "$BTC_ID" "$BTC_AGG_ID" "$ETH_AGG_ID" "$SOL_AGG_ID" \
+  --args "$RAMM_ID" 0x6 "$BTC_ID" "$BTC_AGG_ID" "$ETH_AGG_ID" "$SOL_AGG_ID" \
   --gas-budget 1000000000 \
   --type-args "$FAUCET_PACKAGE_ID::test_coins::BTC" "$FAUCET_PACKAGE_ID::test_coins::ETH" "$FAUCET_PACKAGE_ID::test_coins::SOL" 
 ```
@@ -415,7 +479,7 @@ Note that:
 tsui client call --package "$RAMM_PACKAGE_ID" \
   --module interface3 \
   --function trade_amount_in_3 \
-  --args "$RAMM_ID" "$ETH_ID" "$MIN_AMNT_OUT" "$ETH_AGG_ID" "$BTC_AGG_ID" "$SOL_AGG_ID" \
+  --args "$RAMM_ID" 0x6 "$ETH_ID" "$MIN_AMNT_OUT" "$ETH_AGG_ID" "$BTC_AGG_ID" "$SOL_AGG_ID" \
   --gas-budget 1000000000 \
   --type-args "$FAUCET_PACKAGE_ID::test_coins::ETH" "$FAUCET_PACKAGE_ID::test_coins::BTC" "$FAUCET_PACKAGE_ID::test_coins::SOL"
 ```
@@ -444,7 +508,7 @@ Note that:
 tsui client call --package "$RAMM_PACKAGE_ID" \
   --module interface3 \
   --function trade_amount_out_3 \
-  --args "$RAMM_ID" "$AMNT_OUT" "$BTC_ID"  "$BTC_AGG_ID" "$ETH_AGG_ID" "$SOL_AGG_ID" \
+  --args "$RAMM_ID" 0x6 "$AMNT_OUT" "$BTC_ID"  "$BTC_AGG_ID" "$ETH_AGG_ID" "$SOL_AGG_ID" \
   --gas-budget 1000000000 \
   --type-args "$FAUCET_PACKAGE_ID::test_coins::BTC" "$FAUCET_PACKAGE_ID::test_coins::ETH" "$FAUCET_PACKAGE_ID::test_coins::SOL"
 ```
@@ -473,7 +537,7 @@ Note that:
 tsui client call --package "$RAMM_PACKAGE_ID" \
   --module interface3 \
   --function liquidity_withdrawal_3 \
-  --args "$RAMM_ID" "$LP_ID" "$BTC_AGG_ID" "$ETH_AGG_ID" "$SOL_AGG_ID" \
+  --args "$RAMM_ID" 0x6 "$LP_ID" "$BTC_AGG_ID" "$ETH_AGG_ID" "$SOL_AGG_ID" \
   --gas-budget 1000000000 \
   --type-args "$FAUCET_PACKAGE_ID::test_coins::BTC" "$FAUCET_PACKAGE_ID::test_coins::ETH" \
      "$FAUCET_PACKAGE_ID::test_coins::SOL" "$FAUCET_PACKAGE_ID::test_coins::BTC"

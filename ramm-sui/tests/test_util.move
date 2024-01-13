@@ -3,6 +3,7 @@
 /// with `sui::test_utils`.
 module ramm_sui::test_util {
     use std::vector;
+    use sui::clock::{Self, Clock};
     use sui::coin;
     use sui::object::{Self, ID};
     use sui::test_scenario::{Self, Scenario};
@@ -21,8 +22,10 @@ module ramm_sui::test_util {
     friend ramm_sui::math_tests;
     friend ramm_sui::ramm_tests;
     friend ramm_sui::interface2_safety_tests;
+    friend ramm_sui::interface2_oracle_safety_tests;
     friend ramm_sui::interface2_tests;
     friend ramm_sui::interface3_safety_tests;
+    friend ramm_sui::interface3_oracle_safety_tests;
     friend ramm_sui::interface3_tests;
     friend ramm_sui::volatility2_tests;
     friend ramm_sui::volatility3_tests;
@@ -130,6 +133,7 @@ module ramm_sui::test_util {
     /// For testing use only - one time witness for aggregator creation.
     struct SecretKey has drop {}
 
+    #[test_only]
     /// Create an `Aggregator` for testing
     public(friend) fun create_aggregator_for_testing(ctx: &mut TxContext): Aggregator {
         aggregator::new(
@@ -154,6 +158,7 @@ module ramm_sui::test_util {
         )
     }
 
+    #[test_only]
     /// Set a test `Aggregator`'s value.
     public(friend) fun set_aggregator_value(
         value: u128,        // example the number 10 would be 10 * 10^dec (dec automatically scaled to 9)
@@ -174,6 +179,7 @@ module ramm_sui::test_util {
         );
     }
 
+    #[test_only]
     /// Create an `Aggregator`, and populate it with the providede values.
     ///
     /// This function does not create a shared object, see `create_write_share_aggregator`.
@@ -190,6 +196,7 @@ module ramm_sui::test_util {
         aggr
     }
 
+    #[test_only]
     /// Useful helper in tests; will reduce boilerplate.
     ///
     /// 1. Create an aggregator
@@ -209,10 +216,11 @@ module ramm_sui::test_util {
         id
     }
 
-    /// -------------------------------
-    /// Customized RAMM setup for tests
-    /// -------------------------------
+    // -------------------------------
+    // Customized RAMM setup for tests
+    // -------------------------------
 
+    #[test_only]
     /// Helper that creates 2-asset RAMM, and allows customization:
     /// * prices for each asset's aggregator
     /// * scaling factor for each price
@@ -229,6 +237,12 @@ module ramm_sui::test_util {
     ): (ID, ID, ID, test_scenario::Scenario) {
         let scenario_val = test_scenario::begin(sender);
         let scenario = &mut scenario_val;
+
+        // Create a clock for testing, and immediately share it to avoid
+        // `sui::transfer::ESharedNonNewObject`
+        let clock: Clock = clock::create_for_testing(test_scenario::ctx(scenario));
+        clock::share_for_testing(clock);
+        test_scenario::next_tx(scenario, sender);
 
         // Create RAMM
         {
@@ -258,6 +272,7 @@ module ramm_sui::test_util {
         // the RAMM, initialize it, etc
         let ramm_id = {
             let ramm = test_scenario::take_shared<RAMM>(scenario);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let rid = object::id(&ramm);
             let admin_cap = test_scenario::take_from_address<RAMMAdminCap>(scenario, sender);
             let new_asset_cap = test_scenario::take_from_address<RAMMNewAssetCap>(scenario, sender);
@@ -291,6 +306,7 @@ module ramm_sui::test_util {
                 );
                 interface2::liquidity_deposit_2<Asset1, Asset2>(
                     &mut ramm,
+                    &clock,
                     amount_in,
                     &aggr1,
                     &aggr2,
@@ -304,6 +320,7 @@ module ramm_sui::test_util {
                 );
                 interface2::liquidity_deposit_2<Asset2, Asset1>(
                     &mut ramm,
+                    &clock,
                     amount_in,
                     &aggr2,
                     &aggr1,
@@ -314,6 +331,7 @@ module ramm_sui::test_util {
             test_scenario::return_shared<Aggregator>(aggr1);
             test_scenario::return_shared<Aggregator>(aggr2);
             test_scenario::return_shared<RAMM>(ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_to_address<RAMMAdminCap>(sender, admin_cap);
             rid
         };
@@ -323,6 +341,7 @@ module ramm_sui::test_util {
         (ramm_id, aggr1_id, aggr2_id, scenario_val)
     }
 
+    #[test_only]
     /// Helper that creates 3-asset RAMM, and allows customization:
     /// * prices for each asset's aggregator
     /// * scaling factor for each price
@@ -339,6 +358,12 @@ module ramm_sui::test_util {
     ): (ID, ID, ID, ID, test_scenario::Scenario) {
         let scenario_val = test_scenario::begin(sender);
         let scenario = &mut scenario_val;
+
+        // Create a clock for testing, and immediately share it to avoid
+        // `sui::transfer::ESharedNonNewObject`
+        let clock: Clock = clock::create_for_testing(test_scenario::ctx(scenario));
+        clock::share_for_testing(clock);
+        test_scenario::next_tx(scenario, sender);
 
         // Create RAMM
         {
@@ -375,6 +400,7 @@ module ramm_sui::test_util {
         // the RAMM, initialize it, etc
         let ramm_id = {
             let ramm = test_scenario::take_shared<RAMM>(scenario);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let rid = object::id(&ramm);
             let admin_cap = test_scenario::take_from_address<RAMMAdminCap>(scenario, sender);
             let new_asset_cap = test_scenario::take_from_address<RAMMNewAssetCap>(scenario, sender);
@@ -417,6 +443,7 @@ module ramm_sui::test_util {
                 );
                 interface3::liquidity_deposit_3<Asset1, Asset2, Asset3>(
                     &mut ramm,
+                    &clock,
                     amount_in,
                     &aggr1,
                     &aggr2,
@@ -431,6 +458,7 @@ module ramm_sui::test_util {
                 );
                 interface3::liquidity_deposit_3<Asset2, Asset1, Asset3>(
                     &mut ramm,
+                    &clock,
                     amount_in,
                     &aggr2,
                     &aggr1,
@@ -445,6 +473,7 @@ module ramm_sui::test_util {
                 );
                 interface3::liquidity_deposit_3<Asset3, Asset1, Asset2>(
                     &mut ramm,
+                    &clock,
                     amount_in,
                     &aggr3,
                     &aggr1,
@@ -457,6 +486,7 @@ module ramm_sui::test_util {
             test_scenario::return_shared<Aggregator>(aggr2);
             test_scenario::return_shared<Aggregator>(aggr3);
             test_scenario::return_shared<RAMM>(ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_to_address<RAMMAdminCap>(sender, admin_cap);
             rid
         };
@@ -466,10 +496,11 @@ module ramm_sui::test_util {
         (ramm_id, aggr1_id, aggr2_id, aggr3_id, scenario_val)
     }
 
-    /// ------------------
-    /// Instantiated RAMMs
-    /// ------------------
+    // ------------------
+    // Instantiated RAMMs
+    // ------------------
 
+    #[test_only]
     /// Create a scenario with
     /// * a 2-asset BTC/ETH RAMM
     /// * valid prices and aggregators, and
@@ -503,6 +534,7 @@ module ramm_sui::test_util {
         )
     }
 
+    #[test_only]
     /// Create a scenario with
     /// * a 2-asset BTC/ETH RAMM
     /// * valid prices and aggregators, and
@@ -519,6 +551,7 @@ module ramm_sui::test_util {
         )
     }
 
+    #[test_only]
     /// Create a scenario with
     /// * a 2-asset BTC/ETH RAMM
     /// * valid prices and aggregators, and
@@ -535,6 +568,7 @@ module ramm_sui::test_util {
         )
     }
 
+    #[test_only]
     /// Another helper for tests - create a RAMM, add 3 assets to it, initialize it, and then
     /// return the scenario with the created objects.
     /// The specific assets don't matter, so they are fixed to be BTC, ETH, SOL,
@@ -577,6 +611,7 @@ module ramm_sui::test_util {
         )
     }
 
+    #[test_only]
     /// Does the same as `create_ramm_test_scenario_btc_eth_sol`, but adds initial liquidity
     /// to each of the BTC/ETH/SOL assets in the RAMM:
     /// 1. 10 BTC
@@ -596,6 +631,7 @@ module ramm_sui::test_util {
         )
     }
 
+    #[test_only]
     /// Does the same as `create_ramm_test_scenario_btc_eth_sol`, without initial liquidity
     /// for any of the BTC/ETH/SOL assets in the RAMM.
     public(friend) fun create_ramm_test_scenario_btc_eth_sol_no_liq(
@@ -612,10 +648,11 @@ module ramm_sui::test_util {
         )
     }
 
-    /// -------------------
-    /// Whitepaper examples
-    /// -------------------
+    // -------------------
+    // Whitepaper examples
+    // -------------------
 
+    #[test_only]
     /// Create an ETH/USDT pool with the parameters from the whitepaper's second
     /// practical example.
     public(friend) fun create_ramm_test_scenario_eth_usdt(sender: address): (ID, ID, ID, Scenario) {
@@ -645,6 +682,7 @@ module ramm_sui::test_util {
         )
     }
 
+    #[test_only]
     /// Create an ETH/MATIC/USDT pool with the parameters from the whitepaper's first
     /// practical example.
     public(friend) fun create_ramm_test_scenario_eth_matic_usdt(sender: address): (ID, ID, ID, ID, Scenario) {

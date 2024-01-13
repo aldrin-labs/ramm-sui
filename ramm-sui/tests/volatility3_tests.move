@@ -1,16 +1,19 @@
 #[test_only]
 module ramm_sui::volatility3_tests {
-
+    use sui::clock::{Self, Clock};
     use sui::coin::{Self, Coin};
     use sui::test_scenario::{Self, TransactionEffects};
     use sui::test_utils;
 
     use ramm_sui::interface3;
+    use ramm_sui::oracles;
     use ramm_sui::ramm::{Self, LP, RAMM};
     use ramm_sui::test_util::{Self, BTC, ETH, MATIC, USDT, SOL};
 
     use switchboard::aggregator::Aggregator;
 
+    const PRECISION_DECIMAL_PLACES: u8 = 12;
+    const PRICE_TIMESTAMP_STALENESS_THRESHOLD: u64 = 60 * 60 * 1000;
     const ONE: u256 = 1_000_000_000_000;
     const BASE_FEE: u256 = 10 * 1_000_000_000_000 / 10000;
     const PROTOCOL_FEE: u256 = 30 * 1_000_000_000_000 / 100;
@@ -48,13 +51,31 @@ module ramm_sui::volatility3_tests {
         test_scenario::next_tx(scenario, ADMIN);
 
         {
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let matic_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, matic_ag_id);
             let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
 
-            let (price_eth, scaling_eth, timestamp_eth) = ramm::get_price_from_oracle(&eth_aggr);
-            let (price_matic, scaling_matic, timestamp_matic) = ramm::get_price_from_oracle(&matic_aggr);
-            let (price_usdt, scaling_usdt, timestamp_usdt) = ramm::get_price_from_oracle(&usdt_aggr);
+            let current_timestamp: u64 = clock::timestamp_ms(&clock);
+
+            let (price_eth, scaling_eth, timestamp_eth) = oracles::get_price_from_oracle(
+                &eth_aggr,
+                current_timestamp,
+                PRICE_TIMESTAMP_STALENESS_THRESHOLD,
+                PRECISION_DECIMAL_PLACES
+                );
+            let (price_matic, scaling_matic, timestamp_matic) = oracles::get_price_from_oracle(
+                &matic_aggr,
+                current_timestamp,
+                PRICE_TIMESTAMP_STALENESS_THRESHOLD,
+                PRECISION_DECIMAL_PLACES
+            );
+            let (price_usdt, scaling_usdt, timestamp_usdt) = oracles::get_price_from_oracle(
+                &usdt_aggr,
+                current_timestamp,
+                PRICE_TIMESTAMP_STALENESS_THRESHOLD,
+                PRECISION_DECIMAL_PLACES
+            );
 
             // Check that the initial prices, price scaling factors, and price timestamps
             // all match their expected values.
@@ -98,6 +119,7 @@ module ramm_sui::volatility3_tests {
                 test_scenario::ctx(scenario)
             );
 
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(matic_aggr);
             test_scenario::return_shared<Aggregator>(usdt_aggr);
@@ -109,6 +131,7 @@ module ramm_sui::volatility3_tests {
 
         {
             let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let matic_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, matic_ag_id);
             let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
@@ -147,6 +170,7 @@ module ramm_sui::volatility3_tests {
             let amount_in = coin::mint_for_testing<USDT>((usdt_trade_amount as u64), test_scenario::ctx(scenario));
             interface3::trade_amount_in_3<USDT, ETH, MATIC>(
                 &mut ramm,
+                &clock,
                 amount_in,
                 4 * (test_util::eth_factor() as u64),
                 &usdt_aggr,
@@ -193,6 +217,7 @@ module ramm_sui::volatility3_tests {
             test_utils::assert_eq(ramm::get_collected_protocol_fees<USDT>(&ramm), (total_trade_fee as u64));
 
             test_scenario::return_shared<RAMM>(ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(matic_aggr);
             test_scenario::return_shared<Aggregator>(usdt_aggr);
@@ -236,13 +261,31 @@ module ramm_sui::volatility3_tests {
         test_scenario::next_tx(scenario, ADMIN);
 
         {
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let matic_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, matic_ag_id);
             let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
 
-            let (price_eth, scaling_eth, timestamp_eth) = ramm::get_price_from_oracle(&eth_aggr);
-            let (price_matic, scaling_matic, timestamp_matic) = ramm::get_price_from_oracle(&matic_aggr);
-            let (price_usdt, scaling_usdt, timestamp_usdt) = ramm::get_price_from_oracle(&usdt_aggr);
+            let current_timestamp: u64 = clock::timestamp_ms(&clock);
+
+            let (price_eth, scaling_eth, timestamp_eth) = oracles::get_price_from_oracle(
+                &eth_aggr,
+                current_timestamp,
+                PRICE_TIMESTAMP_STALENESS_THRESHOLD,
+                PRECISION_DECIMAL_PLACES
+                );
+            let (price_matic, scaling_matic, timestamp_matic) = oracles::get_price_from_oracle(
+                &matic_aggr,
+                current_timestamp,
+                PRICE_TIMESTAMP_STALENESS_THRESHOLD,
+                PRECISION_DECIMAL_PLACES
+            );
+            let (price_usdt, scaling_usdt, timestamp_usdt) = oracles::get_price_from_oracle(
+                &usdt_aggr,
+                current_timestamp,
+                PRICE_TIMESTAMP_STALENESS_THRESHOLD,
+                PRECISION_DECIMAL_PLACES
+            );
 
             // Check that the initial prices, price scaling factors, and price timestamps
             // all match their expected values.
@@ -286,6 +329,7 @@ module ramm_sui::volatility3_tests {
                 test_scenario::ctx(scenario)
             );
 
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(matic_aggr);
             test_scenario::return_shared<Aggregator>(usdt_aggr);
@@ -300,6 +344,7 @@ module ramm_sui::volatility3_tests {
         test_scenario::next_tx(scenario, ALICE);
         {
             let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let matic_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, matic_ag_id);
             let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
@@ -332,6 +377,7 @@ module ramm_sui::volatility3_tests {
             let max_ai = coin::mint_for_testing<USDT>((usdt_trade_amount as u64), test_scenario::ctx(scenario));
             interface3::trade_amount_out_3<USDT, ETH, MATIC>(
                 &mut ramm,
+                &clock,
                 5 * (test_util::eth_factor() as u64),
                 max_ai,
                 &usdt_aggr,
@@ -341,6 +387,7 @@ module ramm_sui::volatility3_tests {
             );
 
             test_scenario::return_shared<RAMM>(ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(matic_aggr);
             test_scenario::return_shared<Aggregator>(usdt_aggr);
@@ -428,13 +475,31 @@ module ramm_sui::volatility3_tests {
         test_scenario::next_tx(scenario, ADMIN);
         {
             let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let sol_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, sol_ag_id);
 
-            let (price_btc, scaling_btc, timestamp_btc) = ramm::get_price_from_oracle(&btc_aggr);
-            let (price_eth, scaling_eth, timestamp_eth) = ramm::get_price_from_oracle(&eth_aggr);
-            let (price_sol, scaling_sol, timestamp_sol) = ramm::get_price_from_oracle(&sol_aggr);
+            let current_timestamp: u64 = clock::timestamp_ms(&clock);
+
+            let (price_btc, scaling_btc, timestamp_btc) = oracles::get_price_from_oracle(
+                &btc_aggr,
+                current_timestamp,
+                PRICE_TIMESTAMP_STALENESS_THRESHOLD,
+                PRECISION_DECIMAL_PLACES
+                );
+            let (price_eth, scaling_eth, timestamp_eth) = oracles::get_price_from_oracle(
+                &eth_aggr,
+                current_timestamp,
+                PRICE_TIMESTAMP_STALENESS_THRESHOLD,
+                PRECISION_DECIMAL_PLACES
+            );
+            let (price_sol, scaling_sol, timestamp_sol) = oracles::get_price_from_oracle(
+                &sol_aggr,
+                current_timestamp,
+                PRICE_TIMESTAMP_STALENESS_THRESHOLD,
+                PRECISION_DECIMAL_PLACES
+            );
 
             //
             // First part of the test: pre-deposit, pre-aggregator checks
@@ -483,6 +548,7 @@ module ramm_sui::volatility3_tests {
             );
             interface3::liquidity_deposit_3<BTC, ETH, SOL>(
                 &mut ramm,
+                &clock,
                 amount_in,
                 &btc_aggr,
                 &eth_aggr,
@@ -544,6 +610,7 @@ module ramm_sui::volatility3_tests {
             );
             interface3::liquidity_deposit_3<ETH, BTC, SOL>(
                 &mut ramm,
+                &clock,
                 amount_in,
                 &eth_aggr,
                 &btc_aggr,
@@ -552,6 +619,7 @@ module ramm_sui::volatility3_tests {
             );
 
             test_scenario::return_shared<RAMM>(ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(btc_aggr);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(sol_aggr);
@@ -569,6 +637,7 @@ module ramm_sui::volatility3_tests {
         //
         {
             let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
 
             // Post-second-deposit volatility data checks
             test_utils::assert_eq(ramm::get_previous_price<BTC>(&ramm), 29_190_000_000_000);
@@ -604,6 +673,7 @@ module ramm_sui::volatility3_tests {
             test_scenario::return_to_address(ADMIN, lp_btc);
             test_scenario::return_to_address(ADMIN, lp_eth);
             test_scenario::return_shared<RAMM>(ramm);
+            test_scenario::return_shared<Clock>(clock);
         };
 
         test_scenario::end(scenario_val);
@@ -629,14 +699,31 @@ module ramm_sui::volatility3_tests {
         test_scenario::next_tx(scenario, ADMIN);
 
         {
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let sol_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, sol_ag_id);
 
-            let (price_btc, scaling_btc, timestamp_btc) = ramm::get_price_from_oracle(&btc_aggr);
-            let (price_eth, scaling_eth, timestamp_eth) = ramm::get_price_from_oracle(&eth_aggr);
-            let (price_sol, scaling_sol, timestamp_sol) = ramm::get_price_from_oracle(&sol_aggr);
+            let current_timestamp: u64 = clock::timestamp_ms(&clock);
 
+            let (price_btc, scaling_btc, timestamp_btc) = oracles::get_price_from_oracle(
+                &btc_aggr,
+                current_timestamp,
+                PRICE_TIMESTAMP_STALENESS_THRESHOLD,
+                PRECISION_DECIMAL_PLACES
+                );
+            let (price_eth, scaling_eth, timestamp_eth) = oracles::get_price_from_oracle(
+                &eth_aggr,
+                current_timestamp,
+                PRICE_TIMESTAMP_STALENESS_THRESHOLD,
+                PRECISION_DECIMAL_PLACES
+            );
+            let (price_sol, scaling_sol, timestamp_sol) = oracles::get_price_from_oracle(
+                &sol_aggr,
+                current_timestamp,
+                PRICE_TIMESTAMP_STALENESS_THRESHOLD,
+                PRECISION_DECIMAL_PLACES
+            );
             // Check that the initial prices, price scaling factors, and price timestamps
             // all match their expected values.
             test_utils::assert_eq(price_btc, 27_800_000_000_000);
@@ -679,6 +766,7 @@ module ramm_sui::volatility3_tests {
                 test_scenario::ctx(scenario)
             );
 
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(btc_aggr);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(sol_aggr);
@@ -692,6 +780,7 @@ module ramm_sui::volatility3_tests {
 
         {
             let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let sol_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, sol_ag_id);
@@ -715,6 +804,7 @@ module ramm_sui::volatility3_tests {
             let lp_btc: Coin<LP<BTC>> = test_scenario::take_from_address<Coin<LP<BTC>>>(scenario, ADMIN);
             interface3::liquidity_withdrawal_3<BTC, ETH, SOL, BTC>(
                 &mut ramm,
+                &clock,
                 lp_btc,
                 &btc_aggr,
                 &eth_aggr,
@@ -723,6 +813,7 @@ module ramm_sui::volatility3_tests {
             );
 
             test_scenario::return_shared<RAMM>(ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(btc_aggr);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(sol_aggr);

@@ -2,6 +2,7 @@
 module ramm_sui::interface2_tests {
     //use std::debug;
 
+    use sui::clock::Clock;
     use sui::coin::{Self, Coin};
     use sui::test_scenario::{Self, TransactionEffects};
     use sui::test_utils;
@@ -36,6 +37,7 @@ module ramm_sui::interface2_tests {
 
         let (total_usdt, usdt_trade_fees) : (u256, u256) = {
             let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
 
@@ -62,6 +64,7 @@ module ramm_sui::interface2_tests {
             let max_ai = coin::mint_for_testing<USDT>(41_000 * (test_util::usdt_factor() as u64), test_scenario::ctx(scenario));
             interface2::trade_amount_out_2<USDT, ETH>(
                 &mut ramm,
+                &clock,
                 (20 * test_util::eth_factor() as u64),
                 max_ai,
                 &usdt_aggr,
@@ -91,6 +94,7 @@ module ramm_sui::interface2_tests {
             test_utils::assert_eq(ramm::get_typed_lptokens_issued<USDT>(&ramm), 900_000 * test_util::usdt_factor());
 
             test_scenario::return_shared<RAMM>(ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(usdt_aggr);
 
@@ -112,6 +116,7 @@ module ramm_sui::interface2_tests {
 
         {
             let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
 
@@ -120,6 +125,7 @@ module ramm_sui::interface2_tests {
 
             interface2::liquidity_withdrawal_2<ETH, USDT, ETH>(
                 &mut ramm,
+                &clock,
                 lp_eth,
                 &eth_aggr,
                 &usdt_aggr,
@@ -127,6 +133,7 @@ module ramm_sui::interface2_tests {
             );
 
             test_scenario::return_shared<RAMM>(ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(usdt_aggr);
         };
@@ -137,6 +144,7 @@ module ramm_sui::interface2_tests {
         // Quick check of the funds returned to the admin after liquidity withdrawal.
         let fst_usdt_wthdrwl: u256 = {
             let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
 
@@ -149,6 +157,7 @@ module ramm_sui::interface2_tests {
             test_scenario::return_to_address(ADMIN, eth);
             test_scenario::return_to_address(ADMIN, usdt);
             test_scenario::return_shared<RAMM>(ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(usdt_aggr);
 
@@ -163,6 +172,7 @@ module ramm_sui::interface2_tests {
         let collected_usdt_liquidity_withdrawal_fees: u256 =
         {
             let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
 
@@ -171,6 +181,7 @@ module ramm_sui::interface2_tests {
 
             interface2::liquidity_withdrawal_2<ETH, USDT, USDT>(
                 &mut ramm,
+                &clock,
                 lp_usdt,
                 &eth_aggr,
                 &usdt_aggr,
@@ -180,6 +191,7 @@ module ramm_sui::interface2_tests {
             let usdt_fees = (ramm::get_collected_protocol_fees<USDT>(&ramm) as u256);
 
             test_scenario::return_shared<RAMM>(ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(usdt_aggr);
 
@@ -234,6 +246,7 @@ module ramm_sui::interface2_tests {
         // The pool is fresh, so all imbalance ratios are 1
         let eth_trade_fee: u256 = {
             let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
 
@@ -245,6 +258,7 @@ module ramm_sui::interface2_tests {
             let amount_in = coin::mint_for_testing<ETH>(eth_trade_amount, test_scenario::ctx(scenario));
             interface2::trade_amount_in_2<ETH, USDT>(
                 &mut ramm,
+                &clock,
                 amount_in,
                 16_000 * (test_util::usdt_factor() as u64),
                 &eth_aggr,
@@ -283,6 +297,7 @@ module ramm_sui::interface2_tests {
             );
 
             test_scenario::return_shared<RAMM>(ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(usdt_aggr);
 
@@ -357,6 +372,7 @@ module ramm_sui::interface2_tests {
         // First step: the admin withdraws the ETH they've provided to the pool
         let (initial_eth_balance, initial_usdt_balance): (u256, u256) = {
             let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
 
@@ -367,6 +383,7 @@ module ramm_sui::interface2_tests {
 
             interface2::liquidity_withdrawal_2<ETH, USDT, ETH>(
                 &mut ramm,
+                &clock,
                 lp_eth,
                 &eth_aggr,
                 &usdt_aggr,
@@ -383,6 +400,7 @@ module ramm_sui::interface2_tests {
             test_utils::assert_eq(ramm::get_lptokens_issued<ETH>(&ramm), 0);
 
             test_scenario::return_shared<RAMM>(ramm);
+            test_scenario::return_shared<Clock>(clock);
             test_scenario::return_shared<Aggregator>(eth_aggr);
             test_scenario::return_shared<Aggregator>(usdt_aggr);
 
