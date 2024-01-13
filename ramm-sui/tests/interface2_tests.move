@@ -110,7 +110,7 @@ module ramm_sui::interface2_tests {
 
         // Next part of the test:
         // The admin, who also happens to be a liquidity provider for the pool,
-        // wishes to exchange their 300 LPETH tokens.
+        // wishes to exchange their 500 LPETH tokens.
 
         test_scenario::next_tx(scenario, ADMIN);
 
@@ -143,23 +143,15 @@ module ramm_sui::interface2_tests {
 
         // Quick check of the funds returned to the admin after liquidity withdrawal.
         let fst_usdt_wthdrwl: u256 = {
-            let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
-            let clock = test_scenario::take_shared<Clock>(scenario);
-            let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
-            let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
-
             let eth = test_scenario::take_from_address<Coin<ETH>>(scenario, ADMIN);
             test_utils::assert_eq(coin::value(&eth), (47808 * test_util::eth_factor() / 100 as u64));
+
             let usdt = test_scenario::take_from_address<Coin<USDT>>(scenario, ADMIN);
             let first_usdt_wthdrwl: u256 = 39863_55571872;
             test_utils::assert_eq((coin::value(&usdt) as u256), first_usdt_wthdrwl);
 
             test_scenario::return_to_address(ADMIN, eth);
             test_scenario::return_to_address(ADMIN, usdt);
-            test_scenario::return_shared<RAMM>(ramm);
-            test_scenario::return_shared<Clock>(clock);
-            test_scenario::return_shared<Aggregator>(eth_aggr);
-            test_scenario::return_shared<Aggregator>(usdt_aggr);
 
             first_usdt_wthdrwl
         };

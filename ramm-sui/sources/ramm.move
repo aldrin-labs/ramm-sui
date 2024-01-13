@@ -6,7 +6,8 @@ module ramm_sui::ramm {
     use sui::balance::{Self, Balance, Supply};
     use sui::coin::{Self, Coin};
     use sui::object::{Self, ID, UID};
-    use sui::prover::{OWNED, SHARED};
+    // Sui Move Prover is being sunset: https://github.com/MystenLabs/sui/pull/15480
+    //use sui::prover::{OWNED, SHARED};
     use sui::transfer;
     use sui::tx_context::{Self, TxContext};
     use sui::vec_map::{Self, VecMap};
@@ -122,7 +123,8 @@ module ramm_sui::ramm {
     }
 
     spec transfer_admin_cap {
-        ensures global<object::Ownership>(object::uid_to_address(admin_cap.id)).status == OWNED;
+        // `sui::prover` no longer exports anything at all, so `OWNED` cannot be used.
+        //ensures global<object::Ownership>(object::uid_to_address(admin_cap.id)).status == OWNED;
         ensures global<object::Ownership>(object::uid_to_address(admin_cap.id)).owner == recipient;
     }
 
@@ -538,20 +540,21 @@ These would not work:
         // Verify that the RAMM is created
         ensures exists<object::Ownership>(object::id_to_address(result.ramm_id));
         // Verify that the RAMM is indeed made a shared object
-        ensures global<object::Ownership>(object::id_to_address(result.ramm_id)).status == SHARED;
+        // `sui::prover` no longer exports anything at all, so ``SHARED` cannot be used.
+        //ensures global<object::Ownership>(object::id_to_address(result.ramm_id)).status == SHARED;
 
         // Verify that the admin cap is created
         ensures exists<object::Ownership>(object::id_to_address(result.admin_cap_id));
         ensures [abstract] exists<RAMMAdminCap>(object::id_to_address(result.admin_cap_id));
         // Verify that the RAMM's admin cap is transferred to the RAMM creator
-        ensures global<object::Ownership>(object::id_to_address(result.admin_cap_id)).status == OWNED;
+        //ensures global<object::Ownership>(object::id_to_address(result.admin_cap_id)).status == OWNED;
         ensures global<object::Ownership>(object::id_to_address(result.admin_cap_id)).owner == tx_context::sender(ctx);
 
         // Verify that the new asset cap is created
         ensures exists<object::Ownership>(object::id_to_address(result.new_asset_cap_id));
         ensures [abstract] exists<RAMMNewAssetCap>(object::id_to_address(result.new_asset_cap_id));
         // Verify that the RAMM's new asset cap is transferred to the RAMM creator
-        ensures global<object::Ownership>(object::id_to_address(result.new_asset_cap_id)).status == OWNED;
+        //ensures global<object::Ownership>(object::id_to_address(result.new_asset_cap_id)).status == OWNED;
         ensures global<object::Ownership>(object::id_to_address(result.new_asset_cap_id)).owner == tx_context::sender(ctx);
     }
 
@@ -829,7 +832,7 @@ work well together
         // ------------------
 
         // Verify that the admin cap's ownership status and owner do not change with initialization
-        ensures [abstract] global<object::Ownership>(object::id_address(admin_cap)).status == OWNED;
+        //ensures [abstract] global<object::Ownership>(object::id_address(admin_cap)).status == OWNED;
         ensures
             global<object::Ownership>(object::id_address(admin_cap)).owner ==
             old(global<object::Ownership>(object::id_address(admin_cap)).owner);

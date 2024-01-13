@@ -49,6 +49,7 @@ module ramm_sui::interface3 {
     /// * If the RAMM has not minted any LP tokens for the inbound asset
     /// * If the RAMM's balance for the outgoing token is 0
     /// * If the aggregator for each asset doesn't match the address in the RAMM's records
+    /// * If any aggregator's price is older than a fixed staleness threshold
     public fun trade_amount_in_3<AssetIn, AssetOut, Other>(
         self: &mut RAMM,
         clock: &Clock,
@@ -241,6 +242,7 @@ module ramm_sui::interface3 {
     /// * If the amount being traded out is lower than the RAMM's minimum for the corresponding asset
     /// * If the RAMM's balance for the outgoing token is 0
     /// * If the aggregator for each asset doesn't match the address in the RAMM's records
+    /// * If any aggregator's price is older than a fixed staleness threshold
     public fun trade_amount_out_3<AssetIn, AssetOut, Other>(
         self: &mut RAMM,
         clock: &Clock,
@@ -439,6 +441,7 @@ module ramm_sui::interface3 {
     /// * If the amount being traded in is zero
     /// * If the RAMM does not contain any of the asset types provided
     /// * If the aggregator for each asset doesn't match the address in the RAMM's records
+    /// * If any aggregator's price is older than a fixed staleness threshold
     public fun liquidity_deposit_3<AssetIn, Other, Another>(
         self: &mut RAMM,
         clock: &Clock,
@@ -592,6 +595,7 @@ module ramm_sui::interface3 {
     /// * If the pool does not have the asset for which the withdrawal is being requested
     /// * If the RAMM does not contain any of the asset types provided
     /// * If the aggregator for each asset doesn't match the address in the RAMM's records
+    /// * If any aggregator's price is older than a fixed staleness threshold
     public fun liquidity_withdrawal_3<Asset1, Asset2, Asset3, AssetOut>(
         self: &mut RAMM,
         clock: &Clock,
