@@ -1,7 +1,10 @@
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-purple.svg)](https://www.gnu.org/licenses/agpl-3.0)
+
 # ramm-sui
 
-This repository hosts an implementation of the RAMM in Sui Move.
-Here is the whitepaper describing the Rebalancing Automated Market Maker: https://aldrin.com/RAMM-whitepaper.pdf
+This repository hosts an implementation of the Rebalancing Automated Market Maker, or RAMM, in Sui
+Move.
+Here is the whitepaper describing the RAMM: https://aldrin.com/RAMM-whitepaper.pdf
 
 At present, the repository contains the following:
 * 2 Sui Move packages:
@@ -778,3 +781,7 @@ Herein is the problem:
 1. In Sui Move, it is not possible to build structures with a dynamic number of type parameters
 2. Each class of RAMM protocols - 2 assets, 3, 4, and so on - will require its own code,
   - some of this code will need to be replicated for each pool size
+
+# License
+
+This project is distributed under [AGPL-3.0-only](LICENSE).
