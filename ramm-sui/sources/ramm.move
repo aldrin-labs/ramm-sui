@@ -116,6 +116,8 @@ module ramm_sui::ramm {
     /// does not (and should not) have the `store` ability, then it would be impossible to use
     /// `sui::transfer::{public_transfer, transfer}` to transfer the admin cap.
     ///
+    /// For more information, see the official Sui docs: https://docs.sui.io/concepts/dynamic-fields/transfers/custom-rules
+    ///
     /// Note that because the admin cap is passed in by value, only an address with prior ownership
     /// of an admin cap can transfer it to another address.
     public fun transfer_admin_cap(admin_cap: RAMMAdminCap, recipient: address) {
@@ -1154,6 +1156,22 @@ work well together
     public fun get_aggregator_address<Asset>(self: &RAMM): address {
         let ix = get_asset_index<Asset>(self);
         get_aggr_addr(self, ix)
+    }
+
+    /// Given a RAMM, the index of one of its assets and a new `Aggregator` address,
+    /// update the address of that asset's aggregator in the RAMM with the provided one.
+    ///
+    /// # Aborts
+    ///
+    /// If the provided index does not match any existing asset's.
+    fun set_aggr_addr(self: &mut RAMM, index: u8, new_addr: address) {
+        *vec_map::get_mut(&mut self.aggregator_addrs, &index) = new_addr;
+    }
+
+    /// Update the address of an asset's aggregator in the RAMM with the provided one.
+    fun set_aggregator_address<Asset>(self: &mut RAMM, new_addr: address) {
+        let ix = get_asset_index<Asset>(self);
+        set_aggr_addr(self, ix, new_addr);
     }
 
     /// Given a RAMM and the index of one of its assets, return the last previously recorded
