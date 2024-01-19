@@ -1,6 +1,7 @@
 module ramm_sui::ramm {
     use std::string::{Self, String};
     use std::type_name::{Self, TypeName};
+    use std::vector;
 
     use sui::bag::{Self, Bag};
     use sui::balance::{Self, Balance, Supply};
@@ -14,6 +15,7 @@ module ramm_sui::ramm {
 
     use switchboard::aggregator::{Self, Aggregator};
 
+    use ramm_sui::events;
     use ramm_sui::oracles;
     use ramm_sui::math as ramm_math;
 
@@ -250,7 +252,7 @@ module ramm_sui::ramm {
         // map between each asset's index and its most recently queried price, obtained
         // from the asset's `Aggregator`, whose address is in `aggregator_addrs`
         previous_prices: VecMap<u8, u256>,
-        // map between each asset's index and the timesstamp of its most recently queried price,
+        // map between each asset's index and the timestamp of its most recently queried price,
         previous_price_timestamps: VecMap<u8, u64>,
         // map between each asset's index and the highest recorded volatility index in
         // the last `TAU` seconds.
@@ -267,6 +269,9 @@ module ramm_sui::ramm {
 
         // Map from asset indexes, `u8`, to untyped balances, `u256`.
         // Both typed and untyped balances are required due to limitations with Sui Move.
+        //
+        // These balances are not scaled - they are `u256` representations of the `balance::value`
+        // of each asset's `Balance<T>`.
         balances: VecMap<u8, u256>,
         // Map from asset indexes `u8` to their respective balances, `Balance<T>`
         typed_balances: Bag,
@@ -279,6 +284,8 @@ module ramm_sui::ramm {
 
         // Map from asset indexes, `u8`, to untyped counts of issued LP tokens for that
         // asset, in `u256`.
+        //
+        // These balances do not have any scale applied to them, like what happens with `balances`.
         lp_tokens_issued: VecMap<u8, u256>,
         // Map from asset indices, `u8`, to LP token supply data - `Supply<T>`.
         // From `Supply<T>` it is possible to mint, burn and query issued tokens.
@@ -1545,6 +1552,33 @@ work well together
         // Verify that if a RAMM has been initialized, its new asset capability ID is deleted from
         // the structure.
         ensures [abstract] result ==> !exists<object::Ownership>(object::id_to_address(self.new_asset_cap_id));
+    }
+
+    /// Given a RAMM, emit an event to the network with the information:
+    /// 1. the types of the RAMM's assets
+    /// 2. the balances for each asset
+    /// 3. the number of issued LP tokens for each asset
+    public fun get_pool_state(
+        self: &RAMM,
+        ctx: &TxContext
+    ) {
+        let asset_types: vector<TypeName> = vec_map::keys(&self.types_to_indexes);
+
+        let i = 0;
+        let asset_balances: vector<u256> = vector::empty();
+        let asset_lpt_issued: vector<u256> = vector::empty();
+        while (i < self.asset_count) {
+            vector::push_back(&mut asset_balances, get_bal(self, i));
+            vector::push_back(&mut asset_lpt_issued, get_lptok_issued(self, i));
+        };
+
+        events::pool_state_event(
+            object::uid_to_inner(&self.id),
+            tx_context::sender(ctx),
+            asset_types,
+            asset_balances,
+            asset_lpt_issued
+        )
     }
 
     /// Given the type of asset in the RAMM, return the index used internally
