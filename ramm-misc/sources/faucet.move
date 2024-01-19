@@ -3,7 +3,7 @@ module ramm_misc::test_coin_faucet {
 
     use sui::bag::{Self, Bag};
     use sui::balance::{Self, Supply};
-    use sui::coin;
+    use sui::coin::{Self, Coin};
     use sui::object::{Self, UID};
     //use sui::sui::SUI;
     use sui::transfer;
@@ -41,18 +41,18 @@ module ramm_misc::test_coin_faucet {
     /// * a coin type `T` and an
     /// * amount of coins of that type to be minted,
     ///
-    /// do so and transfer ownership of the created `Coin<T>` object to the transaction's sender.
+    /// do so, and return the created `Coin` object for use in a PTB.
     ///
     /// # Aborts
     ///
     /// * If the provided coin type is not part of the `Faucet`'s `Bag`
     /// * if the amount provided would cause more than `u64::MAX` of type `Coin<T>` to be in
     ///   circulation
-    public fun mint_test_coins<T>(
+    public fun mint_test_coins_ptb<T>(
         faucet: &mut Faucet,
         amount: u64,
         ctx: &mut TxContext
-    ) {
+    ): Coin<T> {
         let coin_name = type_name::get<T>();
         assert!(
             bag::contains_with_type<TypeName, Supply<T>>(&faucet.coins, coin_name),
@@ -66,6 +66,29 @@ module ramm_misc::test_coin_faucet {
         let minted_balance = balance::increase_supply(mut_supply, amount);
 
         let coin = coin::from_balance(minted_balance, ctx);
+        
+        coin
+    }
+
+    /// Given
+    /// * a `Faucet`,
+    /// * a coin type `T` and an
+    /// * amount of coins of that type to be minted,
+    ///
+    /// do so and transfer ownership of the created `Coin<T>` object to the transaction's sender.
+    ///
+    /// # Aborts
+    ///
+    /// * If the provided coin type is not part of the `Faucet`'s `Bag`
+    /// * if the amount provided would cause more than `u64::MAX` of type `Coin<T>` to be in
+    ///   circulation
+    public fun mint_test_coins<T>(
+        faucet: &mut Faucet,
+        amount: u64,
+        ctx: &mut TxContext
+    ) {
+        let coin: Coin<T> = mint_test_coins_ptb(faucet, amount, ctx);
+
         transfer::public_transfer(
             coin,
             tx_context::sender(ctx)
