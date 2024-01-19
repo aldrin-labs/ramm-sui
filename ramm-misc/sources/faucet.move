@@ -11,8 +11,7 @@ module ramm_misc::test_coin_faucet {
 
     use ramm_misc::test_coins;
 
-    const ENoPermissions: u64 = 1;
-    const ENonexistentCoinType: u64 = 2;
+    const ENonexistentCoinType: u64 = 0;
 
     struct Faucet has key {
         id: UID,
