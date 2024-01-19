@@ -6,6 +6,7 @@ module ramm_sui::events {
     use sui::object::ID;
     use sui::vec_map::VecMap;
 
+    friend ramm_sui::ramm;
     friend ramm_sui::interface2;
     friend ramm_sui::interface3;
 
@@ -19,9 +20,38 @@ module ramm_sui::events {
 
     https://move-language.github.io/move/structs-and-resources.html#privileged-struct-operations
 
-    Event datatypes and functions could be kept in `ramm.move`, but it is also not harmful
-    to move them to a separate module, which is this one.
+    This would mean that, if we wanted to directly emit events from the `ramm` module, we would
+    have to define the event `struct`s in the `ramm` module itself - that module is already over
+    2000 lines long.
+
+    As such, they are defined here.
     */
+
+    struct PoolStateEvent has copy, drop {
+        ramm_id: ID,
+        sender: address,
+        asset_types: vector<TypeName>,
+        asset_balances: vector<u256>,
+        asset_lpt_issued: vector<u256>,
+    }
+
+    public(friend) fun pool_state_event(
+        ramm_id: ID,
+        sender: address,
+        asset_types: vector<TypeName>,
+        asset_balances: vector<u256>,
+        asset_lpt_issued: vector<u256>,
+    ) {
+        let pse = PoolStateEvent {
+            ramm_id,
+            sender,
+            asset_types,
+            asset_balances,
+            asset_lpt_issued,
+        };
+
+        event::emit(pse)
+    }
 
     /// Phantom type to mark a `TradeEvent` as the result of `trade_amount_in`
     struct TradeIn {}
