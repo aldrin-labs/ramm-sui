@@ -20,22 +20,22 @@ target_env = "testnet"
 ramm_pkg_addr_or_path = "../ramm-sui"
 #ramm_pkg_addr_or_path = "0x0a31987c7298a1cf416f0ab7793fa9b519143e2032f472f407b295108390420a"
 asset_count = 3
-fee_collection_address = "0x1fad963ac9311c5f99685bc430dc022a5b0d36f6860603495ca0a0e3a46dd120"
+fee_collection_address = "0x899b0e93970b774c2f007485f5812671eff5c84549741c76fc900e9aab857965"
 
 [[assets]]
-asset_type = "0x76a5ecf30b2cf49a342a9bd74a479702a1b321b0d45f06920618dbe7c2da52b1::test_coins::BTC"
+asset_type = "0x303e80a2d9dc0a2cbb6fc612d1f5cdc250420ea9e87488232f3ebc5d27e645d6::test_coins::BTC"
 aggregator_address = "0x7c30e48db7dfd6a2301795be6cb99d00c87782e2547cf0c63869de244cfc7e47"
 minimum_trade_amount = 10_000
 decimal_places = 8
 
 [[assets]]
-asset_type = "0x76a5ecf30b2cf49a342a9bd74a479702a1b321b0d45f06920618dbe7c2da52b1::test_coins::ETH"
+asset_type = "0x303e80a2d9dc0a2cbb6fc612d1f5cdc250420ea9e87488232f3ebc5d27e645d6::test_coins::ETH"
 aggregator_address = "0x68ed81c5dd07d12c629e5cdad291ca004a5cd3708d5659cb0b6bfe983e14778c"
 minimum_trade_amount = 100_000
 decimal_places = 8
 
 [[assets]]
-asset_type = "0x76a5ecf30b2cf49a342a9bd74a479702a1b321b0d45f06920618dbe7c2da52b1::test_coins::SOL"
+asset_type = "0x303e80a2d9dc0a2cbb6fc612d1f5cdc250420ea9e87488232f3ebc5d27e645d6::test_coins::SOL"
 aggregator_address = "0x35c7c241fa2d9c12cd2e3bcfa7d77192a58fd94e9d6f482465d5e3c8d91b4b43"
 minimum_trade_amount = 10_000_000
 decimal_places = 8
