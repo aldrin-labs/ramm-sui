@@ -1176,7 +1176,7 @@ work well together
     }
 
     /// Update the address of an asset's aggregator in the RAMM with the provided one.
-    fun set_aggregator_address<Asset>(self: &mut RAMM, new_addr: address) {
+    public fun set_aggregator_address<Asset>(self: &mut RAMM, new_addr: address) {
         let ix = get_asset_index<Asset>(self);
         set_aggr_addr(self, ix, new_addr);
     }
