@@ -67,9 +67,13 @@ module ramm_sui::oracles {
         latest_feed_timestamp: u64,
         staleness_threshold: u64,
     ) {
+        // The timestamp is in seconds, but the staleness threshold, as well as the clock's
+        // timestamp, are in milliseconds.
+        let latest_feed_timestamp_scaled = latest_feed_timestamp * 1000;
+
         // Recall that Sui Move will abort on underflow, so this is safe.
         assert!(
-            math::abs_diff_u64(current_clock_timestamp, latest_feed_timestamp) <= staleness_threshold,
+            math::abs_diff_u64(current_clock_timestamp, latest_feed_timestamp_scaled) <= staleness_threshold,
             EStalePrice
         );
     }
