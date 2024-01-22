@@ -20,9 +20,9 @@ module ramm_misc::test_coin_faucet {
     }
 
     /// Upon publication of this package, create a `Faucet` object with hardcoded coin types,
-    /// and transfer ownership to the package's publishing address.
+    /// and make it a shared object.
     ///
-    /// The coin phantom types are: `USDT, USDC, BTC, ETH, SOL`.
+    /// The coin phantom types are: `USDT, USDC, BTC, ETH, SOL, DOT, ADA`.
     fun init(
         ctx: &mut TxContext
     ) {
