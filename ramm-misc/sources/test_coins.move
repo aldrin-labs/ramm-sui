@@ -8,12 +8,14 @@ module ramm_misc::test_coins {
     friend ramm_misc::test_coin_faucet;
 
     // These coins below are the only ones for which a Switchboard Testnet feed exists
-    // as of 2023-06-30.
+    // as of 2024-01-22.
     struct USDT has drop {}
     struct USDC has drop {}
     struct ETH has drop {}
     struct BTC has drop {}
     struct SOL has drop {}
+    struct DOT has drop {}
+    struct ADA has drop {}
     //struct SUI has drop {}
 
     /// For every currently available `Aggregator` in the Sui testnet, create a `Supply` for it,
@@ -26,6 +28,8 @@ module ramm_misc::test_coins {
         bag::add(&mut coins, (type_name::get<ETH>()), balance::create_supply(ETH {}));
         bag::add(&mut coins, (type_name::get<BTC>()), balance::create_supply(BTC {}));
         bag::add(&mut coins, (type_name::get<SOL>()), balance::create_supply(SOL {}));
+        bag::add(&mut coins, (type_name::get<DOT>()), balance::create_supply(DOT {}));
+        bag::add(&mut coins, (type_name::get<ADA>()), balance::create_supply(ADA {}));
 
         coins
     }

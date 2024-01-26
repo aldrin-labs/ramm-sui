@@ -7,9 +7,6 @@ module ramm_misc::switchboard_feed_parser {
     use sui::object::{Self, UID};
     use sui::transfer;
 
-    const EAGGREGATOR_INFO_EXISTS:u64 = 0;
-    const ENO_AGGREGATOR_INFO_EXISTS:u64 = 1;
-
     /*
       Num 
       {

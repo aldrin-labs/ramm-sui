@@ -641,6 +641,12 @@ sui client object $AGGREGATOR_INFO
 The relevant information will be in the `latest_result, latest_result_scaling_factor`
 fields.
 
+### About Swtichboard timestamps
+
+Note that a Switchboard `Aggregator`'s price timestamp is in the Unix format, although
+measured in seconds, and not in milliseconds as is the case with e.g. Sui's global clock,
+at address `0x6`.
+
 ## On supporting variable-sized pools with a single implementation
 
 As of its release, Sui Move will not allow a single implementation of a
