@@ -320,41 +320,55 @@ module ramm_sui::interface2 {
         let trade_amount = (ramm::amount(&trade) as u64);
 
         let max_ai_u64: u64 = coin::value(&max_ai);
-        if (ramm::execute(&trade) && trade_amount <= max_ai_u64) {
-            let max_ai: Balance<AssetIn> = coin::into_balance(max_ai);
-            let amount_in: Balance<AssetIn> = balance::split(&mut max_ai, trade_amount);
-            let remainder = max_ai;
+        if (ramm::execute(&trade)) {
+            if (trade_amount <= max_ai_u64) {
+                let max_ai: Balance<AssetIn> = coin::into_balance(max_ai);
+                let amount_in: Balance<AssetIn> = balance::split(&mut max_ai, trade_amount);
+                let remainder = max_ai;
 
-            let fee: u64 = (ramm::protocol_fee(&trade) as u64);
-            let fee_bal: Balance<AssetIn> = balance::split(&mut amount_in, fee);
-            ramm::join_protocol_fees(self, i, fee_bal);
+                let fee: u64 = (ramm::protocol_fee(&trade) as u64);
+                let fee_bal: Balance<AssetIn> = balance::split(&mut amount_in, fee);
+                ramm::join_protocol_fees(self, i, fee_bal);
 
-            ramm::join_bal(self, i, (balance::value(&amount_in) as u256));
-            ramm::join_typed_bal(self, i, amount_in);
+                ramm::join_bal(self, i, (balance::value(&amount_in) as u256));
+                ramm::join_typed_bal(self, i, amount_in);
 
-            ramm::split_bal(self, o, (amount_out as u256));
-            let amnt_out: Balance<AssetOut> = ramm::split_typed_bal(self, o, amount_out);
-            let amnt_out: Coin<AssetOut> = coin::from_balance(amnt_out, ctx);
-            transfer::public_transfer(amnt_out, tx_context::sender(ctx));
+                ramm::split_bal(self, o, (amount_out as u256));
+                let amnt_out: Balance<AssetOut> = ramm::split_typed_bal(self, o, amount_out);
+                let amnt_out: Coin<AssetOut> = coin::from_balance(amnt_out, ctx);
+                transfer::public_transfer(amnt_out, tx_context::sender(ctx));
 
-            events::trade_event<TradeOut>(
-                ramm::get_id(self),
-                tx_context::sender(ctx),
-                type_name::get<AssetIn>(),
-                type_name::get<AssetOut>(),
-                trade_amount,
-                amount_out,
-                fee,
-                ramm::execute(&trade)
-            );
+                events::trade_event<TradeOut>(
+                    ramm::get_id(self),
+                    tx_context::sender(ctx),
+                    type_name::get<AssetIn>(),
+                    type_name::get<AssetOut>(),
+                    trade_amount,
+                    amount_out,
+                    fee,
+                    ramm::execute(&trade)
+                );
 
-            if (balance::value(&remainder) > 0) {
-                let remainder: Coin<AssetIn> = coin::from_balance(remainder, ctx);
-                transfer::public_transfer(remainder, tx_context::sender(ctx));
+                if (balance::value(&remainder) > 0) {
+                    let remainder: Coin<AssetIn> = coin::from_balance(remainder, ctx);
+                    transfer::public_transfer(remainder, tx_context::sender(ctx));
+                } else {
+                    balance::destroy_zero(remainder);
+                }
             } else {
-                balance::destroy_zero(remainder);
+                // In this case, `trade.execute` is true, but `trade.amount > max_ai`
+                transfer::public_transfer(max_ai, tx_context::sender(ctx));
+
+                events::trade_failure_event<TradeOut>(
+                    ramm::get_id(self),
+                    tx_context::sender(ctx),
+                    type_name::get<AssetIn>(),
+                    type_name::get<AssetOut>(),
+                    max_ai_u64,
+                    string::utf8(b"Trade not executed due to slippage tolerance.")
+                );
             }
-        } else if (!ramm::execute(&trade)) {
+        } else {
             transfer::public_transfer(max_ai, tx_context::sender(ctx));
 
             events::trade_failure_event<TradeOut>(
@@ -365,18 +379,7 @@ module ramm_sui::interface2 {
                 max_ai_u64,
                 ramm::message(&trade)
             );
-        // In this case, `trade.execute` is true, but `trade.amount > max_ai`
-        } else {
-            transfer::public_transfer(max_ai, tx_context::sender(ctx));
-
-            events::trade_failure_event<TradeOut>(
-                ramm::get_id(self),
-                tx_context::sender(ctx),
-                type_name::get<AssetIn>(),
-                type_name::get<AssetOut>(),
-                max_ai_u64,
-                string::utf8(b"Trade not executed due to slippage tolerance.")
-            );
+        
         };
 
         ramm::check_ramm_invariants_2<AssetIn, AssetOut>(self);
