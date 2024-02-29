@@ -662,6 +662,62 @@ module ramm_sui::ramm_tests {
 
     #[test]
     /// Check that setting a new address of an `Aggregator` works as intended.
+    fun set_aggregator_address_test() {
+        let scenario_val = test_scenario::begin(ADMIN);
+        let scenario = &mut scenario_val;
+
+        let fst_aggr_addr: address =
+                object::id_to_address(
+                    &test_util::create_write_share_aggregator(scenario, 2780245000000, 8, false, 100)
+                );
+        let snd_aggr_addr: address =
+            object::id_to_address(
+                &test_util::create_write_share_aggregator(scenario, 5, 8, false, 100)
+            );
+
+        test_scenario::next_tx(scenario, ADMIN);
+
+        // Create the RAMM
+        {
+            ramm::new_ramm(ADMIN, test_scenario::ctx(scenario));
+        };
+        test_scenario::next_tx(scenario, ADMIN);
+
+        // Retrieve RAMM and caps from storage, and add above assets to it
+        {
+            let admin_cap = test_scenario::take_from_address<RAMMAdminCap>(scenario, ADMIN);
+            let new_asset_cap = test_scenario::take_from_address<RAMMNewAssetCap>(scenario, ADMIN);
+            let ramm = test_scenario::take_shared<RAMM>(scenario);
+
+            // Add the asset with the address of the first created aggregator.
+            let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, object::id_from_address(fst_aggr_addr));
+
+            ramm::add_asset_to_ramm<BTC>(
+                &mut ramm,
+                &btc_aggr,
+                1000,
+                btc_dec_places(),
+                &admin_cap,
+                &new_asset_cap
+            );
+
+            test_utils::assert_eq(ramm::get_aggregator_address<BTC>(&ramm), fst_aggr_addr);
+            ramm::set_aggregator_address<BTC>(&mut ramm, &admin_cap, snd_aggr_addr);
+            test_utils::assert_eq(ramm::get_aggregator_address<BTC>(&ramm), snd_aggr_addr);
+
+            test_scenario::return_to_address<RAMMAdminCap>(ADMIN, admin_cap);
+            test_scenario::return_to_address<RAMMNewAssetCap>(ADMIN, new_asset_cap);
+            test_scenario::return_shared<Aggregator>(btc_aggr);
+            test_scenario::return_shared<RAMM>(ramm);
+        };
+
+        test_scenario::next_tx(scenario, ADMIN);
+
+        test_scenario::end(scenario_val);
+    }
+
+    #[test]
+    /// Check that setting a new address of an `Aggregator` works as intended.
     fun get_pool_state_test() {
         let (ramm_id, _, _, _, scenario_val) = test_util::create_ramm_test_scenario_eth_matic_usdt(ADMIN);
         let scenario = &mut scenario_val;
