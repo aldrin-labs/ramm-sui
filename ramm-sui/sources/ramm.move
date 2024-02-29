@@ -1176,7 +1176,9 @@ work well together
     }
 
     /// Update the address of an asset's aggregator in the RAMM with the provided one.
-    public fun set_aggregator_address<Asset>(self: &mut RAMM, new_addr: address) {
+    public fun set_aggregator_address<Asset>(self: &mut RAMM, admin_cap: &RAMMAdminCap, new_addr: address) {
+        assert!(self.admin_cap_id == object::id(admin_cap), ENotAdmin);
+
         let ix = get_asset_index<Asset>(self);
         set_aggr_addr(self, ix, new_addr);
     }
@@ -1564,12 +1566,16 @@ work well together
     ) {
         let asset_types: vector<TypeName> = vec_map::keys(&self.types_to_indexes);
 
+        // The vectors can't be `copy`ed, `vec_map::values` does not exist, and
+        // `vec_map::into_keys_values` shouldn't be used, as by traversing the balance vectors, it
+        // is certain the balances will be in the correct order.
         let i = 0;
         let asset_balances: vector<u256> = vector::empty();
         let asset_lpt_issued: vector<u256> = vector::empty();
         while (i < self.asset_count) {
             vector::push_back(&mut asset_balances, get_bal(self, i));
             vector::push_back(&mut asset_lpt_issued, get_lptok_issued(self, i));
+            i = i + 1;
         };
 
         events::pool_state_event(
@@ -2163,11 +2169,11 @@ work well together
         let ao: &mut u256 = &mut 0;
         let (_B, _L): (u256, u256) = compute_B_and_L(self, &prices, &factors_for_prices);
 
-        // Miguel's notes:
-        // The liquidity provider receives `0` token o.
-        // We continue the withdrawal with another token.
-
-        // This corresponds to Case 2 in the whitepaper's "Liquidity Withdrawal" section
+        // The liquidity provider receives `0` of token `o`.
+        // In the whitepaper's "Liquidity Withdrawal" section, this would be
+        // Case 2
+        // Recall that in this case, the "Case 1" step below is skipped, and the withdrawal
+        // continues with different tokens - see below.
         if (get_bal(self, o) == 0) {
             *ao = div(mul(lpt * FACTOR_LPT, _B), _L) / factor_o;
             *a_remaining = *ao;
@@ -2207,18 +2213,22 @@ work well together
                     let imb_ratio_o = vec_map::get_mut(&mut imb_ratios, &o);
                     // to avoid choosing token o again in the next steps
                     *imb_ratio_o = 0;
-                    // Withdrawal continued with different token
+                    // Withdrawal continued with different token, see below.
                 };
-            } else {
+            }
+            // Case 1.2
+            else {
                 *ao = div(bo, ro) / factor_o;
                 let amount_out_o: &mut u256 = vec_map::get_mut(&mut amounts_out, &o);
                 let fee_o: &mut u256 = vec_map::get_mut(&mut fees, &o);
                 let vol_fee_o: u256 = *vec_map::get(&volatility_fees, &o);
+                // Case 1.2.1
                 if (*ao <= get_bal(self, o)) {
                     *amount_out_o = *amount_out_o + *ao;
                     split_withdrawal_fee(amount_out_o, fee_o, vol_fee_o);
                     return WithdrawalOutput { amounts: amounts_out, fees, value: *ao, remaining: 0}
                 };
+                // Case 1.2.2
                 if (*ao > get_bal(self, o)) {
                     *amount_out_o = *amount_out_o + get_bal(self, o);
                     split_withdrawal_fee(amount_out_o, fee_o, vol_fee_o);
@@ -2226,13 +2236,13 @@ work well together
                     let imb_ratio_o = vec_map::get_mut(&mut imb_ratios, &o);
                     // to avoid choosing token o again in the next steps
                     *imb_ratio_o = 0;
-                    // Withdrawal continued with different token
+                    // Withdrawal continued with different token, see below.
                 };
             };
         };
 
+        // Potential case: withdrawal continued with different tokens
         *vec_map::get_mut(&mut imb_ratios, &o) = 0;
-
         let j: u8 = 0;
         while (j < get_asset_count(self)) {
             let max_imb_ratio: &mut u256 = &mut 0;
