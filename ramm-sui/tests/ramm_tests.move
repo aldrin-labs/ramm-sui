@@ -2,7 +2,7 @@
 module ramm_sui::ramm_tests {
     use std::option;
     use sui::object::{Self, ID};
-    use sui::test_scenario;
+    use sui::test_scenario::{Self, TransactionEffects};
     use sui::test_utils;
 
     use ramm_sui::ramm::{Self, RAMM, RAMMAdminCap, RAMMNewAssetCap};
@@ -656,6 +656,35 @@ module ramm_sui::ramm_tests {
         };
 
         test_scenario::next_tx(scenario, ADMIN);
+
+        test_scenario::end(scenario_val);
+    }
+
+    #[test]
+    /// Check that setting a new address of an `Aggregator` works as intended.
+    fun get_pool_state_test() {
+        let (ramm_id, _, _, _, scenario_val) = test_util::create_ramm_test_scenario_eth_matic_usdt(ADMIN);
+        let scenario = &mut scenario_val;
+
+        test_scenario::next_tx(scenario, ALICE);
+
+        {
+            let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
+
+            ramm::get_pool_state(&ramm, test_scenario::ctx(scenario));
+
+            test_scenario::return_shared<RAMM>(ramm);
+        };
+
+        let tx_fx: TransactionEffects = test_scenario::next_tx(scenario, ALICE);
+        // Verify that one user event was emitted - the pool state query.
+        //
+        // The Sui Move test framework does not currently allow inspection of a tx's emitted
+        // events, but simply verifying an event was emitted would have prevented a past bug:
+        //
+        // * due to an infinite loop in `get_pool_state`, the function never terminated, and
+        // no event was ever emitted due to transaction execution failure over exhausted resources.
+        test_utils::assert_eq(test_scenario::num_user_events(&tx_fx), 1);
 
         test_scenario::end(scenario_val);
     }
