@@ -1570,6 +1570,7 @@ work well together
         while (i < self.asset_count) {
             vector::push_back(&mut asset_balances, get_bal(self, i));
             vector::push_back(&mut asset_lpt_issued, get_lptok_issued(self, i));
+            i = i + 1;
         };
 
         events::pool_state_event(
