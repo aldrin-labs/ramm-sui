@@ -33,10 +33,12 @@ module ramm_sui::interface2 {
     /// The pool may have sufficient balance to perform the trade, but doing so
     /// would leave it unable to redeem a liquidity provider's LP tokens
     const ERAMMInsufBalForCirculatingLPToken: u64 = 5;
-    const ETradeAmountTooSmall: u64 = 6;
-    const ENotAdmin: u64 = 7;
-    const ELiqWthdrwLPTBurn: u64 = 8;
-    const EInvalidWithdrawal: u64 = 9;
+    const ESlippageToleranceExceeded: u64 = 6;
+    const ETradeCouldNotBeExecuted: u64 = 7;
+    const ETradeAmountTooSmall: u64 = 8;
+    const ENotAdmin: u64 = 9;
+    const ELiqWthdrwLPTBurn: u64 = 10;
+    const EInvalidWithdrawal: u64 = 11;
 
     /// Trading function for a RAMM with two (2) assets.
     ///
@@ -182,29 +184,10 @@ module ramm_sui::interface2 {
                     ramm::execute(&trade)
                 );
             } else {
-                // In this case, `trade.execute` is true, but `amount_out < min_ao`
-                transfer::public_transfer(amount_in, tx_context::sender(ctx));
-
-                events::trade_failure_event<TradeIn>(
-                    ramm::get_id(self),
-                    tx_context::sender(ctx),
-                    type_name::get<AssetIn>(),
-                    type_name::get<AssetOut>(),
-                    amount_in_u64,
-                    string::utf8(b"Trade not executed due to slippage tolerance.")
-                );
+                abort ESlippageToleranceExceeded
             }
         } else {
-            transfer::public_transfer(amount_in, tx_context::sender(ctx));
-
-            events::trade_failure_event<TradeIn>(
-                ramm::get_id(self),
-                tx_context::sender(ctx),
-                type_name::get<AssetIn>(),
-                type_name::get<AssetOut>(),
-                amount_in_u64,
-                ramm::message(&trade)
-            );
+            abort ETradeCouldNotBeExecuted
         };
 
         ramm::check_ramm_invariants_2<AssetIn, AssetOut>(self);
