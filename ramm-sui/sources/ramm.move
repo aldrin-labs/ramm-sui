@@ -1176,7 +1176,9 @@ work well together
     }
 
     /// Update the address of an asset's aggregator in the RAMM with the provided one.
-    public fun set_aggregator_address<Asset>(self: &mut RAMM, new_addr: address) {
+    public fun set_aggregator_address<Asset>(self: &mut RAMM, admin_cap: &RAMMAdminCap, new_addr: address) {
+        assert!(self.admin_cap_id == object::id(admin_cap), ENotAdmin);
+
         let ix = get_asset_index<Asset>(self);
         set_aggr_addr(self, ix, new_addr);
     }
