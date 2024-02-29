@@ -155,43 +155,45 @@ module ramm_sui::interface2 {
         ramm::check_trade_amount_out<AssetOut>(self, amount_out_u256);
 
         let amount_out_u64: u64 = (amount_out_u256 as u64);
-        if (ramm::execute(&trade) && amount_out_u64 >= min_ao) {
-            let amount_in: Balance<AssetIn> = coin::into_balance(amount_in);
+            if (ramm::execute(&trade)) {
+                if (amount_out_u64 >= min_ao) {
+                let amount_in: Balance<AssetIn> = coin::into_balance(amount_in);
 
-            let fee: u64 = (ramm::protocol_fee(&trade) as u64);
-            let fee_bal: Balance<AssetIn> = balance::split(&mut amount_in, fee);
-            ramm::join_protocol_fees(self, i, fee_bal);
+                let fee: u64 = (ramm::protocol_fee(&trade) as u64);
+                let fee_bal: Balance<AssetIn> = balance::split(&mut amount_in, fee);
+                ramm::join_protocol_fees(self, i, fee_bal);
 
-            ramm::join_bal(self, i, (balance::value(&amount_in) as u256));
-            ramm::join_typed_bal(self, i, amount_in);
+                ramm::join_bal(self, i, (balance::value(&amount_in) as u256));
+                ramm::join_typed_bal(self, i, amount_in);
 
-            ramm::split_bal(self, o, amount_out_u256);
-            let amnt_out: Balance<AssetOut> = ramm::split_typed_bal(self, o, amount_out_u64);
-            let amnt_out: Coin<AssetOut> = coin::from_balance(amnt_out, ctx);
-            transfer::public_transfer(amnt_out, tx_context::sender(ctx));
+                ramm::split_bal(self, o, amount_out_u256);
+                let amnt_out: Balance<AssetOut> = ramm::split_typed_bal(self, o, amount_out_u64);
+                let amnt_out: Coin<AssetOut> = coin::from_balance(amnt_out, ctx);
+                transfer::public_transfer(amnt_out, tx_context::sender(ctx));
 
-            events::trade_event<TradeIn>(
-                ramm::get_id(self),
-                tx_context::sender(ctx),
-                type_name::get<AssetIn>(),
-                type_name::get<AssetOut>(),
-                amount_in_u64,
-                amount_out_u64,
-                fee,
-                ramm::execute(&trade)
-            );
-        } else if (!ramm::execute(&trade)) {
-            transfer::public_transfer(amount_in, tx_context::sender(ctx));
+                events::trade_event<TradeIn>(
+                    ramm::get_id(self),
+                    tx_context::sender(ctx),
+                    type_name::get<AssetIn>(),
+                    type_name::get<AssetOut>(),
+                    amount_in_u64,
+                    amount_out_u64,
+                    fee,
+                    ramm::execute(&trade)
+                );
+            } else {
+                // In this case, `trade.execute` is true, but `amount_out < min_ao`
+                transfer::public_transfer(amount_in, tx_context::sender(ctx));
 
-            events::trade_failure_event<TradeIn>(
-                ramm::get_id(self),
-                tx_context::sender(ctx),
-                type_name::get<AssetIn>(),
-                type_name::get<AssetOut>(),
-                amount_in_u64,
-                ramm::message(&trade)
-            );
-        // In this case, `trade.execute` is true, but `amount_out < min_ao`
+                events::trade_failure_event<TradeIn>(
+                    ramm::get_id(self),
+                    tx_context::sender(ctx),
+                    type_name::get<AssetIn>(),
+                    type_name::get<AssetOut>(),
+                    amount_in_u64,
+                    string::utf8(b"Trade not executed due to slippage tolerance.")
+                );
+            }
         } else {
             transfer::public_transfer(amount_in, tx_context::sender(ctx));
 
@@ -201,7 +203,7 @@ module ramm_sui::interface2 {
                 type_name::get<AssetIn>(),
                 type_name::get<AssetOut>(),
                 amount_in_u64,
-                string::utf8(b"Trade not executed due to slippage tolerance.")
+                ramm::message(&trade)
             );
         };
 
