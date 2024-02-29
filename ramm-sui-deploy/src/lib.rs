@@ -288,7 +288,7 @@ pub async fn sign_and_execute_tx(
         .sign_secure(client_address, &tx_data, Intent::sui_transaction())
         .map_err(RAMMDeploymentError::TxSignatureError)?;
 
-    let tx = Transaction::from_data(tx_data, Intent::sui_transaction(), vec![signature]);
+    let tx = Transaction::from_data(tx_data, vec![signature]);
 
     sui_client
         .quorum_driver_api()
