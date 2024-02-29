@@ -1564,6 +1564,9 @@ work well together
     ) {
         let asset_types: vector<TypeName> = vec_map::keys(&self.types_to_indexes);
 
+        // The vectors can't be `copy`ed, `vec_map::values` does not exist, and
+        // `vec_map::into_keys_values` shouldn't be used, as by traversing the balance vectors, it
+        // is certain the balances will be in the correct order.
         let i = 0;
         let asset_balances: vector<u256> = vector::empty();
         let asset_lpt_issued: vector<u256> = vector::empty();
