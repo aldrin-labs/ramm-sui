@@ -1,7 +1,6 @@
 /// Public interface for 2-asset RAMMs.
 module ramm_sui::interface2 {
     use std::type_name::{Self, TypeName};
-    use std::string;
 
     use sui::balance::{Self, Balance};
     use sui::clock::{Self, Clock};
