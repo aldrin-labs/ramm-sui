@@ -33,10 +33,12 @@ module ramm_sui::interface3 {
     /// The pool may have sufficient balance to perform the trade, but doing so
     /// would leave it unable to redeem a liquidity provider's LP tokens
     const ERAMMInsufBalForCirculatingLPToken: u64 = 5;
-    const ETradeAmountTooSmall: u64 = 6;
-    const ENotAdmin: u64 = 7;
-    const ELiqWthdrwLPTBurn: u64 = 8;
-    const EInvalidWithdrawal: u64 = 9;
+    const ESlippageToleranceExceeded: u64 = 6;
+    const ETradeCouldNotBeExecuted: u64 = 7;
+    const ETradeAmountTooSmall: u64 = 8;
+    const ENotAdmin: u64 = 9;
+    const ELiqWthdrwLPTBurn: u64 = 10;
+    const EInvalidWithdrawal: u64 = 11;
 
     /// Trading function for a RAMM with three (3) assets.
     /// Used to deposit a given amount of asset `T_i`, in exchange for asset `T_o`.
@@ -178,54 +180,38 @@ module ramm_sui::interface3 {
         ramm::check_trade_amount_out<AssetOut>(self, amount_out_u256);
 
         let amount_out_u64: u64 = (amount_out_u256 as u64);
-        if (ramm::execute(&trade) && amount_out_u64 >= min_ao) {
-            let amount_in: Balance<AssetIn> = coin::into_balance(amount_in);
+        if (ramm::execute(&trade)) {
+            if (amount_out_u64 >= min_ao) {
+                let amount_in: Balance<AssetIn> = coin::into_balance(amount_in);
 
-            let fee: u64 = (ramm::protocol_fee(&trade) as u64);
-            let fee_bal: Balance<AssetIn> = balance::split(&mut amount_in, fee);
-            ramm::join_protocol_fees(self, i, fee_bal);
+                let fee: u64 = (ramm::protocol_fee(&trade) as u64);
+                let fee_bal: Balance<AssetIn> = balance::split(&mut amount_in, fee);
+                ramm::join_protocol_fees(self, i, fee_bal);
 
-            ramm::join_bal(self, i, (balance::value(&amount_in) as u256));
-            ramm::join_typed_bal(self, i, amount_in);
+                ramm::join_bal(self, i, (balance::value(&amount_in) as u256));
+                ramm::join_typed_bal(self, i, amount_in);
 
-            ramm::split_bal(self, o, amount_out_u256);
-            let amnt_out: Balance<AssetOut> = ramm::split_typed_bal(self, o, amount_out_u64);
-            let amnt_out: Coin<AssetOut> = coin::from_balance(amnt_out, ctx);
-            transfer::public_transfer(amnt_out, tx_context::sender(ctx));
+                ramm::split_bal(self, o, amount_out_u256);
+                let amnt_out: Balance<AssetOut> = ramm::split_typed_bal(self, o, amount_out_u64);
+                let amnt_out: Coin<AssetOut> = coin::from_balance(amnt_out, ctx);
+                transfer::public_transfer(amnt_out, tx_context::sender(ctx));
 
-            events::trade_event<TradeIn>(
-                ramm::get_id(self),
-                tx_context::sender(ctx),
-                type_name::get<AssetIn>(),
-                type_name::get<AssetOut>(),
-                amount_in_u64,
-                amount_out_u64,
-                fee,
-                ramm::execute(&trade)
-            );
-        } else if (!ramm::execute(&trade)) {
-            transfer::public_transfer(amount_in, tx_context::sender(ctx));
-
-            events::trade_failure_event<TradeIn>(
-                ramm::get_id(self),
-                tx_context::sender(ctx),
-                type_name::get<AssetIn>(),
-                type_name::get<AssetOut>(),
-                amount_in_u64,
-                ramm::message(&trade)
-            );
-        // In this case, `trade.execute` is true, but `amount_out < min_ao`
+                events::trade_event<TradeIn>(
+                    ramm::get_id(self),
+                    tx_context::sender(ctx),
+                    type_name::get<AssetIn>(),
+                    type_name::get<AssetOut>(),
+                    amount_in_u64,
+                    amount_out_u64,
+                    fee,
+                    ramm::execute(&trade)
+                );
+            } else {
+                // In this case, `trade.execute` is true, but `amount_out < min_ao`
+                abort ESlippageToleranceExceeded
+            }
         } else {
-            transfer::public_transfer(amount_in, tx_context::sender(ctx));
-
-            events::trade_failure_event<TradeIn>(
-                ramm::get_id(self),
-                tx_context::sender(ctx),
-                type_name::get<AssetIn>(),
-                type_name::get<AssetOut>(),
-                amount_in_u64,
-                string::utf8(b"Trade not executed due to slippage tolerance.")
-            );
+            abort ETradeCouldNotBeExecuted
         };
 
         ramm::check_ramm_invariants_3<AssetIn, AssetOut, Other>(self);
