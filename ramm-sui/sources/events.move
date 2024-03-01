@@ -27,7 +27,7 @@ module ramm_sui::events {
     As such, they are defined here.
     */
 
-    struct PoolStateEvent has copy, drop {
+    public struct PoolStateEvent has copy, drop {
         ramm_id: ID,
         sender: address,
         asset_types: vector<TypeName>,
@@ -54,16 +54,16 @@ module ramm_sui::events {
     }
 
     /// Phantom type to mark a `TradeEvent` as the result of `trade_amount_in`
-    struct TradeIn {}
+    public struct TradeIn {}
     /// Phantom type to mark a `TradeEvent` as the result of `trade_amount_out`
-    struct TradeOut {}
+    public struct TradeOut {}
 
     /// Datatype used to emit, to the Sui blockchain, information on a successful trade.
     ///
     /// A phantom type is used to mark whether it's the result of a call to `trade_amount_in`
     /// (selling an exact amount of an asset to the RAMM), or to `trade_amount_out` (buying
     /// an exact amount of an asset from the RAMM).
-    struct TradeEvent<phantom TradeType> has copy, drop {
+    public struct TradeEvent<phantom TradeType> has copy, drop {
         ramm_id: ID,
         trader: address,
         token_in: TypeName,
@@ -105,7 +105,7 @@ module ramm_sui::events {
     /// A phantom type is used to mark whether it's the result of a call to `trade_amount_in`
     /// (selling an exact amount of an asset to the RAMM), or to `trade_amount_out` (buying
     /// an exact amount of an asset from the RAMM).
-    struct TradeFailure<phantom TradeType> has copy, drop {
+    public struct TradeFailure<phantom TradeType> has copy, drop {
         ramm_id: ID,
         trader: address,
         token_in: TypeName,
@@ -137,7 +137,7 @@ module ramm_sui::events {
     }
 
     /// Datatype used to emit, to the Sui blockchain, information on a successful liquidity deposit.
-    struct LiquidityDepositEvent has copy, drop {
+    public struct LiquidityDepositEvent has copy, drop {
         ramm_id: ID,
         trader: address,
         token_in: TypeName,
@@ -166,7 +166,7 @@ module ramm_sui::events {
     }
 
     /// Datatype describing a Sui event for a given RAMM's liquidity withdrawal.
-    struct LiquidityWithdrawalEvent has copy, drop {
+    public struct LiquidityWithdrawalEvent has copy, drop {
         ramm_id: ID,
         trader: address,
         token_out: TypeName,
@@ -198,7 +198,7 @@ module ramm_sui::events {
     }
 
     /// Datatype describing a Sui event for a given RAMM's fee collection.
-    struct FeeCollectionEvent has copy, drop {
+    public struct FeeCollectionEvent has copy, drop {
         ramm_id: ID,
         admin: address,
         fee_collector: address,

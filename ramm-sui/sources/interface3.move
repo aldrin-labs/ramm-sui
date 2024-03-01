@@ -41,6 +41,7 @@ module ramm_sui::interface3 {
     const EInvalidWithdrawal: u64 = 12;
 
     /// Trading function for a RAMM with three (3) assets.
+    ///
     /// Used to deposit a given amount of asset `T_i`, in exchange for asset `T_o`.
     ///
     /// # Aborts
@@ -79,9 +80,9 @@ module ramm_sui::interface3 {
         let oth = ramm::get_asset_index<Other>(self);
 
         let current_timestamp: u64 = clock::timestamp_ms(clock);
-        let new_prices = vec_map::empty<u8, u256>();
-        let factors_for_prices = vec_map::empty<u8, u256>();
-        let new_price_timestamps = vec_map::empty<u8, u64>();
+        let mut new_prices = vec_map::empty<u8, u256>();
+        let mut factors_for_prices = vec_map::empty<u8, u256>();
+        let mut new_price_timestamps = vec_map::empty<u8, u64>();
         ramm::check_feed_and_get_price_data(
             self,
             current_timestamp,
@@ -182,7 +183,7 @@ module ramm_sui::interface3 {
         let amount_out_u64: u64 = (amount_out_u256 as u64);
         if (ramm::execute(&trade)) {
             if (amount_out_u64 >= min_ao) {
-                let amount_in: Balance<AssetIn> = coin::into_balance(amount_in);
+                let mut amount_in: Balance<AssetIn> = coin::into_balance(amount_in);
 
                 let fee: u64 = (ramm::protocol_fee(&trade) as u64);
                 let fee_bal: Balance<AssetIn> = balance::split(&mut amount_in, fee);
@@ -257,9 +258,9 @@ module ramm_sui::interface3 {
         ramm::check_trade_amount_out<AssetOut>(self, (amount_out as u256));
 
         let current_timestamp: u64 = clock::timestamp_ms(clock);
-        let new_prices = vec_map::empty<u8, u256>();
-        let factors_for_prices = vec_map::empty<u8, u256>();
-        let new_price_timestamps = vec_map::empty<u8, u64>();
+        let mut new_prices = vec_map::empty<u8, u256>();
+        let mut factors_for_prices = vec_map::empty<u8, u256>();
+        let mut new_price_timestamps = vec_map::empty<u8, u64>();
         ramm::check_feed_and_get_price_data(
             self,
             current_timestamp,
@@ -359,8 +360,8 @@ module ramm_sui::interface3 {
         let max_ai_u64: u64 = coin::value(&max_ai);
         if (ramm::execute(&trade)) {
             if (trade_amount <= max_ai_u64) {
-                let max_ai: Balance<AssetIn> = coin::into_balance(max_ai);
-                let amount_in: Balance<AssetIn> = balance::split(&mut max_ai, trade_amount);
+                let mut max_ai: Balance<AssetIn> = coin::into_balance(max_ai);
+                let mut amount_in: Balance<AssetIn> = balance::split(&mut max_ai, trade_amount);
                 let remainder = max_ai;
 
                 let fee: u64 = (ramm::protocol_fee(&trade) as u64);
@@ -431,9 +432,9 @@ module ramm_sui::interface3 {
         let anoth = ramm::get_asset_index<Another>(self);
 
         let current_timestamp: u64 = clock::timestamp_ms(clock);
-        let new_prices = vec_map::empty<u8, u256>();
-        let factors_for_prices = vec_map::empty<u8, u256>();
-        let new_price_timestamps = vec_map::empty<u8, u64>();
+        let mut new_prices = vec_map::empty<u8, u256>();
+        let mut factors_for_prices = vec_map::empty<u8, u256>();
+        let mut new_price_timestamps = vec_map::empty<u8, u64>();
         ramm::check_feed_and_get_price_data(
             self,
             current_timestamp,
@@ -579,9 +580,9 @@ module ramm_sui::interface3 {
         let o   = ramm::get_asset_index<AssetOut>(self);
 
         let current_timestamp: u64 = clock::timestamp_ms(clock);
-        let new_prices = vec_map::empty<u8, u256>();
-        let factors_for_prices = vec_map::empty<u8, u256>();
-        let new_price_timestamps = vec_map::empty<u8, u64>();
+        let mut new_prices = vec_map::empty<u8, u256>();
+        let mut factors_for_prices = vec_map::empty<u8, u256>();
+        let mut new_price_timestamps = vec_map::empty<u8, u64>();
         ramm::check_feed_and_get_price_data(
             self,
             current_timestamp,
@@ -624,7 +625,7 @@ module ramm_sui::interface3 {
             self, trd, *vec_map::get(&new_prices, &trd), *vec_map::get(&new_price_timestamps, &trd)
         );
 
-        let volatility_fees: VecMap<u8, u256> = vec_map::empty();
+        let mut volatility_fees: VecMap<u8, u256> = vec_map::empty();
         vec_map::insert(&mut volatility_fees, fst, fst_vol_fee);
         vec_map::insert(&mut volatility_fees, snd, snd_vol_fee);
         vec_map::insert(&mut volatility_fees, trd, trd_vol_fee);
@@ -686,7 +687,7 @@ module ramm_sui::interface3 {
         };
 
         let burn_amount: u64 = (*lpt_amount as u64);
-        let lp_token: Balance<LP<AssetOut>> = coin::into_balance(lp_token);
+        let mut lp_token: Balance<LP<AssetOut>> = coin::into_balance(lp_token);
         let burn_tokens: Balance<LP<AssetOut>> = balance::split(&mut lp_token, burn_amount);
         // Update RAMM's untyped count of LP tokens for outgoing asset
         ramm::decr_lptokens_issued<AssetOut>(self, burn_amount);
@@ -734,8 +735,8 @@ module ramm_sui::interface3 {
 
         // Build required data structures for liquidity withdrawal event emission.
 
-        let amounts_out_u64: VecMap<TypeName, u64> = vec_map::empty();
-        let fees_u64: VecMap<TypeName, u64> = vec_map::empty();
+        let mut amounts_out_u64: VecMap<TypeName, u64> = vec_map::empty();
+        let mut fees_u64: VecMap<TypeName, u64> = vec_map::empty();
         vec_map::insert(&mut amounts_out_u64, type_name::get<Asset1>(), (*vec_map::get(&amounts_out, &fst) as u64));
         vec_map::insert(&mut fees_u64, type_name::get<Asset1>(), (*vec_map::get(&fees, &fst) as u64));
         if (vec_map::contains(&amounts_out, &snd)) {
@@ -788,7 +789,7 @@ module ramm_sui::interface3 {
         let value_snd: u64 = coin::value(&snd);
         let value_trd: u64 = coin::value(&trd);
 
-        let collected_fees: VecMap<TypeName, u64> = vec_map::empty();
+        let mut collected_fees: VecMap<TypeName, u64> = vec_map::empty();
         vec_map::insert(&mut collected_fees, type_name::get<Asset1>(), value_fst);
         vec_map::insert(&mut collected_fees, type_name::get<Asset2>(), value_snd);
         vec_map::insert(&mut collected_fees, type_name::get<Asset3>(), value_trd);

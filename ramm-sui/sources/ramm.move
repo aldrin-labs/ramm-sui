@@ -103,13 +103,13 @@ module ramm_sui::ramm {
     /// of a liquidity provider.
     ///
     /// The parameter `Asset` is for the coin held in the pool.
-    struct LP<phantom Asset> has drop, store {}
+    public struct LP<phantom Asset> has drop, store {}
 
     /// Admin capability to circumvent restricted actions on the RAMM pool:
     /// * transfer RAMM protocol fees out of the pool,
     /// * enable/disable deposits for a certain asset
     /// * etc.
-    struct RAMMAdminCap has key { id: UID }
+    public struct RAMMAdminCap has key { id: UID }
 
     /// Transfer a RAMM's admin capability to another address.
     ///
@@ -140,7 +140,7 @@ module ramm_sui::ramm {
     /// function like `transfer_admin_cap`, and it does not have `store` either.
     /// This is by design, as it is not intended for a RAMM to be created and remain without assets
     /// for long, and disallowing transfer of this cap disincentivizes delays.
-    struct RAMMNewAssetCap has key { id: UID }
+    public struct RAMMNewAssetCap has key { id: UID }
 
     /// RAMM data structure, allows
     /// * adding/removing liquidity for one of its assets
@@ -171,7 +171,7 @@ module ramm_sui::ramm {
     /// any further operations.
     ///
     /// See this repository's README for more information.
-    struct RAMM has key {
+    public struct RAMM has key {
         // UID of a `RAMM` object. Required for `RAMM` to have the `key` ability,
         // and ergo become a shared object.
         id: UID,
@@ -313,7 +313,7 @@ These would not work:
     ///   as well as the fee to be levied on the inbound asset
     /// * in the case of an asset withdrawal, the amount of the inbound asset is specified,
     ///   as well as the fee to be levied on the inbound asset
-    struct TradeOutput has drop {
+    public struct TradeOutput has drop {
         amount: u256,
         protocol_fee: u256,
         execute_trade: bool,
@@ -359,7 +359,7 @@ These would not work:
     /// * the value of liquidity withdrawal fee applied to each asset, 0.4% of the amount
     /// * the total value of the redeemed tokens
     /// * the remaining value
-    struct WithdrawalOutput has drop {
+    public struct WithdrawalOutput has drop {
         amounts: VecMap<u8, u256>,
         fees: VecMap<u8, u256>,
         value: u256,
@@ -441,7 +441,7 @@ These would not work:
     ///
     /// These data are required to use PTBs to then interact with the created RAMM,
     /// using the API in this module.
-    struct NewRAMMIDs has copy, drop {
+    public struct NewRAMMIDs has copy, drop {
         ramm_id: ID,
         admin_cap_id: ID,
         new_asset_cap_id: ID,
@@ -766,7 +766,7 @@ work well together
             ERAMMInvalidInitState
         );
 
-        let ix = 0;
+        let mut ix = 0;
         while ({
             // This loop invariant is trivial, but it is needed to prove below that
             // if this function terminates, it does not change the RAMM's asset count.
@@ -1569,9 +1569,9 @@ work well together
         // The vectors can't be `copy`ed, `vec_map::values` does not exist, and
         // `vec_map::into_keys_values` shouldn't be used, as by traversing the balance vectors, it
         // is certain the balances will be in the correct order.
-        let i = 0;
-        let asset_balances: vector<u256> = vector::empty();
-        let asset_lpt_issued: vector<u256> = vector::empty();
+        let mut i = 0;
+        let mut asset_balances: vector<u256> = vector::empty();
+        let mut asset_lpt_issued: vector<u256> = vector::empty();
         while (i < self.asset_count) {
             vector::push_back(&mut asset_balances, get_bal(self, i));
             vector::push_back(&mut asset_lpt_issued, get_lptok_issued(self, i));
@@ -2152,20 +2152,20 @@ work well together
     ): WithdrawalOutput {
         let lpt: u256 = (lpt as u256);
 
-        let amounts_out = vec_map::empty<u8, u256>();
+        let mut amounts_out = vec_map::empty<u8, u256>();
         // Required to initialize this `VecMap` to zeroes, or `liquidity_withdrawal`
         // will fail.
-        let t: u8 = 0;
+        let mut t: u8 = 0;
         while (t < get_asset_count(self)) {
             vec_map::insert(&mut amounts_out, t, 0);
             t = t + 1;
         };
-        let fees: VecMap<u8, u256> = copy amounts_out;
+        let mut fees: VecMap<u8, u256> = copy amounts_out;
 
         let a_remaining: &mut u256 = &mut 0;
         let factor_o: u256 = get_fact_for_bal(self, o);
         let bo: u256 = get_typed_bal<AssetOut>(self, o) * factor_o;
-        let imb_ratios: VecMap<u8, u256> = imbalance_ratios(self, &prices, &factors_for_prices);
+        let mut imb_ratios: VecMap<u8, u256> = imbalance_ratios(self, &prices, &factors_for_prices);
         let ao: &mut u256 = &mut 0;
         let (_B, _L): (u256, u256) = compute_B_and_L(self, &prices, &factors_for_prices);
 
@@ -2243,12 +2243,12 @@ work well together
 
         // Potential case: withdrawal continued with different tokens
         *vec_map::get_mut(&mut imb_ratios, &o) = 0;
-        let j: u8 = 0;
+        let mut j: u8 = 0;
         while (j < get_asset_count(self)) {
             let max_imb_ratio: &mut u256 = &mut 0;
             let index: &mut u8 = &mut copy o;
 
-            let l: u8 = 0;
+            let mut l: u8 = 0;
             while (l < get_asset_count(self)) {
                 if (*max_imb_ratio < *vec_map::get(&imb_ratios, &l)) {
                     *index = l;
