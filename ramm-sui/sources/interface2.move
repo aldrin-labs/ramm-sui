@@ -340,29 +340,10 @@ module ramm_sui::interface2 {
                 }
             } else {
                 // In this case, `trade.execute` is true, but `trade.amount > max_ai`
-                transfer::public_transfer(max_ai, tx_context::sender(ctx));
-
-                events::trade_failure_event<TradeOut>(
-                    ramm::get_id(self),
-                    tx_context::sender(ctx),
-                    type_name::get<AssetIn>(),
-                    type_name::get<AssetOut>(),
-                    max_ai_u64,
-                    string::utf8(b"Trade not executed due to slippage tolerance.")
-                );
+                abort ESlippageToleranceExceeded
             }
         } else {
-            transfer::public_transfer(max_ai, tx_context::sender(ctx));
-
-            events::trade_failure_event<TradeOut>(
-                ramm::get_id(self),
-                tx_context::sender(ctx),
-                type_name::get<AssetIn>(),
-                type_name::get<AssetOut>(),
-                max_ai_u64,
-                ramm::message(&trade)
-            );
-        
+            abort ETradeCouldNotBeExecuted
         };
 
         ramm::check_ramm_invariants_2<AssetIn, AssetOut>(self);
