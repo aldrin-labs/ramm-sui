@@ -136,35 +136,6 @@ module ramm_sui::events {
         )
     }
 
-    /// Datatype used to emit, to the Sui blockchain, information on a failed liquidity deposit.
-    ///
-    /// This could occur when e.g. the RAMM has no issued tokens for an asset, or no balance
-    /// with which to satisfy the redemption.
-    struct LiquidityDepositFailureEvent has copy, drop {
-        ramm_id: ID,
-        trader: address,
-        token_in: TypeName,
-        amount_in: u64,
-    }
-
-    /// Given all the information necessary to identify a given RAMM's failed liquidity deposit event,
-    /// emit it.
-    public(friend) fun liquidity_deposit_failure_event(
-        ramm_id: ID,
-        trader: address,
-        token_in: TypeName,
-        amount_in: u64,
-    ) {
-        event::emit(
-            LiquidityDepositFailureEvent {
-                ramm_id,
-                trader,
-                token_in,
-                amount_in,
-            }
-        )
-    }
-
     /// Datatype used to emit, to the Sui blockchain, information on a successful liquidity deposit.
     struct LiquidityDepositEvent has copy, drop {
         ramm_id: ID,
