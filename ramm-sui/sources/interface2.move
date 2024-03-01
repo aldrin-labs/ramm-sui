@@ -37,8 +37,9 @@ module ramm_sui::interface2 {
     const ETradeCouldNotBeExecuted: u64 = 7;
     const ETradeAmountTooSmall: u64 = 8;
     const ENotAdmin: u64 = 9;
-    const ELiqWthdrwLPTBurn: u64 = 10;
-    const EInvalidWithdrawal: u64 = 11;
+    const ELiqDepYieldedNoLPTokens: u64 = 10;
+    const ELiqWthdrwLPTBurn: u64 = 11;
+    const EInvalidWithdrawal: u64 = 12;
 
     /// Trading function for a RAMM with two (2) assets.
     ///
@@ -438,12 +439,7 @@ module ramm_sui::interface2 {
         */
 
         if (lpt == 0) {
-            let amount_in_u64: u64 = coin::value(&amount_in);
-            transfer::public_transfer(amount_in, tx_context::sender(ctx));
-
-            events::liquidity_deposit_failure_event(
-                ramm::get_id(self), tx_context::sender(ctx), type_name::get<AssetIn>(), amount_in_u64
-            );
+            abort ELiqDepYieldedNoLPTokens
         } else {
             let amount_in_u64: u64 = coin::value(&amount_in);
             let amount_in: Balance<AssetIn> = coin::into_balance(amount_in);
