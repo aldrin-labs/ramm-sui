@@ -576,7 +576,7 @@ These would not work:
         use sui::test_scenario;
 
         let admin = @0xA1;
-        let scenario_val = test_scenario::begin(admin);
+        let mut scenario_val = test_scenario::begin(admin);
         let scenario = &mut scenario_val;
         {
             new_ramm(admin, test_scenario::ctx(scenario));
