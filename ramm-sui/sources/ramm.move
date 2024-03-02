@@ -1962,8 +1962,10 @@ work well together
         let _W: VecMap<u8, u256> = weights(self, &new_prices, &factors_for_prices);
         let wi: u256 = *vec_map::get(&_W, &i);
         let wo: u256 = *vec_map::get(&_W, &o);
-        let leverage: &mut u256 = &mut BASE_LEVERAGE;
-        let trading_fee: &mut u256 = &mut BASE_FEE;
+        let leverage: &mut u256;
+        *leverage = BASE_LEVERAGE;
+        let trading_fee: &mut u256;
+        *trading_fee = BASE_FEE;
 
         if (get_typed_lptok_issued<AssetOut>(self, o) != 0 && get_typed_bal<AssetIn>(self, i) != 0) {
             let imbs = imbalance_ratios(self, &new_prices, &factors_for_prices);
@@ -2046,9 +2048,11 @@ work well together
 
         let _W: VecMap<u8, u256> = weights(self, &prices, &factors_for_prices);
         let wi: u256 = *vec_map::get(&_W, &i);
-        let wo: u256 = *vec_map::get(&_W, &o);
-        let leverage: &mut u256 = &mut BASE_LEVERAGE;
-        let trading_fee: &mut u256 = &mut BASE_FEE;
+        let wo: u256 = *vec_map::get(&_W, &o)
+        let leverage: &mut u256;
+        *leverage = BASE_LEVERAGE;
+        let trading_fee: &mut u256;
+        *trading_fee = BASE_FEE;
 
         if (get_typed_lptok_issued<AssetOut>(self, o) != 0 && get_typed_bal<AssetIn>(self, i) != 0) {
             let imbs = imbalance_ratios(self, &prices, &factors_for_prices);
