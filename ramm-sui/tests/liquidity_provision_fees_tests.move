@@ -76,7 +76,7 @@ module ramm_sui::liquidity_provision_fees_tests {
         admin_address: address,
         max_iterations: u64
     ) {
-        let (ramm_id, eth_ag_id, usdt_ag_id, mut scenario_val) = test_util::create_ramm_test_scenario_eth_usdt(admin_address);
+        let (ramm_id, eth_ag_id, usdt_ag_id, scenario_val) = test_util::create_ramm_test_scenario_eth_usdt(admin_address);
         let scenario = &mut scenario_val;
 
         test_scenario::next_tx(scenario, ALICE);
@@ -85,14 +85,14 @@ module ramm_sui::liquidity_provision_fees_tests {
         // printing the RAMM's balances after each trade, if the trade's ordinal is a power of two
 
         {
-            let mut ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
+            let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
             let clock = test_scenario::take_shared<Clock>(scenario);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
 
             let eth_amnt = (10 * test_util::eth_factor() as u64);
             let usdt_amnt = (20_000 * test_util::usdt_factor() as u64);
-            let mut i: u64 = 1;
+            let i: u64 = 1;
             while (i <= max_iterations) {
                 let amount_in = coin::mint_for_testing<ETH>(eth_amnt, test_scenario::ctx(scenario));
                 interface2::trade_amount_in_2<ETH, USDT>(
@@ -140,7 +140,7 @@ module ramm_sui::liquidity_provision_fees_tests {
         test_scenario::next_tx(scenario, admin_address);
 
         {
-            let mut ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
+            let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
             let clock = test_scenario::take_shared<Clock>(scenario);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
@@ -200,7 +200,7 @@ module ramm_sui::liquidity_provision_fees_tests {
         test_scenario::next_tx(scenario, admin_address);
 
         {
-            let mut ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
+            let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
             let admin_cap: RAMMAdminCap = test_scenario::take_from_address<RAMMAdminCap>(scenario, admin_address);
 
             interface2::collect_fees_2<ETH, USDT>(

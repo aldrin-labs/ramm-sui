@@ -27,7 +27,7 @@ module ramm_sui::interface2_tests {
     /// 2. Next, a redemption of every LPETH token by a provider
     /// 3. Finally, a redemption of every LPUSDT token by a provider
     fun liquidity_withdrawal_2_test() {
-        let (ramm_id, eth_ag_id, usdt_ag_id, mut scenario_val) = test_util::create_ramm_test_scenario_eth_usdt(ADMIN);
+        let (ramm_id, eth_ag_id, usdt_ag_id, scenario_val) = test_util::create_ramm_test_scenario_eth_usdt(ADMIN);
         let scenario = &mut scenario_val;
 
         // First part of the test: a trader, Alice, wishes to buy 20 ETH
@@ -36,7 +36,7 @@ module ramm_sui::interface2_tests {
         test_scenario::next_tx(scenario, ALICE);
 
         let (total_usdt, usdt_trade_fees) : (u256, u256) = {
-            let mut ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
+            let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
             let clock = test_scenario::take_shared<Clock>(scenario);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
@@ -115,7 +115,7 @@ module ramm_sui::interface2_tests {
         test_scenario::next_tx(scenario, ADMIN);
 
         {
-            let mut ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
+            let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
             let clock = test_scenario::take_shared<Clock>(scenario);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
@@ -163,7 +163,7 @@ module ramm_sui::interface2_tests {
 
         let collected_usdt_liquidity_withdrawal_fees: u256 =
         {
-            let mut ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
+            let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
             let clock = test_scenario::take_shared<Clock>(scenario);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
@@ -220,7 +220,7 @@ module ramm_sui::interface2_tests {
     ///   protocol fees from this trade, and 0 of any other asset.
     /// * futhermore, the RAMM's fees should be null after the collection
     fun collect_fees_2_test_1() {
-        let (ramm_id, eth_ag_id, usdt_ag_id, mut scenario_val) = test_util::create_ramm_test_scenario_eth_usdt(ADMIN);
+        let (ramm_id, eth_ag_id, usdt_ag_id, scenario_val) = test_util::create_ramm_test_scenario_eth_usdt(ADMIN);
         let scenario = &mut scenario_val;
 
         let eth_trade_amount: u64 = 10 * (test_util::eth_factor() as u64);
@@ -237,7 +237,7 @@ module ramm_sui::interface2_tests {
         // Trade: 10 ETH in, roughly 20k USDT out
         // The pool is fresh, so all imbalance ratios are 1
         let eth_trade_fee: u256 = {
-            let mut ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
+            let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
             let clock = test_scenario::take_shared<Clock>(scenario);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
@@ -302,7 +302,7 @@ module ramm_sui::interface2_tests {
         // Next step: collect the RAMM fees to the collection address (in this case, the admin's)
 
         {
-            let mut ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
+            let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
             let admin_cap = test_scenario::take_from_address<RAMMAdminCap>(scenario, ADMIN);
 
             interface2::collect_fees_2<ETH, USDT>(
@@ -351,7 +351,7 @@ module ramm_sui::interface2_tests {
     ///   protocol fees from this withdrawal, and 0 of any other asset.
     /// * futhermore, the RAMM's fees should be null after the collection
     fun collect_fees_2_test_2() {
-        let (ramm_id, eth_ag_id, usdt_ag_id, mut scenario_val) = test_util::create_ramm_test_scenario_eth_usdt(ADMIN);
+        let (ramm_id, eth_ag_id, usdt_ag_id, scenario_val) = test_util::create_ramm_test_scenario_eth_usdt(ADMIN);
         let scenario = &mut scenario_val;
 
         let prec: u8 = test_util::eth_dec_places();
@@ -363,7 +363,7 @@ module ramm_sui::interface2_tests {
 
         // First step: the admin withdraws the ETH they've provided to the pool
         let (initial_eth_balance, initial_usdt_balance): (u256, u256) = {
-            let mut ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
+            let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
             let clock = test_scenario::take_shared<Clock>(scenario);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
@@ -404,7 +404,7 @@ module ramm_sui::interface2_tests {
 
         // Second step: the admin performs the fee collection
         {
-            let mut ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
+            let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
             let admin_cap = test_scenario::take_from_address<RAMMAdminCap>(scenario, ADMIN);
 
             interface2::collect_fees_2<ETH, USDT>(
