@@ -205,10 +205,10 @@ module ramm_sui::math_tests {
         prices_decimal_places: u8,
         balances_decimal_places: u8
     ): VecMap<u8, u256> {
-        let balances = vec_map::empty<u8, u256>();
-        let prices = vec_map::empty<u8, u256>();
-        let factors_prices = vec_map::empty<u8, u256>();
-        let factors_balances = vec_map::empty<u8, u256>();
+        let mut balances = vec_map::empty<u8, u256>();
+        let mut prices = vec_map::empty<u8, u256>();
+        let mut factors_prices = vec_map::empty<u8, u256>();
+        let mut factors_balances = vec_map::empty<u8, u256>();
 
         vec_map::insert(&mut balances, 0, bal_0);
         vec_map::insert(&mut prices, 0, 1_800_000_000_000);
@@ -279,11 +279,11 @@ module ramm_sui::math_tests {
         bal_2: u256,
         prices_decimal_places: u8,
     ): (VecMap<u8, u256>, VecMap<u8, u256>, VecMap<u8, u256>, VecMap<u8, u256>, VecMap<u8, u256>,) {
-        let balances = vec_map::empty<u8, u256>();
-        let lp_tokens_issued = vec_map::empty<u8, u256>();
-        let prices = vec_map::empty<u8, u256>();
-        let factors_prices = vec_map::empty<u8, u256>();
-        let factors_balances = vec_map::empty<u8, u256>();
+        let mut balances = vec_map::empty<u8, u256>();
+        let mut lp_tokens_issued = vec_map::empty<u8, u256>();
+        let mut prices = vec_map::empty<u8, u256>();
+        let mut factors_prices = vec_map::empty<u8, u256>();
+        let mut factors_balances = vec_map::empty<u8, u256>();
 
         vec_map::insert(&mut balances, 0, bal_0);
         vec_map::insert(&mut lp_tokens_issued, 0, 200 * test_util::eth_factor());
@@ -597,7 +597,7 @@ module ramm_sui::math_tests {
             MAX_PRECISION_DECIMAL_PLACES,
         );
 
-        let new_balances: VecMap<u8, u256> = copy prev_balances;
+        let mut new_balances: VecMap<u8, u256> = copy prev_balances;
         vec_map::remove(&mut new_balances, &i);
         vec_map::insert(&mut new_balances, i, new_eth);
         vec_map::remove(&mut new_balances, &o);
@@ -719,7 +719,7 @@ module ramm_sui::math_tests {
             MAX_PRECISION_DECIMAL_PLACES,
         );
 
-        let new_balances: VecMap<u8, u256> = copy prev_balances;
+        let mut new_balances: VecMap<u8, u256> = copy prev_balances;
         vec_map::remove(&mut new_balances, &i);
         vec_map::insert(&mut new_balances, i, new_eth);
         vec_map::remove(&mut new_balances, &o);
@@ -840,7 +840,7 @@ module ramm_sui::math_tests {
             MAX_PRECISION_DECIMAL_PLACES,
         );
 
-        let new_balances: VecMap<u8, u256> = copy prev_balances;
+        let mut new_balances: VecMap<u8, u256> = copy prev_balances;
         vec_map::remove(&mut new_balances, &i);
         vec_map::insert(&mut new_balances, i, new_usdt);
         vec_map::remove(&mut new_balances, &o);
@@ -964,7 +964,7 @@ module ramm_sui::math_tests {
             MAX_PRECISION_DECIMAL_PLACES,
         );
 
-        let new_balances: VecMap<u8, u256> = copy prev_balances;
+        let mut new_balances: VecMap<u8, u256> = copy prev_balances;
         vec_map::remove(&mut new_balances, &i);
         vec_map::insert(&mut new_balances, i, new_usdt);
         vec_map::remove(&mut new_balances, &o);
@@ -1070,7 +1070,7 @@ module ramm_sui::math_tests {
         let new_usdt = 27_418_571 * test_util::usdt_factor() / 100;
         let ao: u256 = prev_usdt - new_usdt;
 
-        let (balances, lp_tokens_issued, prices, factors_prices, factors_balances) =
+        let (mut balances, lp_tokens_issued, prices, factors_prices, factors_balances) =
             imbalance_ratios(prev_eth, 200_000 * test_util::matic_factor(), prev_usdt, 9);
 
         let before_imbs = ramm_math::imbalance_ratios(
