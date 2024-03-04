@@ -1,7 +1,6 @@
 /// Public interface for 2-asset RAMMs.
 module ramm_sui::interface2 {
     use std::type_name::{Self, TypeName};
-    use std::string;
 
     use sui::balance::{Self, Balance};
     use sui::clock::{Self, Clock};
@@ -33,10 +32,13 @@ module ramm_sui::interface2 {
     /// The pool may have sufficient balance to perform the trade, but doing so
     /// would leave it unable to redeem a liquidity provider's LP tokens
     const ERAMMInsufBalForCirculatingLPToken: u64 = 5;
-    const ETradeAmountTooSmall: u64 = 6;
-    const ENotAdmin: u64 = 7;
-    const ELiqWthdrwLPTBurn: u64 = 8;
-    const EInvalidWithdrawal: u64 = 9;
+    const ESlippageToleranceExceeded: u64 = 6;
+    const ETradeCouldNotBeExecuted: u64 = 7;
+    const ETradeAmountTooSmall: u64 = 8;
+    const ENotAdmin: u64 = 9;
+    const ELiqDepYieldedNoLPTokens: u64 = 10;
+    const ELiqWthdrwLPTBurn: u64 = 11;
+    const EInvalidWithdrawal: u64 = 12;
 
     /// Trading function for a RAMM with two (2) assets.
     ///
@@ -75,9 +77,9 @@ module ramm_sui::interface2 {
         ramm::check_trade_amount_in<AssetIn>(self, (coin::value(&amount_in) as u256));
 
         let current_timestamp: u64 = clock::timestamp_ms(clock);
-        let new_prices = vec_map::empty<u8, u256>();
-        let factors_for_prices = vec_map::empty<u8, u256>();
-        let new_price_timestamps = vec_map::empty<u8, u64>();
+        let mut new_prices = vec_map::empty<u8, u256>();
+        let mut factors_for_prices = vec_map::empty<u8, u256>();
+        let mut new_price_timestamps = vec_map::empty<u8, u64>();
         ramm::check_feed_and_get_price_data(
             self,
             current_timestamp,
@@ -155,54 +157,37 @@ module ramm_sui::interface2 {
         ramm::check_trade_amount_out<AssetOut>(self, amount_out_u256);
 
         let amount_out_u64: u64 = (amount_out_u256 as u64);
-        if (ramm::execute(&trade) && amount_out_u64 >= min_ao) {
-            let amount_in: Balance<AssetIn> = coin::into_balance(amount_in);
+            if (ramm::execute(&trade)) {
+                if (amount_out_u64 >= min_ao) {
+                let mut amount_in: Balance<AssetIn> = coin::into_balance(amount_in);
 
-            let fee: u64 = (ramm::protocol_fee(&trade) as u64);
-            let fee_bal: Balance<AssetIn> = balance::split(&mut amount_in, fee);
-            ramm::join_protocol_fees(self, i, fee_bal);
+                let fee: u64 = (ramm::protocol_fee(&trade) as u64);
+                let fee_bal: Balance<AssetIn> = balance::split(&mut amount_in, fee);
+                ramm::join_protocol_fees(self, i, fee_bal);
 
-            ramm::join_bal(self, i, (balance::value(&amount_in) as u256));
-            ramm::join_typed_bal(self, i, amount_in);
+                ramm::join_bal(self, i, (balance::value(&amount_in) as u256));
+                ramm::join_typed_bal(self, i, amount_in);
 
-            ramm::split_bal(self, o, amount_out_u256);
-            let amnt_out: Balance<AssetOut> = ramm::split_typed_bal(self, o, amount_out_u64);
-            let amnt_out: Coin<AssetOut> = coin::from_balance(amnt_out, ctx);
-            transfer::public_transfer(amnt_out, tx_context::sender(ctx));
+                ramm::split_bal(self, o, amount_out_u256);
+                let amnt_out: Balance<AssetOut> = ramm::split_typed_bal(self, o, amount_out_u64);
+                let amnt_out: Coin<AssetOut> = coin::from_balance(amnt_out, ctx);
+                transfer::public_transfer(amnt_out, tx_context::sender(ctx));
 
-            events::trade_event<TradeIn>(
-                ramm::get_id(self),
-                tx_context::sender(ctx),
-                type_name::get<AssetIn>(),
-                type_name::get<AssetOut>(),
-                amount_in_u64,
-                amount_out_u64,
-                fee,
-                ramm::execute(&trade)
-            );
-        } else if (!ramm::execute(&trade)) {
-            transfer::public_transfer(amount_in, tx_context::sender(ctx));
-
-            events::trade_failure_event<TradeIn>(
-                ramm::get_id(self),
-                tx_context::sender(ctx),
-                type_name::get<AssetIn>(),
-                type_name::get<AssetOut>(),
-                amount_in_u64,
-                ramm::message(&trade)
-            );
-        // In this case, `trade.execute` is true, but `amount_out < min_ao`
+                events::trade_event<TradeIn>(
+                    ramm::get_id(self),
+                    tx_context::sender(ctx),
+                    type_name::get<AssetIn>(),
+                    type_name::get<AssetOut>(),
+                    amount_in_u64,
+                    amount_out_u64,
+                    fee,
+                    ramm::execute(&trade)
+                );
+            } else {
+                abort ESlippageToleranceExceeded
+            }
         } else {
-            transfer::public_transfer(amount_in, tx_context::sender(ctx));
-
-            events::trade_failure_event<TradeIn>(
-                ramm::get_id(self),
-                tx_context::sender(ctx),
-                type_name::get<AssetIn>(),
-                type_name::get<AssetOut>(),
-                amount_in_u64,
-                string::utf8(b"Trade not executed due to slippage tolerance.")
-            );
+            abort ETradeCouldNotBeExecuted
         };
 
         ramm::check_ramm_invariants_2<AssetIn, AssetOut>(self);
@@ -245,9 +230,9 @@ module ramm_sui::interface2 {
         ramm::check_trade_amount_out<AssetOut>(self, (amount_out as u256));
 
         let current_timestamp: u64 = clock::timestamp_ms(clock);
-        let new_prices = vec_map::empty<u8, u256>();
-        let factors_for_prices = vec_map::empty<u8, u256>();
-        let new_price_timestamps = vec_map::empty<u8, u64>();
+        let mut new_prices = vec_map::empty<u8, u256>();
+        let mut factors_for_prices = vec_map::empty<u8, u256>();
+        let mut new_price_timestamps = vec_map::empty<u8, u64>();
         ramm::check_feed_and_get_price_data(
             self,
             current_timestamp,
@@ -318,63 +303,47 @@ module ramm_sui::interface2 {
         let trade_amount = (ramm::amount(&trade) as u64);
 
         let max_ai_u64: u64 = coin::value(&max_ai);
-        if (ramm::execute(&trade) && trade_amount <= max_ai_u64) {
-            let max_ai: Balance<AssetIn> = coin::into_balance(max_ai);
-            let amount_in: Balance<AssetIn> = balance::split(&mut max_ai, trade_amount);
-            let remainder = max_ai;
+        if (ramm::execute(&trade)) {
+            if (trade_amount <= max_ai_u64) {
+                let mut max_ai: Balance<AssetIn> = coin::into_balance(max_ai);
+                let mut amount_in: Balance<AssetIn> = balance::split(&mut max_ai, trade_amount);
+                let remainder = max_ai;
 
-            let fee: u64 = (ramm::protocol_fee(&trade) as u64);
-            let fee_bal: Balance<AssetIn> = balance::split(&mut amount_in, fee);
-            ramm::join_protocol_fees(self, i, fee_bal);
+                let fee: u64 = (ramm::protocol_fee(&trade) as u64);
+                let fee_bal: Balance<AssetIn> = balance::split(&mut amount_in, fee);
+                ramm::join_protocol_fees(self, i, fee_bal);
 
-            ramm::join_bal(self, i, (balance::value(&amount_in) as u256));
-            ramm::join_typed_bal(self, i, amount_in);
+                ramm::join_bal(self, i, (balance::value(&amount_in) as u256));
+                ramm::join_typed_bal(self, i, amount_in);
 
-            ramm::split_bal(self, o, (amount_out as u256));
-            let amnt_out: Balance<AssetOut> = ramm::split_typed_bal(self, o, amount_out);
-            let amnt_out: Coin<AssetOut> = coin::from_balance(amnt_out, ctx);
-            transfer::public_transfer(amnt_out, tx_context::sender(ctx));
+                ramm::split_bal(self, o, (amount_out as u256));
+                let amnt_out: Balance<AssetOut> = ramm::split_typed_bal(self, o, amount_out);
+                let amnt_out: Coin<AssetOut> = coin::from_balance(amnt_out, ctx);
+                transfer::public_transfer(amnt_out, tx_context::sender(ctx));
 
-            events::trade_event<TradeOut>(
-                ramm::get_id(self),
-                tx_context::sender(ctx),
-                type_name::get<AssetIn>(),
-                type_name::get<AssetOut>(),
-                trade_amount,
-                amount_out,
-                fee,
-                ramm::execute(&trade)
-            );
+                events::trade_event<TradeOut>(
+                    ramm::get_id(self),
+                    tx_context::sender(ctx),
+                    type_name::get<AssetIn>(),
+                    type_name::get<AssetOut>(),
+                    trade_amount,
+                    amount_out,
+                    fee,
+                    ramm::execute(&trade)
+                );
 
-            if (balance::value(&remainder) > 0) {
-                let remainder: Coin<AssetIn> = coin::from_balance(remainder, ctx);
-                transfer::public_transfer(remainder, tx_context::sender(ctx));
+                if (balance::value(&remainder) > 0) {
+                    let remainder: Coin<AssetIn> = coin::from_balance(remainder, ctx);
+                    transfer::public_transfer(remainder, tx_context::sender(ctx));
+                } else {
+                    balance::destroy_zero(remainder);
+                }
             } else {
-                balance::destroy_zero(remainder);
+                // In this case, `trade.execute` is true, but `trade.amount > max_ai`
+                abort ESlippageToleranceExceeded
             }
-        } else if (!ramm::execute(&trade)) {
-            transfer::public_transfer(max_ai, tx_context::sender(ctx));
-
-            events::trade_failure_event<TradeOut>(
-                ramm::get_id(self),
-                tx_context::sender(ctx),
-                type_name::get<AssetIn>(),
-                type_name::get<AssetOut>(),
-                max_ai_u64,
-                ramm::message(&trade)
-            );
-        // In this case, `trade.execute` is true, but `trade.amount > max_ai`
         } else {
-            transfer::public_transfer(max_ai, tx_context::sender(ctx));
-
-            events::trade_failure_event<TradeOut>(
-                ramm::get_id(self),
-                tx_context::sender(ctx),
-                type_name::get<AssetIn>(),
-                type_name::get<AssetOut>(),
-                max_ai_u64,
-                string::utf8(b"Trade not executed due to slippage tolerance.")
-            );
+            abort ETradeCouldNotBeExecuted
         };
 
         ramm::check_ramm_invariants_2<AssetIn, AssetOut>(self);
@@ -406,9 +375,9 @@ module ramm_sui::interface2 {
         let oth = ramm::get_asset_index<Other>(self);
 
         let current_timestamp: u64 = clock::timestamp_ms(clock);
-        let new_prices = vec_map::empty<u8, u256>();
-        let factors_for_prices = vec_map::empty<u8, u256>();
-        let new_price_timestamps = vec_map::empty<u8, u64>();
+        let mut new_prices = vec_map::empty<u8, u256>();
+        let mut factors_for_prices = vec_map::empty<u8, u256>();
+        let mut new_price_timestamps = vec_map::empty<u8, u64>();
         ramm::check_feed_and_get_price_data(
             self,
             current_timestamp,
@@ -469,12 +438,7 @@ module ramm_sui::interface2 {
         */
 
         if (lpt == 0) {
-            let amount_in_u64: u64 = coin::value(&amount_in);
-            transfer::public_transfer(amount_in, tx_context::sender(ctx));
-
-            events::liquidity_deposit_failure_event(
-                ramm::get_id(self), tx_context::sender(ctx), type_name::get<AssetIn>(), amount_in_u64
-            );
+            abort ELiqDepYieldedNoLPTokens
         } else {
             let amount_in_u64: u64 = coin::value(&amount_in);
             let amount_in: Balance<AssetIn> = coin::into_balance(amount_in);
@@ -529,9 +493,9 @@ module ramm_sui::interface2 {
         let o   = ramm::get_asset_index<AssetOut>(self);
 
         let current_timestamp: u64 = clock::timestamp_ms(clock);
-        let new_prices = vec_map::empty<u8, u256>();
-        let factors_for_prices = vec_map::empty<u8, u256>();
-        let new_price_timestamps = vec_map::empty<u8, u64>();
+        let mut new_prices = vec_map::empty<u8, u256>();
+        let mut factors_for_prices = vec_map::empty<u8, u256>();
+        let mut new_price_timestamps = vec_map::empty<u8, u64>();
         ramm::check_feed_and_get_price_data(
             self,
             current_timestamp,
@@ -562,7 +526,7 @@ module ramm_sui::interface2 {
             self, snd, *vec_map::get(&new_prices, &snd), *vec_map::get(&new_price_timestamps, &snd)
         );
 
-        let volatility_fees: VecMap<u8, u256> = vec_map::empty();
+        let mut volatility_fees: VecMap<u8, u256> = vec_map::empty();
         vec_map::insert(&mut volatility_fees, fst, fst_vol_fee);
         vec_map::insert(&mut volatility_fees, snd, snd_vol_fee);
         /*
@@ -617,7 +581,7 @@ module ramm_sui::interface2 {
         };
 
         let burn_amount: u64 = (*lpt_amount as u64);
-        let lp_token: Balance<LP<AssetOut>> = coin::into_balance(lp_token);
+        let mut lp_token: Balance<LP<AssetOut>> = coin::into_balance(lp_token);
         let burn_tokens: Balance<LP<AssetOut>> = balance::split(&mut lp_token, burn_amount);
         // Update RAMM's untyped count of LP tokens for outgoing asset
         ramm::decr_lptokens_issued<AssetOut>(self, burn_amount);
@@ -657,8 +621,8 @@ module ramm_sui::interface2 {
 
         // Build required data structures for liquidity withdrawal event emission.
 
-        let amounts_out_u64: VecMap<TypeName, u64> = vec_map::empty();
-        let fees_u64: VecMap<TypeName, u64> = vec_map::empty();
+        let mut amounts_out_u64: VecMap<TypeName, u64> = vec_map::empty();
+        let mut fees_u64: VecMap<TypeName, u64> = vec_map::empty();
         vec_map::insert(&mut amounts_out_u64, type_name::get<Asset1>(), (*vec_map::get(&amounts_out, &fst) as u64));
         vec_map::insert(&mut fees_u64, type_name::get<Asset1>(), (*vec_map::get(&fees, &fst) as u64));
         if (vec_map::contains(&amounts_out, &snd)) {
@@ -703,7 +667,7 @@ module ramm_sui::interface2 {
         let value_fst: u64 = coin::value(&fst);
         let value_snd: u64 = coin::value(&snd);
 
-        let collected_fees: VecMap<TypeName, u64> = vec_map::empty();
+        let mut collected_fees: VecMap<TypeName, u64> = vec_map::empty();
         vec_map::insert(&mut collected_fees, type_name::get<Asset1>(), value_fst);
         vec_map::insert(&mut collected_fees, type_name::get<Asset2>(), value_snd);
 
