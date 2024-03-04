@@ -1144,6 +1144,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "consensus-config"
+version = "0.1.0"
+dependencies = [
+ "fastcrypto",
+ "mysten-network",
+ "rand",
+ "serde",
+ "shared-crypto",
+ "workspace-hack",
+]
+
+[[package]]
 name = "console"
 version = "0.15.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3027,6 +3039,7 @@ dependencies = [
  "petgraph",
  "regex",
  "serde",
+ "stacker",
  "tempfile",
 ]
 
@@ -3359,6 +3372,7 @@ dependencies = [
  "futures",
  "http",
  "multiaddr",
+ "pin-project-lite",
  "serde",
  "snap",
  "tokio",
@@ -4179,6 +4193,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "106dd99e98437432fed6519dedecfade6a06a73bb7b2a1e019fdd2bee5778d94"
 dependencies = [
  "bytes",
+]
+
+[[package]]
+name = "psm"
+version = "0.1.21"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5787f7cda34e3033a72192c018bc5883100330f362ef279a8cbccfce8bb4e874"
+dependencies = [
+ "cc",
 ]
 
 [[package]]
@@ -5255,6 +5278,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "stacker"
+version = "0.1.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c886bd4480155fd3ef527d45e9ac8dd7118a898a46530b7b94c3e21866259fce"
+dependencies = [
+ "cc",
+ "cfg-if",
+ "libc",
+ "psm",
+ "winapi",
+]
+
+[[package]]
 name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5451,7 +5487,7 @@ dependencies = [
 
 [[package]]
 name = "sui-move-build"
-version = "1.18.0"
+version = "1.19.1"
 dependencies = [
  "anyhow",
  "fastcrypto",
@@ -5474,7 +5510,7 @@ dependencies = [
 
 [[package]]
 name = "sui-open-rpc"
-version = "1.18.0"
+version = "1.19.1"
 dependencies = [
  "bcs",
  "schemars",
@@ -5535,7 +5571,7 @@ dependencies = [
 
 [[package]]
 name = "sui-sdk"
-version = "1.18.0"
+version = "1.19.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -5591,6 +5627,7 @@ dependencies = [
  "bcs",
  "bincode",
  "byteorder",
+ "consensus-config",
  "derivative",
  "derive_more",
  "enum_dispatch",
