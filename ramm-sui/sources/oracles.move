@@ -9,42 +9,6 @@ module ramm_sui::oracles {
     const ENegativeSbD: u64 = 0;
     const EStalePrice: u64 = 1;
 
-    fun sbd_data_to_info(value: u128, scaling_factor: u8, neg: bool, prec: u8): (u256, u256) {
-        assert!(!neg, ENegativeSbD);
-
-        ((value as u256), math::pow(10u256, prec - scaling_factor))
-    }
-
-    /// This isn't a mistake - several spec blocks are required in order to
-    /// 1. Specify all possible aborts for this function
-    /// 2. Specify all (or some of the) conditions in which they occur
-    ///
-    /// Overflows can occur in two distinct locations:
-    /// 1. in `pow`, and
-    /// 2. when calculating `prec - scaling_factor`
-    ///
-    /// The first cannot be encoded without exponentiation specified in the MSL.
-    /// That means an `aborts_if` clause for it cannot be written, which is unnecessary
-    /// if all the specification asserts in which kinds of aborts occur, not how.
-    ///
-    /// A partial specification for how they can occur is below.
-    spec sbd_data_to_info {
-        aborts_with ENegativeSbD, EXECUTION_FAILURE;
-    }
-
-    spec sbd_data_to_info {
-        pragma verify = true;
-
-        // In order to have the below set to false, it'd be necessary to specify the behavior of
-        // `pow`, which is not possible at the moment.
-        //
-        // As such, it is not possible to cover aborts caused by that function's overflow.
-        pragma aborts_if_is_partial = true;
-
-        aborts_if neg with ENegativeSbD;
-        aborts_if scaling_factor > prec with EXECUTION_FAILURE;
-    }
-
     /// Given a `switchboard::aggregator::SwitchboardDecimal`, returns:
     /// * the price as a `u256`
     /// * the scaling factor by which the price can be multiplied in order to bring it to `prec`
@@ -59,7 +23,9 @@ module ramm_sui::oracles {
     public fun sbd_to_price_info(sbd: sb_math::SwitchboardDecimal, prec: u8): (u256, u256) {
         let (value, scaling_factor, neg) = sb_math::unpack(sbd);
 
-        sbd_data_to_info(value, scaling_factor, neg, prec)
+        assert!(!neg, ENegativeSbD);
+
+        ((value as u256), math::pow(10u256, prec - scaling_factor))
     }
 
     fun check_price_staleness(
@@ -76,10 +42,6 @@ module ramm_sui::oracles {
             math::abs_diff_u64(current_clock_timestamp, latest_feed_timestamp_scaled) <= staleness_threshold,
             EStalePrice
         );
-    }
-
-    spec check_price_staleness {
-        aborts_if math::abs_diff_u64(current_clock_timestamp, latest_feed_timestamp) > staleness_threshold with EStalePrice;
     }
 
     /// Given a Switchboard aggregator, fetch the pricing data within it.
@@ -106,8 +68,4 @@ module ramm_sui::oracles {
 
     }
 
-    /// This `0x2` is the only abort raised by `switchboard_std::aggregator::latest_value`.
-    spec get_price_from_oracle {
-        aborts_with ENegativeSbD, EStalePrice, EXECUTION_FAILURE, 0x2;
-    }
 }
