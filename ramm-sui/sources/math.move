@@ -21,28 +21,10 @@ module ramm_sui::math {
         if (x >= y) { x - y } else { y - x }
     }
 
-    spec abs_diff_u64 {
-        aborts_if false;
-
-        ensures x >= y ==> result == x - y;
-        ensures x < y ==> result == y - x;
-    }
-
     /// Given a `u256` value, forecefully clamp it to the range `[0, max]`.
     public(friend) fun clamp(val: u256, max: u256): u256 {
         if (val >= max) { return max };
         val
-    }
-
-    spec clamp {
-        pragma verify = true;
-
-        // this function never aborts
-        aborts_if false;
-
-        ensures result <= max;
-        ensures val >= max ==> result == max;
-        ensures val < max ==> result == val;
     }
 
     /// Raise a `base: u256` to the power of a `u8` `exp`onent.
@@ -65,12 +47,6 @@ module ramm_sui::math {
         res
     }
 
-    spec pow {
-        aborts_with EXECUTION_FAILURE;
-
-        ensures [abstract] result == abstract_pow(base, exp);
-    }
-
     spec fun abstract_pow(base: u256, exp: u8): u256;
 
     /// Multiplies two `u256` that represent decimal numbers with `prec` decimal places,
@@ -86,10 +62,6 @@ module ramm_sui::math {
         assert!(result <= max, EMulOverflow);
 
         result
-    }
-
-    spec mul {
-        aborts_with EXECUTION_FAILURE, EMulOverflow;
     }
 
     /// Given `x`, `y` and `z` with `prec` decimal places of precision, and at most `max_prec`

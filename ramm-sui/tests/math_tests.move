@@ -51,7 +51,8 @@ module ramm_sui::math_tests {
 
     #[test]
     #[expected_failure(abort_code = oracles::ENegativeSbD)]
-    fun test_switchboard_decimal_fail() {
+    /// Check that an oracle's price being negative will raise an abort.
+    fun test_switchboard_negative_decimal_fail() {
         let sbd = sb_math::new(1234567000, 3, true);
         let (_, _) = oracles::sbd_to_price_info(sbd, PRECISION_DECIMAL_PLACES);
     }
