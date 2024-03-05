@@ -297,6 +297,7 @@ module ramm_sui::ramm {
     const FAILED_INSUFFICIENT_OUT_TOKEN_BALANCE: u8 = 2;
     const FAILED_LOW_OUT_TOKEN_IMB_RATIO: u8 = 3;
 
+    /// Code for a successful trade i.e. one which the RAMM can execute.
     public(friend) fun success(): u8 {
         SUCCESS
     }
@@ -347,6 +348,13 @@ module ramm_sui::ramm {
     /// Return a trade's calculated protocol fees.
     public(friend) fun protocol_fee(to: &TradeOutput): u256 {
         to.protocol_fee
+    }
+
+    /// Return a `TradeOutput`'s trade outcome, represented as a `u8`:
+    /// * `0` for success
+    /// * `1, 2, ...` for different types of failure.
+    public(friend) fun trade_outcome(to: &TradeOutput): u8 {
+        to.trade_outcome
     }
 
     /// Result of a liquidity withdrawal by a trader that had previously deposited
