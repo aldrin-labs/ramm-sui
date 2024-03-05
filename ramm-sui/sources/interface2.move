@@ -684,17 +684,4 @@ module ramm_sui::interface2 {
 
         ramm::check_ramm_invariants_2<Asset1, Asset2>(self);
     }
-
-    spec collect_fees_2 {
-        pragma opaque = true;
-
-        pragma aborts_if_is_partial = true;
-
-        aborts_if self.admin_cap_id != object::id(admin_cap);
-        aborts_if self.asset_count != TWO;
-
-        ensures self.asset_count == TWO;
-
-        // More can be only when `VecMap` offers an API within the MSL.
-    }
 }

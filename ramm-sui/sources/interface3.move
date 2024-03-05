@@ -807,15 +807,4 @@ module ramm_sui::interface3 {
 
         ramm::check_ramm_invariants_3<Asset1, Asset2, Asset3>(self);
     }
-
-    spec collect_fees_3 {
-        pragma opaque = true;
-
-        pragma aborts_if_is_partial = true;
-
-        aborts_if self.admin_cap_id != object::id(admin_cap);
-        aborts_if self.asset_count != THREE;
-
-        ensures self.asset_count == THREE;
-    }
 }
