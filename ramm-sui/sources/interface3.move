@@ -33,12 +33,15 @@ module ramm_sui::interface3 {
     /// would leave it unable to redeem a liquidity provider's LP tokens
     const ERAMMInsufBalForCirculatingLPToken: u64 = 5;
     const ESlippageToleranceExceeded: u64 = 6;
-    const ETradeCouldNotBeExecuted: u64 = 7;
-    const ETradeAmountTooSmall: u64 = 8;
-    const ENotAdmin: u64 = 9;
-    const ELiqDepYieldedNoLPTokens: u64 = 10;
-    const ELiqWthdrwLPTBurn: u64 = 11;
-    const EInvalidWithdrawal: u64 = 12;
+    const ETradeFailedPoolImbalance: u64 = 7;
+    const ETradeFailedInsuffOutTokenBalanace: u64 = 8;
+    const ETradeFailedLowOutTokenImbRatio: u64 = 9;
+    const ETradeCouldNotBeExecuted: u64 = 10;
+    const ETradeAmountTooSmall: u64 = 11;
+    const ENotAdmin: u64 = 12;
+    const ELiqDepYieldedNoLPTokens: u64 = 13;
+    const ELiqWthdrwLPTBurn: u64 = 14;
+    const EInvalidWithdrawal: u64 = 15;
 
     /// Trading function for a RAMM with three (3) assets.
     /// Used to deposit a given amount of asset `T_i`, in exchange for asset `T_o`.
@@ -180,7 +183,7 @@ module ramm_sui::interface3 {
         ramm::check_trade_amount_out<AssetOut>(self, amount_out_u256);
 
         let amount_out_u64: u64 = (amount_out_u256 as u64);
-        if (ramm::execute(&trade)) {
+        if (ramm::is_successful(&trade)) {
             if (amount_out_u64 >= min_ao) {
                 let amount_in: Balance<AssetIn> = coin::into_balance(amount_in);
 
@@ -203,14 +206,27 @@ module ramm_sui::interface3 {
                     type_name::get<AssetOut>(),
                     amount_in_u64,
                     amount_out_u64,
-                    fee,
-                    ramm::execute(&trade)
+                    fee
                 );
             } else {
                 // In this case, `trade.execute` is true, but `amount_out < min_ao`
                 abort ESlippageToleranceExceeded
             }
         } else {
+            if (ramm::trade_outcome(&trade) == ramm::failed_pool_imbalance()) {
+                abort ETradeFailedPoolImbalance
+            };
+
+            if (ramm::trade_outcome(&trade) == ramm::failed_insufficient_out_token_balance()) {
+                abort ETradeFailedInsuffOutTokenBalanace
+            };
+
+            if (ramm::trade_outcome(&trade) == ramm::failed_low_out_token_imb_ratio()) {
+                abort ETradeFailedLowOutTokenImbRatio
+            };
+
+            // This will only happen if a new trade abort code is added in `sources.ramm.move`, but
+            // not handled above.
             abort ETradeCouldNotBeExecuted
         };
 
@@ -357,7 +373,7 @@ module ramm_sui::interface3 {
         let trade_amount = (ramm::amount(&trade) as u64);
 
         let max_ai_u64: u64 = coin::value(&max_ai);
-        if (ramm::execute(&trade)) {
+        if (ramm::is_successful(&trade)) {
             if (trade_amount <= max_ai_u64) {
                 let max_ai: Balance<AssetIn> = coin::into_balance(max_ai);
                 let amount_in: Balance<AssetIn> = balance::split(&mut max_ai, trade_amount);
@@ -382,8 +398,7 @@ module ramm_sui::interface3 {
                     type_name::get<AssetOut>(),
                     trade_amount,
                     amount_out,
-                    fee,
-                    ramm::execute(&trade)
+                    fee
                 );
 
                 if (balance::value(&remainder) > 0) {
@@ -397,6 +412,20 @@ module ramm_sui::interface3 {
                 abort ESlippageToleranceExceeded
             }
         } else {
+            if (ramm::trade_outcome(&trade) == ramm::failed_pool_imbalance()) {
+                abort ETradeFailedPoolImbalance
+            };
+
+            if (ramm::trade_outcome(&trade) == ramm::failed_insufficient_out_token_balance()) {
+                abort ETradeFailedInsuffOutTokenBalanace
+            };
+
+            if (ramm::trade_outcome(&trade) == ramm::failed_low_out_token_imb_ratio()) {
+                abort ETradeFailedLowOutTokenImbRatio
+            };
+
+            // This will only happen if a new trade abort code is added in `sources.ramm.move`, but
+            // not handled above.
             abort ETradeCouldNotBeExecuted
         };
 
