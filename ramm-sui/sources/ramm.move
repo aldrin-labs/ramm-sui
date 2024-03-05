@@ -286,6 +286,46 @@ module ramm_sui::ramm {
         typed_lp_tokens_issued: Bag,
     }
 
+    /*
+    ------------------
+    Trading operations
+    ------------------
+    */
+
+    const SUCCESS: u8 = 0;
+    const FAILED_POOL_IMBALANCE: u8 = 1;
+    const FAILED_INSUFFICIENT_OUT_TOKEN_BALANCE: u8 = 2;
+    const FAILED_LOW_OUT_TOKEN_IMB_RATIO: u8 = 3;
+
+    public(friend) fun success(): u8 {
+        SUCCESS
+    }
+
+    public(friend) fun failed_pool_imbalance(): u8 {
+        FAILED_POOL_IMBALANCE
+    }
+
+    public(friend) fun failed_insufficient_out_token_balance(): u8 {
+        FAILED_INSUFFICIENT_OUT_TOKEN_BALANCE
+    }
+
+    public(friend) fun failed_low_out_token_imb_ratio(): u8 {
+        FAILED_LOW_OUT_TOKEN_IMB_RATIO
+    }
+
+    /// Returns `true` if a trade has been greenlit by the protocol's checks, and `false` if not.
+    ///
+    /// `false` can be returned for various reasons, such as:
+    /// 1. not enough pool balances to execute the trade
+    /// 2. it may fail due to imbalance ratio checks
+    ///
+    /// Note that even if the trade is classified "successful", it is possible the trade is not
+    /// executed - because the `TradeOutput`'s `amount` does not conform to the trader's slippage
+    /// tolerance, for example.
+    public(friend) fun is_successful(to: &TradeOutput): bool {
+        to.trade_outcome == success()
+    }
+
     /// Result of an asset deposit/withdrawal operation by a trader.
     /// If `execute_trade` is `true`, then:
     /// * in the case of an asset deposit, the amount of the outbound asset is specified,
@@ -295,8 +335,7 @@ module ramm_sui::ramm {
     struct TradeOutput has drop {
         amount: u256,
         protocol_fee: u256,
-        execute_trade: bool,
-        message: String,
+        trade_outcome: u8,
     }
 
     /// Return a `TradeOutput`'s calculated amount - might be `0`, depending on the `execute`
@@ -308,26 +347,6 @@ module ramm_sui::ramm {
     /// Return a trade's calculated protocol fees.
     public(friend) fun protocol_fee(to: &TradeOutput): u256 {
         to.protocol_fee
-    }
-
-    /// Returns `true` if a trade has been greenlit by the protocol's checks, and `false` if not.
-    ///
-    /// This field can be `false` for reasons such as:
-    /// 1. not enough pool balances to execute the trade
-    /// 2. it may fail due to imbalance ratio checks
-    ///
-    /// Note that even if the field is `true`, it is possible the trade is not executed - because
-    /// the `TradeOutput`'s `amount` does not conform to the trader's slippage tolerance, for example.
-    public(friend) fun execute(to: &TradeOutput): bool {
-        to.execute_trade
-    }
-
-    /// Return a given `TradeOutput`'s message.
-    ///
-    /// Recall that `String` is being implicitly copied here, as it is a wrapper over
-    /// `vector<u8>`, and since `u8 has copy`, so does `vector<u8>`.
-    public(friend) fun message(to: &TradeOutput): String {
-        to.message
     }
 
     /// Result of a liquidity withdrawal by a trader that had previously deposited
@@ -1573,12 +1592,13 @@ module ramm_sui::ramm {
         )
     }
 
-    /// Returns a message according to the trade being executed or not.
-    fun check_imbalance_ratios_message(execute_trade: bool): String {
+    /// Returns a status code (with Move 2024, an enum) explaining whether the trade succeeded, or
+    /// failed due to pool imbalances.
+    fun check_imbalance_ratios_status(execute_trade: bool): u8 {
         if (execute_trade) {
-            string::utf8(b"Trade executed.")
+            success()
         } else {
-            string::utf8(b"The trade was not executed because of pool imbalance.")
+            failed_pool_imbalance()
         }
     }
 
@@ -1718,8 +1738,8 @@ module ramm_sui::ramm {
             // don't forget the volatility fee
             let pr_fee: u256 = mul3(PROTOCOL_FEE, BASE_FEE + volatility_fee, ai * factor_i) / factor_i;
             let execute: bool = check_imbalance_ratios(self, &new_prices, i, o, ai, ao, pr_fee, &factors_for_prices);
-            let message: String = check_imbalance_ratios_message(execute);
-            return TradeOutput {amount: ao, protocol_fee: pr_fee, execute_trade: execute, message}
+            let trade_outcome: u8 = check_imbalance_ratios_status(execute);
+            return TradeOutput {amount: ao, protocol_fee: pr_fee, trade_outcome}
         };
 
         let _W: VecMap<u8, u256> = weights(self, &new_prices, &factors_for_prices);
@@ -1737,8 +1757,7 @@ module ramm_sui::ramm {
                 return TradeOutput {
                     amount: 0,
                     protocol_fee: 0,
-                    execute_trade: false,
-                    message: low_imb_ratio_trade_failure_msg()
+                    trade_outcome: failed_low_out_token_imb_ratio()
                 }
             };
             let (tf, l) = scaled_fee_and_leverage(self, &new_prices, i, o, &factors_for_prices);
@@ -1762,13 +1781,12 @@ module ramm_sui::ramm {
             return TradeOutput {
                 amount: 0,
                 protocol_fee:0,
-                execute_trade: false,
-                message: string::utf8(b"The trade was not executed because there is not enough balance of the out-token.")
+                trade_outcome: failed_insufficient_out_token_balance()
             }
         };
-        let execute: bool = check_imbalance_ratios(self, &new_prices, i, o, ai, ao, pr_fee, &factors_for_prices);
-        let message: String = check_imbalance_ratios_message(execute);
-        TradeOutput {amount: ao, protocol_fee: pr_fee, execute_trade: execute, message}
+        let imb_ratios_check: bool = check_imbalance_ratios(self, &new_prices, i, o, ai, ao, pr_fee, &factors_for_prices);
+        let trade_outcome = check_imbalance_ratios_status(imb_ratios_check);
+        TradeOutput {amount: ao, protocol_fee: pr_fee, trade_outcome}
     }
 
     /// Internal function, used by the public trading API e.g. `trade_amount_out_3`.
@@ -1804,9 +1822,9 @@ module ramm_sui::ramm {
             let denom: u256 = mul(price_i * factor_for_price_i, ONE-BASE_FEE);
             let ai: u256 = div(num, denom) / factor_i;
             let pr_fee: u256 = mul3(PROTOCOL_FEE, BASE_FEE + volatility_fee, ai * factor_i) / factor_i;
-            let execute: bool = check_imbalance_ratios(self, &prices, i, o, ai, ao, pr_fee, &factors_for_prices);
-            let message: String = check_imbalance_ratios_message(execute);
-            return TradeOutput {amount: ai, protocol_fee: pr_fee, execute_trade: execute, message}
+            let imb_ratios_check: bool = check_imbalance_ratios(self, &prices, i, o, ai, ao, pr_fee, &factors_for_prices);
+            let trade_outcome = check_imbalance_ratios_status(imb_ratios_check);
+            return TradeOutput {amount: ai, protocol_fee: pr_fee, trade_outcome}
         };
 
         let _W: VecMap<u8, u256> = weights(self, &prices, &factors_for_prices);
@@ -1824,8 +1842,7 @@ module ramm_sui::ramm {
                 return TradeOutput {
                     amount: 0,
                     protocol_fee: 0,
-                    execute_trade: false,
-                    message: low_imb_ratio_trade_failure_msg()
+                    trade_outcome: failed_low_out_token_imb_ratio()
                 }
             };
             let (tf, l) = scaled_fee_and_leverage(self, &prices, i, o, &factors_for_prices);
@@ -1843,9 +1860,9 @@ module ramm_sui::ramm {
         let ai: u256 = div(mul(bi, power - ONE), ONE - *trading_fee) / factor_i;
         let pr_fee: u256 = mul3(PROTOCOL_FEE, *trading_fee, ai * factor_i) / factor_i;
 
-        let execute: bool = check_imbalance_ratios(self, &prices, i, o, ai, ao, pr_fee, &factors_for_prices);
-        let message: String = check_imbalance_ratios_message(execute);
-        TradeOutput {amount: ai, protocol_fee: pr_fee, execute_trade: execute, message}
+        let imb_ratios_check: bool = check_imbalance_ratios(self, &prices, i, o, ai, ao, pr_fee, &factors_for_prices);
+        let trade_outcome = check_imbalance_ratios_status(imb_ratios_check);
+        TradeOutput {amount: ai, protocol_fee: pr_fee, trade_outcome}
     }
 
     /// ----------------------------
