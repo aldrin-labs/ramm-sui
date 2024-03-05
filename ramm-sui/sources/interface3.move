@@ -36,11 +36,12 @@ module ramm_sui::interface3 {
     const ETradeFailedPoolImbalance: u64 = 7;
     const ETradeFailedInsuffOutTokenBalanace: u64 = 8;
     const ETradeFailedLowOutTokenImbRatio: u64 = 9;
-    const ETradeAmountTooSmall: u64 = 10;
-    const ENotAdmin: u64 = 11;
-    const ELiqDepYieldedNoLPTokens: u64 = 12;
-    const ELiqWthdrwLPTBurn: u64 = 13;
-    const EInvalidWithdrawal: u64 = 14;
+    const ETradeCouldNotBeExecuted: u64 = 10;
+    const ETradeAmountTooSmall: u64 = 11;
+    const ENotAdmin: u64 = 12;
+    const ELiqDepYieldedNoLPTokens: u64 = 13;
+    const ELiqWthdrwLPTBurn: u64 = 14;
+    const EInvalidWithdrawal: u64 = 15;
 
     /// Trading function for a RAMM with three (3) assets.
     /// Used to deposit a given amount of asset `T_i`, in exchange for asset `T_o`.
@@ -223,6 +224,10 @@ module ramm_sui::interface3 {
             if (ramm::trade_outcome(&trade) == ramm::failed_low_out_token_imb_ratio()) {
                 abort ETradeFailedLowOutTokenImbRatio
             };
+
+            // This will only happen if a new trade abort code is added in `sources.ramm.move`, but
+            // not handled above.
+            abort ETradeCouldNotBeExecuted
         };
 
         ramm::check_ramm_invariants_3<AssetIn, AssetOut, Other>(self);
@@ -418,6 +423,10 @@ module ramm_sui::interface3 {
             if (ramm::trade_outcome(&trade) == ramm::failed_low_out_token_imb_ratio()) {
                 abort ETradeFailedLowOutTokenImbRatio
             };
+
+            // This will only happen if a new trade abort code is added in `sources.ramm.move`, but
+            // not handled above.
+            abort ETradeCouldNotBeExecuted
         };
 
         ramm::check_ramm_invariants_3<AssetIn, AssetOut, Other>(self);
