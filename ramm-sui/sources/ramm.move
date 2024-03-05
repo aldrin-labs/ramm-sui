@@ -1,5 +1,4 @@
 module ramm_sui::ramm {
-    use std::string::{Self, String};
     use std::type_name::{Self, TypeName};
     use std::vector;
 
@@ -1608,12 +1607,6 @@ module ramm_sui::ramm {
         } else {
             failed_pool_imbalance()
         }
-    }
-
-    /// This message will be used by `TradeOutput` when either `trade_i/trade_o` cannot perform
-    /// a trade due to failed imbalance ratio checks.
-    fun low_imb_ratio_trade_failure_msg(): String {
-        string::utf8(b"The trade was not executed because the imbalance ratio of the out-token is too low.")
     }
 
     /// Returns the scaled base fee and leverage parameter for a trade where token `i` goes into the
