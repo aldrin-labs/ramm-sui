@@ -71,7 +71,6 @@ module ramm_sui::events {
         amount_in: u64,
         amount_out: u64,
         protocol_fee: u64,
-        execute_trade: bool
     }
 
     /// Given all the information necessary to identify a given RAMM's trade event,
@@ -84,7 +83,6 @@ module ramm_sui::events {
         amount_in: u64,
         amount_out: u64,
         protocol_fee: u64,
-        execute_trade: bool
     ) {
         event::emit(
             TradeEvent<TradeType> {
@@ -95,7 +93,6 @@ module ramm_sui::events {
                 amount_in,
                 amount_out,
                 protocol_fee,
-                execute_trade,
             }
         )
     }
