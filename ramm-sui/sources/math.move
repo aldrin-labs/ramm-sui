@@ -21,28 +21,10 @@ module ramm_sui::math {
         if (x >= y) { x - y } else { y - x }
     }
 
-    spec abs_diff_u64 {
-        aborts_if false;
-
-        ensures x >= y ==> result == x - y;
-        ensures x < y ==> result == y - x;
-    }
-
     /// Given a `u256` value, forecefully clamp it to the range `[0, max]`.
     public(friend) fun clamp(val: u256, max: u256): u256 {
         if (val >= max) { return max };
         val
-    }
-
-    spec clamp {
-        pragma verify = true;
-
-        // this function never aborts
-        aborts_if false;
-
-        ensures result <= max;
-        ensures val >= max ==> result == max;
-        ensures val < max ==> result == val;
     }
 
     /// Raise a `base: u256` to the power of a `u8` `exp`onent.
@@ -51,9 +33,7 @@ module ramm_sui::math {
     ///
     /// If the calculation overflows.
     public fun pow(base: u256, exp: u8): u256 {
-        let mut base = base;
-        let mut exp = exp;
-        let mut res = 1;
+        let res = 1;
         while (exp >= 1) {
             if (exp % 2 == 0) {
                 base = base * base;
@@ -65,12 +45,6 @@ module ramm_sui::math {
         };
 
         res
-    }
-
-    spec pow {
-        aborts_with EXECUTION_FAILURE;
-
-        ensures [abstract] result == abstract_pow(base, exp);
     }
 
     spec fun abstract_pow(base: u256, exp: u8): u256;
@@ -88,10 +62,6 @@ module ramm_sui::math {
         assert!(result <= max, EMulOverflow);
 
         result
-    }
-
-    spec mul {
-        aborts_with EXECUTION_FAILURE, EMulOverflow;
     }
 
     /// Given `x`, `y` and `z` with `prec` decimal places of precision, and at most `max_prec`
@@ -133,9 +103,8 @@ module ramm_sui::math {
         assert!(n <= 127, EPowNExponentTooLarge);
         assert!(x <= max, EPowNBaseTooLarge);
 
-        let mut result: u256 = one;
-        let mut a: u256 = x;
-        let mut n = n;
+        let result: u256 = one;
+        let a: u256 = x;
 
         while (n != 0) {
             if (n % 2 == 1) {
@@ -163,15 +132,15 @@ module ramm_sui::math {
         assert!(67 * pow <= x && x <= 150 * pow, EPowDBaseOutOfBounds);
         assert!(a < one, EPowDExpTooLarge);
 
-        let mut result: u256 = one;
-        let mut n: u256 = 0;
-        let mut tn: u256 = one;
-        let mut sign: bool = true;
+        let result: u256 = one;
+        let n: u256 = 0;
+        let tn: u256 = one;
+        let sign: bool = true;
         let iters = 30;
 
         while (n < iters) {
-            let mut _factor1: u256 = 0;
-            let mut _factor2: u256 = 0;
+            let _factor1: u256 = 0;
+            let _factor2: u256 = 0;
 
             if (a >= n * one) {
                 _factor1 = a - n * one;
@@ -240,16 +209,16 @@ module ramm_sui::math {
         prec: u8,
         max_prec: u8,
     ): VecMap<u8, u256> {
-        let mut _W = vec_map::empty<u8, u256>();
-        let mut _B: u256 = 0;
-        let mut i: u8 = 0;
+        let _W = vec_map::empty<u8, u256>();
+        let _B: u256 = 0;
+        let i: u8 = 0;
         let _N = (vec_map::size(balances) as u8);
         while (i < _N) {
             vec_map::insert(&mut _W, i, 0u256);
             i = i + 1;
         };
 
-        let mut j: u8 = 0;
+        let j: u8 = 0;
         while (j < _N) {
             let w_j = vec_map::get_mut(&mut _W, &j);
             *w_j = mul(
@@ -261,7 +230,7 @@ module ramm_sui::math {
             j = j + 1;
         };
 
-        let mut k: u8 = 0;
+        let k: u8 = 0;
         while (k < _N) {
             let w_k = vec_map::get_mut(&mut _W, &k);
             *w_k = div(*w_k, _B, prec, max_prec);
@@ -284,11 +253,11 @@ module ramm_sui::math {
         prec: u8,
         max_prec: u8,
     ): (u256, u256) {
-        let mut _B: u256 = 0;
-        let mut _L: u256 = 0;
+        let _B: u256 = 0;
+        let _L: u256 = 0;
 
         let _N = (vec_map::size(balances) as u8);
-        let mut j: u8 = 0;
+        let j: u8 = 0;
         while (j < _N) {
             let price_j = *vec_map::get(prices, &j) * *vec_map::get(factors_for_prices, &j);
             _B = _B + mul(price_j, *vec_map::get(balances, &j) * *vec_map::get(factors_for_balances, &j), prec, max_prec);
@@ -324,10 +293,10 @@ module ramm_sui::math {
             max_prec,
         );
 
-        let mut imbs = vec_map::empty();
+        let imbs = vec_map::empty();
 
         let _N = (vec_map::size(balances) as u8);
-        let mut j: u8 = 0;
+        let j: u8 = 0;
         while (j < _N) {
             if (*vec_map::get(lp_tokens_issued, &j) != 0) {
                 let val = div(
@@ -373,10 +342,10 @@ module ramm_sui::math {
     ): bool {
         let _N = (vec_map::size(balances) as u8);
 
-        let mut balances_before = vec_map::empty<u8, u256>();
-        let mut balances_after = vec_map::empty<u8, u256>();
+        let balances_before = vec_map::empty<u8, u256>();
+        let balances_after = vec_map::empty<u8, u256>();
 
-        let mut k = 0;
+        let k = 0;
         while (k < _N) {
             let balance_current = *vec_map::get(balances, &k);
             vec_map::insert(&mut balances_before, k, balance_current);
@@ -493,14 +462,14 @@ module ramm_sui::math {
 
             // Sui Move doesn't support negative numbers, so the below check is required
             // to avoid aborting the program when performing the subtraction
-            let mut price_change: u256;
+            let price_change: u256;
             if (new_price >= previous_price) {
                 price_change = (new_price - previous_price) * one / previous_price;
             } else {
                 price_change = (previous_price - new_price) * one / previous_price;
             };
 
-            let mut price_change_param: u256;
+            let price_change_param: u256;
             if (price_change > maximum_tolerable_change) {
                 price_change_param = price_change;
             } else {
@@ -552,7 +521,7 @@ module ramm_sui::math {
         let current_volatility_param: u256 = *stored_volatility_param;
         let current_volatility_timestamp: u64 = *stored_volatility_timestamp;
 
-        let mut price_change: u256;
+        let price_change: u256;
 
         // If the previously recorded price is 0, this is the first volatility index calculation
         // for this asset; it is undefined, so 0 is chosen.
