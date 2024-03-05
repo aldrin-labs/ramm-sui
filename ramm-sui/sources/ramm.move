@@ -423,16 +423,10 @@ module ramm_sui::ramm {
     ///
     /// # Return value:
     ///
-    /// A triple `(ramm_id, admin_cap_id, new_asset_cap_id): (ID, ID, ID)`, where
-    /// * `ramm_id` is the `ID` of the newly created and publicly `share`d RAMM object
-    /// * `admin_cap_id` is the `ID` of the `RAMMAdminCap` required to perform priviledged operations
-    ///   on the RAMM
-    /// * `new_asset_cap_id` is the `ID` of the `RAMMNewAssetCap` object required to add assets
-    ///   into an uninitialized RAMM
-    ///
-    /// This function returns a triple of IDS for a reason:
-    /// * In order to write a specification in MSL asserting that the above objects were indeed
-    ///   created, `spec new_ramm`
+    /// This function returns nothing.
+    /// If the transaction block in which it is called is successful, a shared RAMM object will
+    /// have been created, and the required capabilities will have been transferred to the caller's
+    /// address.
     public fun new_ramm(
         fee_collector: address,
         ctx: &mut TxContext
