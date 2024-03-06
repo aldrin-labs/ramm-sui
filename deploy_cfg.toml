@@ -14,13 +14,12 @@
 #     - `decimal_places: u8`
 #   must be present
 
-
 # The target network to which the RAMM will be published.
 target_env = "testnet"
 #ramm_pkg_addr_or_path = "../ramm-sui"
-ramm_pkg_addr_or_path = "0x71842d2b44e795901b99be7ba1d9db524ee5df6674cc0270088db4e95166dd89"
+ramm_pkg_addr_or_path = "0x1f29709d574467cf1f1d6d9dde70e6777d750f8e67b75a0ebe80b22735c0390c"
 asset_count = 3
-fee_collection_address = "0x899b0e93970b774c2f007485f5812671eff5c84549741c76fc900e9aab857965"
+fee_collection_address = "0x9d4bda7adaba4854f701eb96bce6aeb906b65861bc35482e45a53fa3b5f3f4f0"
 
 [[assets]]
 asset_type = "0x937e867b32da5c423e615d03d9f5e898fdf08d8f94d8b0d97805d5c3f06e0a1b::test_coins::ADA"
