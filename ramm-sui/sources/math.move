@@ -47,8 +47,6 @@ module ramm_sui::math {
         res
     }
 
-    spec fun abstract_pow(base: u256, exp: u8): u256;
-
     /// Multiplies two `u256` that represent decimal numbers with `prec` decimal places,
     /// and returns the result as another `u256` with the same amount of decimal places.
     ///
