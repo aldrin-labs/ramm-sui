@@ -233,6 +233,125 @@ module ramm_sui::interface3 {
         ramm::check_ramm_invariants_3<AssetIn, AssetOut, Other>(self);
     }
 
+    /// Price estimation function for a trade with a RAMM with three (3) assets.
+    ///
+    /// Given a pair of assets and an inbound amount for one of them, it emits an event
+    /// that contains the estimated amount of the other asset that would be received in exchange.
+    ///
+    /// An SDK can then perform calculations to obtain the price estimate.
+    ///
+    /// # Aborts
+    ///
+    /// * If this function is called on a RAMM that does not have 3 assets.
+    /// * If the provided asset types don't exist in the RAMM
+    /// * If the amount being traded in is lower than the RAMM's minimum for the corresponding asset
+    /// * If the RAMM has not minted any LP tokens for the inbound asset
+    /// * If the RAMM's balance for the outgoing token is 0
+    /// * If the aggregator for each asset doesn't match the address in the RAMM's records
+    /// * If any aggregator's price is older than a fixed staleness threshold
+    public fun trade_price_estimate_3<AssetIn, AssetOut, Other>(
+        self: &RAMM,
+        clock: &Clock,
+        amount_in: u64,
+        feed_in: &Aggregator,
+        feed_out: &Aggregator,
+        other: &Aggregator,
+        ctx: &TxContext
+    ) {
+        assert!(ramm::get_asset_count(self) == THREE, ERAMMInvalidSize);
+
+        let i = ramm::get_asset_index<AssetIn>(self);
+        assert!(amount_in >= ramm::get_min_trade_amount(self, i), ETradeAmountTooSmall);
+        assert!(ramm::lptok_in_circulation<AssetIn>(self, i) > 0, ENoLPTokensInCirculation);
+
+         let o = ramm::get_asset_index<AssetOut>(self);
+        let o_bal: u64 = (ramm::get_bal(self, o) as u64);
+        assert!(o_bal > 0, ERAMMInsufficientBalance);
+
+        // The trade's size should be checked before oracles are accessed, to spare the trouble
+        // of locking the oracle object only to have the tx abort anyway.
+        ramm::check_trade_amount_in<AssetIn>(self, (amount_in as u256));
+
+        let oth = ramm::get_asset_index<Other>(self);
+
+        let current_timestamp: u64 = clock::timestamp_ms(clock);
+        let new_prices = vec_map::empty<u8, u256>();
+        let factors_for_prices = vec_map::empty<u8, u256>();
+        let new_price_timestamps = vec_map::empty<u8, u64>();
+        ramm::check_feed_and_get_price_data(
+            self,
+            current_timestamp,
+            i,
+            feed_in,
+            &mut new_prices,
+            &mut factors_for_prices,
+            &mut new_price_timestamps
+        );
+        ramm::check_feed_and_get_price_data(
+            self,
+            current_timestamp,
+            o,
+            feed_out,
+            &mut new_prices,
+            &mut factors_for_prices,
+            &mut new_price_timestamps
+        );
+        ramm::check_feed_and_get_price_data(
+            self,
+            current_timestamp,
+            oth,
+            other,
+            &mut new_prices,
+            &mut factors_for_prices,
+            &mut new_price_timestamps
+        );
+
+        /*
+        Calculate volatility data to be used in trading
+        */
+
+        let in_vol_fee: u256 = ramm::compute_volatility_fee(
+            self,
+            i,
+            *vec_map::get(&new_prices, &i),
+            *vec_map::get(&new_price_timestamps, &i)
+        );
+        let out_vol_fee: u256 = ramm::compute_volatility_fee(
+            self,
+            o,
+            *vec_map::get(&new_prices, &o),
+            *vec_map::get(&new_price_timestamps, &o)
+        );
+        let calculated_volatility_fee: u256 = in_vol_fee + out_vol_fee;
+
+        /*
+        */
+
+        let trade: TradeOutput = ramm::trade_i<AssetIn, AssetOut>(
+            self,
+            i,
+            o,
+            (amount_in as u256),
+            new_prices,
+            factors_for_prices,
+            calculated_volatility_fee
+        );
+
+        if (ramm::is_successful(&trade)) {
+            events::price_estimation_event(
+                ramm::get_id(self),
+                tx_context::sender(ctx),
+                type_name::get<AssetIn>(),
+                type_name::get<AssetOut>(),
+                amount_in,
+                (ramm::amount(&trade) as u64),
+                (ramm::protocol_fee(&trade) as u64)
+            );
+        } else {
+            abort ETradeCouldNotBeExecuted
+        }
+    }
+
     /// Trading function for a RAMM with three (3) assets.
     /// Used to withdraw a given amount of asset `T_o`, in exchange for asset `T_i`.
     ///

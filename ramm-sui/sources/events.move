@@ -1,5 +1,4 @@
 module ramm_sui::events {
-    use std::string::String;
     use std::type_name::TypeName;
 
     use sui::event;
@@ -105,7 +104,6 @@ module ramm_sui::events {
         amount_in: u64,
         amount_out: u64,
         protocol_fee: u64,
-        price: u64,
     }
 
     /// Emit an event containing pricing information estimates for a potential trade.
@@ -121,7 +119,6 @@ module ramm_sui::events {
         amount_in: u64,
         amount_out: u64,
         protocol_fee: u64,
-        price: u64,
     ) {
         event::emit(
             PriceEstimationEvent {
@@ -132,7 +129,6 @@ module ramm_sui::events {
                 amount_in,
                 amount_out,
                 protocol_fee,
-                price,
             }
         )
     }
