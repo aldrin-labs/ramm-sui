@@ -97,42 +97,6 @@ module ramm_sui::events {
         )
     }
 
-    /// Datatype used to emit, to the Sui blockchain, information on an unsucessful trade.
-    ///
-    /// A phantom type is used to mark whether it's the result of a call to `trade_amount_in`
-    /// (selling an exact amount of an asset to the RAMM), or to `trade_amount_out` (buying
-    /// an exact amount of an asset from the RAMM).
-    struct TradeFailure<phantom TradeType> has copy, drop {
-        ramm_id: ID,
-        trader: address,
-        token_in: TypeName,
-        token_out: TypeName,
-        amount_in: u64,
-        message: String
-    }
-
-    /// Given all the information necessary to identify a given RAMM's failed trade,
-    /// emit an event describing it.
-    public(friend) fun trade_failure_event<TradeType>(
-        ramm_id: ID,
-        trader: address,
-        token_in: TypeName,
-        token_out: TypeName,
-        amount_in: u64,
-        message: String
-    ) {
-        event::emit(
-            TradeFailure<TradeType> {
-                ramm_id,
-                trader,
-                token_in,
-                token_out,
-                amount_in,
-                message
-            }
-        )
-    }
-
     /// Datatype used to emit, to the Sui blockchain, information on a successful liquidity deposit.
     struct LiquidityDepositEvent has copy, drop {
         ramm_id: ID,
