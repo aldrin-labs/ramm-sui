@@ -1,0 +1,24 @@
+# The target network to which the RAMM will be published.
+target_env = "testnet"
+#ramm_pkg_addr_or_path = "../ramm-sui"
+ramm_pkg_addr_or_path = "0xd3283fa556731370cd2a7f389b3e35c630184118b5af416ce9e57edfce751496"
+asset_count = 3
+fee_collection_address = "0xa53a6598e203f035cd665c11f1213402f31214eb76b841cef4fcc3825d512a97"
+
+[[assets]]
+asset_type = "0x937e867b32da5c423e615d03d9f5e898fdf08d8f94d8b0d97805d5c3f06e0a1b::test_coins::BTC"
+aggregator_address = "0x7c30e48db7dfd6a2301795be6cb99d00c87782e2547cf0c63869de244cfc7e47"
+minimum_trade_amount = 10_000
+decimal_places = 8
+
+[[assets]]
+asset_type = "0x937e867b32da5c423e615d03d9f5e898fdf08d8f94d8b0d97805d5c3f06e0a1b::test_coins::ETH"
+aggregator_address = "0x68ed81c5dd07d12c629e5cdad291ca004a5cd3708d5659cb0b6bfe983e14778c"
+minimum_trade_amount = 100_000
+decimal_places = 8
+
+[[assets]]
+asset_type = "0x937e867b32da5c423e615d03d9f5e898fdf08d8f94d8b0d97805d5c3f06e0a1b::test_coins::SOL"
+aggregator_address = "0x35c7c241fa2d9c12cd2e3bcfa7d77192a58fd94e9d6f482465d5e3c8d91b4b43"
+minimum_trade_amount = 1_000_000
+decimal_places = 8

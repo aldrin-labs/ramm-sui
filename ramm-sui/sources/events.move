@@ -1,5 +1,4 @@
 module ramm_sui::events {
-    use std::string::String;
     use std::type_name::TypeName;
 
     use sui::event;
@@ -97,38 +96,39 @@ module ramm_sui::events {
         )
     }
 
-    /// Datatype used to emit, to the Sui blockchain, information on an unsucessful trade.
-    ///
-    /// A phantom type is used to mark whether it's the result of a call to `trade_amount_in`
-    /// (selling an exact amount of an asset to the RAMM), or to `trade_amount_out` (buying
-    /// an exact amount of an asset from the RAMM).
-    struct TradeFailure<phantom TradeType> has copy, drop {
+    struct PriceEstimationEvent has copy, drop {
         ramm_id: ID,
         trader: address,
         token_in: TypeName,
         token_out: TypeName,
         amount_in: u64,
-        message: String
+        amount_out: u64,
+        protocol_fee: u64,
     }
 
-    /// Given all the information necessary to identify a given RAMM's failed trade,
-    /// emit an event describing it.
-    public(friend) fun trade_failure_event<TradeType>(
+    /// Emit an event containing pricing information estimates for a potential trade.
+    ///
+    /// Note that no changes are made to the RAMM's state when estimating prices,
+    /// and that the price is not guaranteed to be the same when the trade is
+    /// executed.
+    public(friend) fun price_estimation_event(
         ramm_id: ID,
         trader: address,
         token_in: TypeName,
         token_out: TypeName,
         amount_in: u64,
-        message: String
+        amount_out: u64,
+        protocol_fee: u64,
     ) {
         event::emit(
-            TradeFailure<TradeType> {
+            PriceEstimationEvent {
                 ramm_id,
                 trader,
                 token_in,
                 token_out,
                 amount_in,
-                message
+                amount_out,
+                protocol_fee,
             }
         )
     }

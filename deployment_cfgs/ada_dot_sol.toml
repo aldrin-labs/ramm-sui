@@ -16,10 +16,9 @@
 
 # The target network to which the RAMM will be published.
 target_env = "testnet"
-#ramm_pkg_addr_or_path = "../ramm-sui"
-ramm_pkg_addr_or_path = "0x1f29709d574467cf1f1d6d9dde70e6777d750f8e67b75a0ebe80b22735c0390c"
+ramm_pkg_addr_or_path = "../ramm-sui"
 asset_count = 3
-fee_collection_address = "0x9d4bda7adaba4854f701eb96bce6aeb906b65861bc35482e45a53fa3b5f3f4f0"
+fee_collection_address = "0x47c450aae7a9e4bee707d6f18156562c3516caf535a48a845a22c090a18d38b4"
 
 [[assets]]
 asset_type = "0x937e867b32da5c423e615d03d9f5e898fdf08d8f94d8b0d97805d5c3f06e0a1b::test_coins::ADA"
