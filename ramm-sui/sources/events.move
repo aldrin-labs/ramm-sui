@@ -97,6 +97,46 @@ module ramm_sui::events {
         )
     }
 
+    struct PriceEstimationEvent has copy, drop {
+        ramm_id: ID,
+        trader: address,
+        token_in: TypeName,
+        token_out: TypeName,
+        amount_in: u64,
+        amount_out: u64,
+        protocol_fee: u64,
+        price: u64,
+    }
+
+    /// Emit an event containing pricing information estimates for a potential trade.
+    ///
+    /// Note that no changes are made to the RAMM's state when estimating prices,
+    /// and that the price is not guaranteed to be the same when the trade is
+    /// executed.
+    public(friend) fun price_estimation_event(
+        ramm_id: ID,
+        trader: address,
+        token_in: TypeName,
+        token_out: TypeName,
+        amount_in: u64,
+        amount_out: u64,
+        protocol_fee: u64,
+        price: u64,
+    ) {
+        event::emit(
+            PriceEstimationEvent {
+                ramm_id,
+                trader,
+                token_in,
+                token_out,
+                amount_in,
+                amount_out,
+                protocol_fee,
+                price,
+            }
+        )
+    }
+
     /// Datatype used to emit, to the Sui blockchain, information on a successful liquidity deposit.
     struct LiquidityDepositEvent has copy, drop {
         ramm_id: ID,
