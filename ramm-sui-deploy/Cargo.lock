@@ -155,7 +155,7 @@ dependencies = [
  "rustls-webpki",
  "serde",
  "serde_json",
- "socket2 0.5.4",
+ "socket2 0.5.6",
  "tap",
  "thiserror",
  "tokio",
@@ -1152,7 +1152,6 @@ dependencies = [
  "rand",
  "serde",
  "shared-crypto",
- "workspace-hack",
 ]
 
 [[package]]
@@ -1595,6 +1594,12 @@ name = "doc-comment"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fea41bba32d969b513997752735605054bc0dfa92b4c56bf1189f2e174be7a10"
+
+[[package]]
+name = "dunce"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "56ce8c6da7551ec6c462cbaf3bfbc75131ebbfa1c944aeaa9dab51ca1c5f0c3b"
 
 [[package]]
 name = "dyn-clone"
@@ -2824,9 +2829,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.148"
+version = "0.2.153"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9cdc71e17332e86d2e1d38c1f99edcb6288ee11b815fb1a4b049eaa2114d369b"
+checksum = "9c198f91728a82281a64e1f4f9eeb25d82cb32a5de251c6bd1b5154d63a8e7bd"
 
 [[package]]
 name = "libm"
@@ -2934,9 +2939,9 @@ dependencies = [
 
 [[package]]
 name = "mio"
-version = "0.8.8"
+version = "0.8.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "927a765cd3fc26206e66b296465fa9d3e5ab003e651c1b3c060e7956d96b19d2"
+checksum = "a4a650543ca06a924e8b371db273b2756685faae30f8487da1b56505a8f78b0c"
 dependencies = [
  "libc",
  "wasi",
@@ -3014,6 +3019,7 @@ dependencies = [
  "once_cell",
  "serde",
  "sha2 0.9.9",
+ "vfs",
  "walkdir",
 ]
 
@@ -3025,6 +3031,7 @@ dependencies = [
  "bcs",
  "clap",
  "codespan-reporting",
+ "dunce",
  "hex",
  "move-binary-format",
  "move-borrow-graph",
@@ -3036,11 +3043,13 @@ dependencies = [
  "move-ir-types",
  "move-symbol-pool",
  "once_cell",
+ "pathdiff",
  "petgraph",
  "regex",
  "serde",
  "stacker",
  "tempfile",
+ "vfs",
 ]
 
 [[package]]
@@ -3278,7 +3287,7 @@ dependencies = [
 [[package]]
 name = "msim-macros"
 version = "0.1.0"
-source = "git+https://github.com/MystenLabs/mysten-sim.git?rev=1a52783d6600ecc22e15253a982f77881bd47c77#1a52783d6600ecc22e15253a982f77881bd47c77"
+source = "git+https://github.com/MystenLabs/mysten-sim.git?rev=4d9040e5c6bb264bfe14900d09a5da4000154da8#4d9040e5c6bb264bfe14900d09a5da4000154da8"
 dependencies = [
  "darling 0.14.4",
  "proc-macro2 1.0.67",
@@ -3358,7 +3367,6 @@ dependencies = [
  "tokio",
  "tracing",
  "uuid",
- "workspace-hack",
 ]
 
 [[package]]
@@ -3382,7 +3390,6 @@ dependencies = [
  "tower",
  "tower-http",
  "tracing",
- "workspace-hack",
 ]
 
 [[package]]
@@ -3401,7 +3408,6 @@ dependencies = [
  "parking_lot",
  "roaring",
  "smallvec",
- "workspace-hack",
 ]
 
 [[package]]
@@ -3411,7 +3417,6 @@ dependencies = [
  "proc-macro2 1.0.67",
  "syn 1.0.109",
  "synstructure",
- "workspace-hack",
 ]
 
 [[package]]
@@ -3443,7 +3448,6 @@ dependencies = [
  "serde_json",
  "thiserror",
  "tracing",
- "workspace-hack",
 ]
 
 [[package]]
@@ -3455,7 +3459,6 @@ dependencies = [
  "fastcrypto-tbls",
  "serde",
  "shared-crypto",
- "workspace-hack",
 ]
 
 [[package]]
@@ -3814,6 +3817,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "de3145af08024dea9fa9914f381a17b8fc6034dfb00f3a84013f7ff43f29ed4c"
 
 [[package]]
+name = "pathdiff"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8835116a5c179084a830efb3adc117ab007512b535bc1a21c991d3b32a6b44dd"
+
+[[package]]
 name = "pbkdf2"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4129,7 +4138,6 @@ dependencies = [
  "anyhow",
  "prometheus",
  "protobuf",
- "workspace-hack",
 ]
 
 [[package]]
@@ -4263,7 +4271,7 @@ checksum = "055b4e778e8feb9f93c4e439f71dc2156ef13360b432b799e179a8c4cdf0b1d7"
 dependencies = [
  "bytes",
  "libc",
- "socket2 0.5.4",
+ "socket2 0.5.6",
  "tracing",
  "windows-sys 0.48.0",
 ]
@@ -5107,7 +5115,6 @@ dependencies = [
  "fastcrypto",
  "serde",
  "serde_repr",
- "workspace-hack",
 ]
 
 [[package]]
@@ -5227,12 +5234,12 @@ dependencies = [
 
 [[package]]
 name = "socket2"
-version = "0.5.4"
+version = "0.5.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4031e820eb552adee9295814c0ced9e5cf38ddf1e8b7d566d6de8e2538ea989e"
+checksum = "05ffd9c0a93b7543e062e759284fcf5f5e3b098501104bfbdde4d404db792871"
 dependencies = [
  "libc",
- "windows-sys 0.48.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -5360,7 +5367,6 @@ dependencies = [
  "sui-protocol-config",
  "sui-types",
  "tracing",
- "workspace-hack",
 ]
 
 [[package]]
@@ -5368,7 +5374,6 @@ name = "sui-enum-compat-util"
 version = "0.1.0"
 dependencies = [
  "serde_yaml 0.8.26",
- "workspace-hack",
 ]
 
 [[package]]
@@ -5385,7 +5390,6 @@ dependencies = [
  "sui-move-build",
  "sui-types",
  "tracing",
- "workspace-hack",
 ]
 
 [[package]]
@@ -5403,7 +5407,6 @@ dependencies = [
  "serde_json",
  "sui-framework",
  "sui-types",
- "workspace-hack",
 ]
 
 [[package]]
@@ -5423,7 +5426,6 @@ dependencies = [
  "sui-types",
  "tap",
  "tracing",
- "workspace-hack",
 ]
 
 [[package]]
@@ -5452,7 +5454,6 @@ dependencies = [
  "sui-types",
  "tabled",
  "tracing",
- "workspace-hack",
 ]
 
 [[package]]
@@ -5471,7 +5472,6 @@ dependencies = [
  "slip10_ed25519",
  "sui-types",
  "tiny-bip39",
- "workspace-hack",
 ]
 
 [[package]]
@@ -5482,12 +5482,11 @@ dependencies = [
  "once_cell",
  "sui-proc-macros",
  "tracing",
- "workspace-hack",
 ]
 
 [[package]]
 name = "sui-move-build"
-version = "1.19.1"
+version = "1.20.0"
 dependencies = [
  "anyhow",
  "fastcrypto",
@@ -5505,19 +5504,17 @@ dependencies = [
  "sui-types",
  "sui-verifier-latest",
  "tempfile",
- "workspace-hack",
 ]
 
 [[package]]
 name = "sui-open-rpc"
-version = "1.19.1"
+version = "1.20.0"
 dependencies = [
  "bcs",
  "schemars",
  "serde",
  "serde_json",
  "versions",
- "workspace-hack",
 ]
 
 [[package]]
@@ -5530,7 +5527,6 @@ dependencies = [
  "quote 1.0.33",
  "syn 1.0.109",
  "unescape",
- "workspace-hack",
 ]
 
 [[package]]
@@ -5542,7 +5538,6 @@ dependencies = [
  "quote 1.0.33",
  "sui-enum-compat-util",
  "syn 2.0.37",
- "workspace-hack",
 ]
 
 [[package]]
@@ -5556,7 +5551,6 @@ dependencies = [
  "serde_with",
  "sui-protocol-config-macros",
  "tracing",
- "workspace-hack",
 ]
 
 [[package]]
@@ -5566,12 +5560,11 @@ dependencies = [
  "proc-macro2 1.0.67",
  "quote 1.0.33",
  "syn 1.0.109",
- "workspace-hack",
 ]
 
 [[package]]
 name = "sui-sdk"
-version = "1.19.1"
+version = "1.20.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -5598,7 +5591,6 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
- "workspace-hack",
 ]
 
 [[package]]
@@ -5615,7 +5607,6 @@ dependencies = [
  "sui-json-rpc-types",
  "sui-protocol-config",
  "sui-types",
- "workspace-hack",
 ]
 
 [[package]]
@@ -5676,7 +5667,6 @@ dependencies = [
  "tonic",
  "tracing",
  "typed-store-error",
- "workspace-hack",
 ]
 
 [[package]]
@@ -5691,7 +5681,6 @@ dependencies = [
  "move-vm-config",
  "sui-protocol-config",
  "sui-types",
- "workspace-hack",
 ]
 
 [[package]]
@@ -5913,9 +5902,9 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokio"
-version = "1.32.0"
+version = "1.36.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "17ed6077ed6cd6c74735e21f37eb16dc3935f96878b1fe961074089cc80893f9"
+checksum = "61285f6515fa018fb2d1e46eb21223fff441ee8db5d0f1435e8ab4f5cdb80931"
 dependencies = [
  "backtrace",
  "bytes",
@@ -5923,7 +5912,7 @@ dependencies = [
  "mio",
  "num_cpus",
  "pin-project-lite",
- "socket2 0.5.4",
+ "socket2 0.5.6",
  "tokio-macros",
  "windows-sys 0.48.0",
 ]
@@ -5940,9 +5929,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-macros"
-version = "2.1.0"
+version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "630bdcf245f78637c13ec01ffae6187cca34625e8c63150d424b59e55af2675e"
+checksum = "5b8a1e28f2deaa14e508979454cb3a223b10b938b45af148bc0986de36f1923b"
 dependencies = [
  "proc-macro2 1.0.67",
  "quote 1.0.33",
@@ -6251,7 +6240,6 @@ version = "0.4.0"
 dependencies = [
  "serde",
  "thiserror",
- "workspace-hack",
 ]
 
 [[package]]
@@ -6430,6 +6418,12 @@ dependencies = [
  "itertools 0.10.5",
  "nom",
 ]
+
+[[package]]
+name = "vfs"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2e4fe92cfc1bad19c19925d5eee4b30584dbbdee4ff10183b261acccbef74e2d"
 
 [[package]]
 name = "wait-timeout"
@@ -6654,6 +6648,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "windows-sys"
+version = "0.52.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "282be5f36a8ce781fad8c8ae18fa3f9beff57ec1b52cb3de0789201425d9a33d"
+dependencies = [
+ "windows-targets 0.52.4",
+]
+
+[[package]]
 name = "windows-targets"
 version = "0.42.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6684,6 +6687,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "windows-targets"
+version = "0.52.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7dd37b7e5ab9018759f893a1952c9420d060016fc19a472b4bb20d1bdd694d1b"
+dependencies = [
+ "windows_aarch64_gnullvm 0.52.4",
+ "windows_aarch64_msvc 0.52.4",
+ "windows_i686_gnu 0.52.4",
+ "windows_i686_msvc 0.52.4",
+ "windows_x86_64_gnu 0.52.4",
+ "windows_x86_64_gnullvm 0.52.4",
+ "windows_x86_64_msvc 0.52.4",
+]
+
+[[package]]
 name = "windows_aarch64_gnullvm"
 version = "0.42.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6694,6 +6712,12 @@ name = "windows_aarch64_gnullvm"
 version = "0.48.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b38e32f0abccf9987a4e3079dfb67dcd799fb61361e53e2882c3cbaf0d905d8"
+
+[[package]]
+name = "windows_aarch64_gnullvm"
+version = "0.52.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bcf46cf4c365c6f2d1cc93ce535f2c8b244591df96ceee75d8e83deb70a9cac9"
 
 [[package]]
 name = "windows_aarch64_msvc"
@@ -6708,6 +6732,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dc35310971f3b2dbbf3f0690a219f40e2d9afcf64f9ab7cc1be722937c26b4bc"
 
 [[package]]
+name = "windows_aarch64_msvc"
+version = "0.52.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "da9f259dd3bcf6990b55bffd094c4f7235817ba4ceebde8e6d11cd0c5633b675"
+
+[[package]]
 name = "windows_i686_gnu"
 version = "0.42.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6718,6 +6748,12 @@ name = "windows_i686_gnu"
 version = "0.48.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a75915e7def60c94dcef72200b9a8e58e5091744960da64ec734a6c6e9b3743e"
+
+[[package]]
+name = "windows_i686_gnu"
+version = "0.52.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b474d8268f99e0995f25b9f095bc7434632601028cf86590aea5c8a5cb7801d3"
 
 [[package]]
 name = "windows_i686_msvc"
@@ -6732,6 +6768,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f55c233f70c4b27f66c523580f78f1004e8b5a8b659e05a4eb49d4166cca406"
 
 [[package]]
+name = "windows_i686_msvc"
+version = "0.52.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1515e9a29e5bed743cb4415a9ecf5dfca648ce85ee42e15873c3cd8610ff8e02"
+
+[[package]]
 name = "windows_x86_64_gnu"
 version = "0.42.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6742,6 +6784,12 @@ name = "windows_x86_64_gnu"
 version = "0.48.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "53d40abd2583d23e4718fddf1ebec84dbff8381c07cae67ff7768bbf19c6718e"
+
+[[package]]
+name = "windows_x86_64_gnu"
+version = "0.52.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5eee091590e89cc02ad514ffe3ead9eb6b660aedca2183455434b93546371a03"
 
 [[package]]
 name = "windows_x86_64_gnullvm"
@@ -6756,6 +6804,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b7b52767868a23d5bab768e390dc5f5c55825b6d30b86c844ff2dc7414044cc"
 
 [[package]]
+name = "windows_x86_64_gnullvm"
+version = "0.52.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77ca79f2451b49fa9e2af39f0747fe999fcda4f5e241b2898624dca97a1f2177"
+
+[[package]]
 name = "windows_x86_64_msvc"
 version = "0.42.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6766,6 +6820,12 @@ name = "windows_x86_64_msvc"
 version = "0.48.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed94fce61571a4006852b7389a063ab983c02eb1bb37b47f8272ce92d06d9538"
+
+[[package]]
+name = "windows_x86_64_msvc"
+version = "0.52.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32b752e52a2da0ddfbdbcc6fceadfeede4c939ed16d13e648833a61dfb611ed8"
 
 [[package]]
 name = "winnow"
@@ -6785,12 +6845,6 @@ dependencies = [
  "cfg-if",
  "windows-sys 0.48.0",
 ]
-
-[[package]]
-name = "workspace-hack"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "beffa227304dbaea3ad6a06ac674f9bc83a3dec3b7f63eeb442de37e7cb6bb01"
 
 [[package]]
 name = "wyz"
