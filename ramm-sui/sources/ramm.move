@@ -117,7 +117,7 @@ module ramm_sui::ramm {
     /// does not (and should not) have the `store` ability, then it would be impossible to use
     /// `sui::transfer::{public_transfer, transfer}` to transfer the admin cap.
     ///
-    /// For more information, see the official Sui docs: https://docs.sui.io/concepts/dynamic-fields/transfers/custom-rules
+    /// For more information, see the official Sui docs: https://docs.sui.io/concepts/transfers/custom-rules
     ///
     /// Note that because the admin cap is passed in by value, only an address with prior ownership
     /// of an admin cap can transfer it to another address.
