@@ -571,35 +571,8 @@ the `ramm-sui-deploy` Rust crate leverages the Sui Rust SDK to allow a user to
 3. add the specified assets to it
 4. initialize it
 
-Below is an example TOML config for a 3-asset RAMM using assets from a published version of `ramm-misc`:
-
-```toml
-# The target network to which the RAMM will be published.
-target_env = "testnet"
-# Whether to publish `ramm-sui` at given location, or use already-published version.
-ramm_pkg_addr_or_path = "../ramm-sui"
-#ramm_pkg_addr_or_path = "0x0a31987c7298a1cf416f0ab7793fa9b519143e2032f472f407b295108390420a"
-asset_count = 3
-fee_collection_address = "0x1fad963ac9311c5f99685bc430dc022a5b0d36f6860603495ca0a0e3a46dd120"
-
-[[assets]]
-asset_type = "0x76a5ecf30b2cf49a342a9bd74a479702a1b321b0d45f06920618dbe7c2da52b1::test_coins::BTC"
-aggregator_address = "0x7c30e48db7dfd6a2301795be6cb99d00c87782e2547cf0c63869de244cfc7e47"
-minimum_trade_amount = 10_000
-decimal_places = 8
-
-[[assets]]
-asset_type = "0x76a5ecf30b2cf49a342a9bd74a479702a1b321b0d45f06920618dbe7c2da52b1::test_coins::ETH"
-aggregator_address = "0x68ed81c5dd07d12c629e5cdad291ca004a5cd3708d5659cb0b6bfe983e14778c"
-minimum_trade_amount = 100_000
-decimal_places = 8
-
-[[assets]]
-asset_type = "0x76a5ecf30b2cf49a342a9bd74a479702a1b321b0d45f06920618dbe7c2da52b1::test_coins::SOL"
-aggregator_address = "0x35c7c241fa2d9c12cd2e3bcfa7d77192a58fd94e9d6f482465d5e3c8d91b4b43"
-minimum_trade_amount = 10_000_000
-decimal_places = 8
-```
+In `deployment_cfgs/example.toml` is an example TOML config for a 3-asset RAMM using assets from a
+published version of `ramm-misc`.
 
 ### Running the deployment tool
 
@@ -609,7 +582,7 @@ Assuming `suibase` is installed, and its workdir for the intended network has be
 ```bash
 cd ./ramm-sui-deploy
 # keep in mind the location of `deploy_cfg.toml` relative to ./ramm-sui-deploy
-cargo run --bin ramm_sui_deploy -- --toml ../deploy_cfg.toml
+cargo run --bin ramm_sui_deploy -- --toml ../deployment_cfgs/testnet/deploy_cfg.toml
 ```
 
 ## Testing a Switchboard price feed
