@@ -1,0 +1,53 @@
+# Format of RAMM deployment configuration files:
+#
+# * exactly *one* of every field except `[[assets]]`
+#     - the target environment must be one of `active | testnet | mainnet`
+#     - the field `ramm_pkg_addr_or_path` must contain *either* of
+#         * a path to the RAMM Sui Move library, or
+#         * an address to a published version of it
+#     - the asset count must be at least `2`, and match the number of occurrences of `[[assets]]`
+#     - the fee collection address must be a valid `sui_types::SuiAddress`
+# * there must be at least 2 occurrences of `[[assets]]`
+# * regarding each asset: all of the fields
+#     - `asset_type: sui_types::TypeTag`,
+#     - `aggregator_address: SuiAddress`,
+#     - `minimum_trade_amount: u64` and
+#     - `decimal_places: u8`
+#   must be present
+
+# The target network to which the RAMM will be published.
+target_env = "mainnet"
+# Path to `ramm-sui` relative to `ramm-sui-deploy`'s directory.
+ramm_pkg_addr_or_path = "../ramm-sui"
+# If the package is already published, it can instead be
+#ramm_pkg_addr_or_path = "0xd3283fa556731370cd2a7f389b3e35c630184118b5af416ce9e57edfce751496"
+
+# Number of assets - must match the count of `[[assets]]` below.
+asset_count = 3
+# The address to which the fees will be collected. No validity checks are performed on this
+# address, though it can be changed later.
+fee_collection_address = "0x47c450aae7a9e4bee707d6f18156562c3516caf535a48a845a22c090a18d38b4"
+
+[[assets]]
+# Type of the asset, in the format of `<package_id>::<module_name>::<asset_name>`
+asset_type = "0x937e867b32da5c423e615d03d9f5e898fdf08d8f94d8b0d97805d5c3f06e0a1b::test_coins::ADA"
+# Address of the Switchboard aggregator for this asset. To obtain them, see
+# 1. https://app.switchboard.xyz/sui/testnet, or
+# 2. https://app.switchboard.xyz/sui/mainnet
+aggregator_address = "0xde1e536f6938c718bdaa055e75ae50ec3fa6691726b3a3b897c691355793ede6"
+# Minimum trade amount for this asset, taking into account the `decimal_places` field below.
+minimum_trade_amount = 100_000_000
+# For this asset, this means `1` unit of `ADA` is the least tradable amount.
+decimal_places = 8
+
+[[assets]]
+asset_type = "0x937e867b32da5c423e615d03d9f5e898fdf08d8f94d8b0d97805d5c3f06e0a1b::test_coins::DOT"
+aggregator_address = "0xa6c61dae96bcae8944ca1365f943b44a2def64a3e1ae291eef76879868e157c7"
+minimum_trade_amount = 10_000_000
+decimal_places = 8
+
+[[assets]]
+asset_type = "0x937e867b32da5c423e615d03d9f5e898fdf08d8f94d8b0d97805d5c3f06e0a1b::test_coins::SOL"
+aggregator_address = "0x35c7c241fa2d9c12cd2e3bcfa7d77192a58fd94e9d6f482465d5e3c8d91b4b43"
+minimum_trade_amount = 1_000_000
+decimal_places = 8
