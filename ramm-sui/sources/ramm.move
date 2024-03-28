@@ -1549,7 +1549,7 @@ module ramm_sui::ramm {
     /// the tokens.
     ///
     /// The result is given in `u256` with `PRECISION_DECIMAL_PLACES` decimal places.
-    fun imbalance_ratios(
+    public fun imbalance_ratios(
         self: &RAMM,
         prices: &VecMap<u8, u256>,
         factors_for_prices: &VecMap<u8, u256>,
