@@ -33,6 +33,6 @@ dependencies = [
 ]
 
 [move.toolchain-version]
-compiler-version = "1.19.1"
+compiler-version = "1.21.1"
 edition = "legacy"
 flavor = "sui"
