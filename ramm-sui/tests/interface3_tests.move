@@ -270,6 +270,51 @@ module ramm_sui::interface3_tests {
     }
 
     #[test]
+    /// Check that emitting an event with the pool's imbalance ratios does so.
+    fun imbalance_ratios_event_3_test() {
+        let (ramm_id, eth_ag_id, matic_ag_id, usdt_ag_id, scenario_val) =
+            test_util::create_ramm_test_scenario_eth_matic_usdt(ADMIN);
+        let scenario = &mut scenario_val;
+
+        test_scenario::next_tx(scenario, ALICE);
+
+        {
+            let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
+            let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
+            let matic_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, matic_ag_id);
+            let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
+
+            interface3::imbalance_ratios_event_3<ETH, MATIC, USDT>(
+                &ramm,
+                &clock,
+                &eth_aggr,
+                &matic_aggr,
+                &usdt_aggr,
+                test_scenario::ctx(scenario)
+            );
+
+            test_scenario::return_shared<Aggregator>(usdt_aggr);
+            test_scenario::return_shared<Aggregator>(matic_aggr);
+            test_scenario::return_shared<Aggregator>(eth_aggr);
+            test_scenario::return_shared<Clock>(clock);
+            test_scenario::return_shared<RAMM>(ramm);
+        };
+
+        let tx_fx: TransactionEffects = test_scenario::next_tx(scenario, ALICE);
+        // Verify that one user event was emitted - the pool state query.
+        //
+        // The Sui Move test framework does not currently allow inspection of a tx's emitted
+        // events, but simply verifying an event was emitted would have prevented a past bug:
+        //
+        // * due to an infinite loop in `get_pool_state`, the function never terminated, and
+        // no event was ever emitted due to transaction execution failure over exhausted resources.
+        test_utils::assert_eq(test_scenario::num_user_events(&tx_fx), 1);
+
+        test_scenario::end(scenario_val);
+    }
+
+    #[test]
     /// Test for fee collection after a trade.
     ///
     /// After a trader sells 10 ETH to a perfectly balanced pool:

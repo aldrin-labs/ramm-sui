@@ -717,7 +717,7 @@ module ramm_sui::ramm_tests {
     }
 
     #[test]
-    /// Check that setting a new address of an `Aggregator` works as intended.
+    /// Check that emitting an event with a pool's state works.
     fun get_pool_state_test() {
         let (ramm_id, _, _, _, scenario_val) = test_util::create_ramm_test_scenario_eth_matic_usdt(ADMIN);
         let scenario = &mut scenario_val;
