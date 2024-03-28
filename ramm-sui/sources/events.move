@@ -194,6 +194,26 @@ module ramm_sui::events {
         event::emit(lwe)
     }
 
+    struct ImbalanceRatioEvent has copy, drop {
+        ramm_id: ID,
+        requester: address,
+        imb_ratios: VecMap<TypeName, u64>,
+    }
+
+    public(friend) fun imbalance_ratios_event(
+        ramm_id: ID,
+        requester: address,
+        imb_ratios: VecMap<TypeName, u64>,
+    ) {
+        let ire = ImbalanceRatioEvent {
+                ramm_id,
+                requester,
+                imb_ratios,
+            };
+
+        event::emit(ire)
+    }
+
     /// Datatype describing a Sui event for a given RAMM's fee collection.
     struct FeeCollectionEvent has copy, drop {
         ramm_id: ID,
