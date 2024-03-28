@@ -6,8 +6,6 @@ module ramm_sui::ramm {
     use sui::balance::{Self, Balance, Supply};
     use sui::coin::{Self, Coin};
     use sui::object::{Self, ID, UID};
-    // Sui Move Prover is being sunset: https://github.com/MystenLabs/sui/pull/15480
-    //use sui::prover::{OWNED, SHARED};
     use sui::transfer;
     use sui::tx_context::{Self, TxContext};
     use sui::vec_map::{Self, VecMap};
