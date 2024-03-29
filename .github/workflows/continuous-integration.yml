@@ -1,4 +1,4 @@
-name: CI for `ramm-sui` Sui Move smart contract
+name: Build/test `ramm-misc`, `ramm-sui`, `ramm-sui-deploy`
 run-name: GitHub Actions CI for `ramm-sui`
 on:
     push:
@@ -14,12 +14,12 @@ jobs:
             - name: Fetch `ramm-sui` repository
               uses: actions/checkout@v4
             - name: Build Sui binaries (and cache, if needed)
-              uses: taiki-e/cache-cargo-install-action@v1
+              uses: baptiste0928/cargo-install@v3
               with:
                   locked: true
                   git: https://github.com/MystenLabs/sui.git
-                  rev: mainnet
-                  tool: sui
+                  branch: mainnet
+                  crate: sui
             - name: Build `ramm-misc`
               run: |
                   (cd ./ramm-misc && sui move build && sui move test)
