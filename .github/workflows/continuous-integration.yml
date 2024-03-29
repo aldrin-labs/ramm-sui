@@ -1,0 +1,38 @@
+name: Build/test `ramm-misc`, `ramm-sui`, `ramm-sui-deploy`
+run-name: GitHub Actions CI for `ramm-sui`
+on:
+    push:
+      branches:
+        - 'main'
+    pull_request:
+
+env:
+    # ✨rizz✨ up CI, plus this makes it easier to parse logs.
+    CARGO_TERM_COLOR: always
+
+jobs:
+    ramm-sui-main-job:
+        name: Build and test `ramm-misc`/`ramm-sui`
+        runs-on: ubuntu-latest
+        steps:
+            - name: Fetch `ramm-sui` repository
+              uses: actions/checkout@v4
+            - name: Build Sui binaries (and cache, if needed)
+              uses: baptiste0928/cargo-install@v3
+              with:
+                  locked: true
+                  git: https://github.com/MystenLabs/sui.git
+                  branch: mainnet
+                  crate: sui
+            - name: Build `ramm-misc`
+              run: |
+                  cd ${{ github.workspace }}
+                  cd ./ramm-misc
+                  sui move build
+                  sui move test
+            - name: Build `ramm-sui`
+              run: |
+                  cd ${{ github.workspace }}
+                  cd ./ramm-sui
+                  sui move build
+                  sui move test --gas-limit 1000000000
