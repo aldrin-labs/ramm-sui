@@ -29,4 +29,4 @@ jobs:
                   (cd ./ramm-misc && sui move build && sui move test)
             - name: Build `ramm-sui`
               run: |
-                  (cd ./ramm-sui && sui move build && sui move test) --gas-limit 1000000000
+                  (cd ./ramm-sui && sui move build && sui move test --gas-limit 1000000000)
