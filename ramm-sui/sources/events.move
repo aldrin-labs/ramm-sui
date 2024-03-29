@@ -194,6 +194,33 @@ module ramm_sui::events {
         event::emit(lwe)
     }
 
+    /// Description of a Sui event with a RAMM's imbalance ratios.
+    ///
+    /// The event contains a `VecMap`, such that
+    /// * its keys are each of the RAMM asset's `TypeName`s
+    /// * its values are the imbalance ratios for each of the RAMM's assets, represented with
+    ///   as `u64`s with `PRECISION_DECIMAL_PLACES`
+    struct ImbalanceRatioEvent has copy, drop {
+        ramm_id: ID,
+        requester: address,
+        imb_ratios: VecMap<TypeName, u64>,
+    }
+
+    /// Given the required data, emit an event with a RAMM's imbalance ratios.
+    public(friend) fun imbalance_ratios_event(
+        ramm_id: ID,
+        requester: address,
+        imb_ratios: VecMap<TypeName, u64>,
+    ) {
+        let ire = ImbalanceRatioEvent {
+                ramm_id,
+                requester,
+                imb_ratios,
+            };
+
+        event::emit(ire)
+    }
+
     /// Datatype describing a Sui event for a given RAMM's fee collection.
     struct FeeCollectionEvent has copy, drop {
         ramm_id: ID,

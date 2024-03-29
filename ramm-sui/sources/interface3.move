@@ -557,7 +557,7 @@ module ramm_sui::interface3 {
     ///
     /// * If this function is called on a RAMM that does not have 3 assets.
     /// * If the amount being traded in is zero
-    /// * If the RAMM does not contain any of the asset types provided
+    /// * If the RAMM does not contain *all* of the asset types provided
     /// * If the aggregator for each asset doesn't match the address in the RAMM's records
     /// * If any aggregator's price is older than a fixed staleness threshold
     public fun liquidity_deposit_3<AssetIn, Other, Another>(
@@ -703,7 +703,7 @@ module ramm_sui::interface3 {
     ///
     /// * If the RAMM does not have 3 assets
     /// * If the pool does not have the asset for which the withdrawal is being requested
-    /// * If the RAMM does not contain any of the asset types provided
+    /// * If the RAMM does not contain *all* of the asset types provided
     /// * If the aggregator for each asset doesn't match the address in the RAMM's records
     /// * If any aggregator's price is older than a fixed staleness threshold
     public fun liquidity_withdrawal_3<Asset1, Asset2, Asset3, AssetOut>(
@@ -907,6 +907,82 @@ module ramm_sui::interface3 {
         ramm::check_ramm_invariants_3<Asset1, Asset2, Asset3>(self);
     }
 
+    /// Emit an event with the current imbalance ratios for each of the RAMM's assets.
+    ///
+    /// See `events.move` for the structure of the emitted event.
+    ///
+    /// # Aborts
+    /// * If the RAMM does not have 3 assets
+    /// * If the RAMM does not contain *all* of the asset types provided
+    /// * If the aggregator for each asset doesn't match the address in the RAMM's records
+    /// * If any aggregator's price is older than a fixed staleness threshold
+    public fun imbalance_ratios_event_3<Asset1, Asset2, Asset3>(
+        self: &RAMM,
+        clock: &Clock,
+        feed1: &Aggregator,
+        feed2: &Aggregator,
+        feed3: &Aggregator,
+        ctx: &TxContext
+    ) {
+        assert!(ramm::get_asset_count(self) == THREE, ERAMMInvalidSize);
+
+        let fst = ramm::get_asset_index<Asset1>(self);
+        let snd = ramm::get_asset_index<Asset2>(self);
+        let trd = ramm::get_asset_index<Asset3>(self);
+
+        let current_timestamp: u64 = clock::timestamp_ms(clock);
+        let prices = vec_map::empty<u8, u256>();
+        let factors_for_prices = vec_map::empty<u8, u256>();
+        let new_price_timestamps = vec_map::empty<u8, u64>();
+        ramm::check_feed_and_get_price_data(
+            self,
+            current_timestamp,
+            fst,
+            feed1,
+            &mut prices,
+            &mut factors_for_prices,
+            &mut new_price_timestamps
+        );
+        ramm::check_feed_and_get_price_data(
+            self,
+            current_timestamp,
+            snd,
+            feed2,
+            &mut prices,
+            &mut factors_for_prices,
+            &mut new_price_timestamps
+        );
+        ramm::check_feed_and_get_price_data(
+            self,
+            current_timestamp,
+            trd,
+            feed3,
+            &mut prices,
+            &mut factors_for_prices,
+            &mut new_price_timestamps
+        );
+
+        let imb_ratios: VecMap<u8, u256> = ramm::imbalance_ratios(self, &prices, &factors_for_prices);
+        let event_imb_ratios = vec_map::empty();
+
+        let fst_imb_ratio: u64 = (*vec_map::get(&imb_ratios, &fst) as u64);
+        vec_map::insert(&mut event_imb_ratios, type_name::get<Asset1>(), fst_imb_ratio);
+
+        let snd_imb_ratio: u64 = (*vec_map::get(&imb_ratios, &snd) as u64);
+        vec_map::insert(&mut event_imb_ratios, type_name::get<Asset2>(), snd_imb_ratio);
+
+        let trd_imb_ratio: u64 = (*vec_map::get(&imb_ratios, &trd) as u64);
+        vec_map::insert(&mut event_imb_ratios, type_name::get<Asset3>(), trd_imb_ratio);
+
+        let requester: address = tx_context::sender(ctx);
+
+        events::imbalance_ratios_event(
+            ramm::get_id(self),
+            requester,
+            event_imb_ratios
+        );
+    }
+
     /// Collect fees for a given RAMM, sending them to the fee collection address
     /// specified upon the RAMM's creation.
     ///
@@ -915,7 +991,7 @@ module ramm_sui::interface3 {
     /// * If called with the wrong admin capability object
     /// * If the RAMM does not have exactly 3 assets, whose types match the ones provided
     ///   as parameters.
-    /// * If the RAMM does not contain any of the assets types provided
+    /// * If the RAMM does not contain *all* of the asset types provided
     public fun collect_fees_3<Asset1, Asset2, Asset3>(
         self: &mut RAMM,
         admin_cap: &RAMMAdminCap,
