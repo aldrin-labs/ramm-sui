@@ -6,6 +6,10 @@ on:
         - 'main'
     pull_request:
 
+env:
+    # ✨rizz✨ up CI, plus this makes it easier to parse logs.
+    CARGO_TERM_COLOR: always
+
 jobs:
     ramm-sui-main-job:
         name: Build and test `ramm-misc`/`ramm-sui`
