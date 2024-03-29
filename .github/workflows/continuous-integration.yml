@@ -1,4 +1,4 @@
-name: Build/test `ramm-misc`, `ramm-sui`, `ramm-sui-deploy`
+name: Build/test `ramm-misc`, `ramm-sui`
 run-name: GitHub Actions CI for `ramm-sui`
 on:
     push:
