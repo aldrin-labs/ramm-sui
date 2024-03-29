@@ -1,6 +1,7 @@
 # The target network to which the RAMM will be published.
 target_env = "mainnet"
-ramm_pkg_addr_or_path = "../ramm-sui"
+#ramm_pkg_addr_or_path = "../ramm-sui"
+ramm_pkg_addr_or_path = "0xcb6640194b37023f6bed705f40ff22883eb6007d4c69e72c317c64671f9f6b29"
 asset_count = 3
 fee_collection_address = "0x0ddc7eb2a5559eefbdf1ca734a289d9b7b838ec6705a4d0efabe72973f5f8523"
 
