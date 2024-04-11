@@ -265,6 +265,7 @@ async fn new_ramm_tx(
             vec![SuiJsonValue::from_str(&dplymt_cfg.fee_collection_address.to_string()).unwrap()],
             None,
             CREATE_RAMM_GAS_BUDGET,
+            None
         )
         .await
         .map_err(RAMMDeploymentError::NewRammTxError)
