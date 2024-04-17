@@ -1,6 +1,7 @@
 [package]
 name = "ramm_sui"
 version = "0.0.1"
+edition = "2024.beta"
 # First version of package published in testnet with ID:
 #published-at = "0xd3283fa556731370cd2a7f389b3e35c630184118b5af416ce9e57edfce751496"
 # Upgraded to ID:

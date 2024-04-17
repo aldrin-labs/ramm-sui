@@ -42,13 +42,13 @@ module ramm_sui::interface2_oracle_safety_tests {
     #[test]
     #[expected_failure(abort_code = oracles::EStalePrice)]
     fun trade_amount_in_2_stale_aggregator_price() {
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, mut scenario_val) =
             test_util::create_ramm_test_scenario_btc_eth_with_liq(ALICE);
         let scenario = &mut scenario_val;
 
         {
-            let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
-            let clock = test_scenario::take_shared<Clock>(scenario);
+            let mut alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
+            let mut clock = test_scenario::take_shared<Clock>(scenario);
             let btc_amount: u64 = (1 * test_util::btc_factor() as u64);
             let amount_in = coin::mint_for_testing<BTC>(btc_amount, test_scenario::ctx(scenario));
             let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
@@ -78,13 +78,13 @@ module ramm_sui::interface2_oracle_safety_tests {
     #[test]
     #[expected_failure(abort_code = oracles::EStalePrice)]
     fun trade_amount_out_2_stale_aggregator_price() {
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, mut scenario_val) =
             test_util::create_ramm_test_scenario_btc_eth_with_liq(ALICE);
         let scenario = &mut scenario_val;
 
         {
-            let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
-            let clock = test_scenario::take_shared<Clock>(scenario);
+            let mut alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
+            let mut clock = test_scenario::take_shared<Clock>(scenario);
             let btc_amount: u64 = (1 * test_util::btc_factor() as u64);
             let max_amount_in = coin::mint_for_testing<BTC>(btc_amount, test_scenario::ctx(scenario));
             let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
@@ -114,13 +114,13 @@ module ramm_sui::interface2_oracle_safety_tests {
     #[test]
     #[expected_failure(abort_code = oracles::EStalePrice)]
     fun liquidity_deposit_2_stale_aggregator_price() {
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, mut scenario_val) =
             test_util::create_ramm_test_scenario_btc_eth_no_liq(ALICE);
         let scenario = &mut scenario_val;
 
         {
-            let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
-            let clock = test_scenario::take_shared<Clock>(scenario);
+            let mut alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
+            let mut clock = test_scenario::take_shared<Clock>(scenario);
             let btc_amount: u64 = (1 * test_util::btc_factor() as u64);
             let amount_in = coin::mint_for_testing<BTC>(btc_amount, test_scenario::ctx(scenario));
             let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
@@ -150,13 +150,13 @@ module ramm_sui::interface2_oracle_safety_tests {
     #[expected_failure(abort_code = oracles::EStalePrice)]
     fun liquidity_withdrawal_2_zero_deposit() {
         // Create a 2-asset pool with BTC, ETH
-        let (alice_ramm_id, btc_ag_id, eth_ag_id, scenario_val) =
+        let (alice_ramm_id, btc_ag_id, eth_ag_id, mut scenario_val) =
             test_util::create_ramm_test_scenario_btc_eth_with_liq(ALICE);
         let scenario = &mut scenario_val;
 
         {
-            let alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
-            let clock = test_scenario::take_shared<Clock>(scenario);
+            let mut alice_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, alice_ramm_id);
+            let mut clock = test_scenario::take_shared<Clock>(scenario);
 
             let lp_btc_amount: u64 = (1 * test_util::btc_factor() as u64);
             let lp_tokens = coin::mint_for_testing<LP<BTC>>(lp_btc_amount, test_scenario::ctx(scenario));
