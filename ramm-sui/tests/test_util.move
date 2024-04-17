@@ -77,6 +77,16 @@ module ramm_sui::test_util {
     public struct USDC has drop {}
     public struct USDT has drop {}
 
+    /// Decimal places of the globally known SUI coin type.
+    public(package) fun sui_dec_places(): u8 {
+        9
+    }
+
+    /// Scaling factor for SUI coin type.
+    public(package) fun sui_factor(): u256 {
+        ramm_math::pow(10u256, sui_dec_places())
+    }
+
     /// Decimal places of this module's BTC coin type.
     public(package) fun btc_dec_places(): u8 {
         8
@@ -119,12 +129,22 @@ module ramm_sui::test_util {
 
     /// Decimal places of this module's USDT coin type.
     public(package) fun usdt_dec_places(): u8 {
-        8
+        6
     }
 
     /// Scaling factor for USDT coin type.
     public(package) fun usdt_factor(): u256 {
         ramm_math::pow(10u256, usdt_dec_places())
+    }
+
+    /// Decimal places of this module's USDC coin type.
+    public(package) fun usdc_dec_places(): u8 {
+        6
+    }
+
+    /// Scaling factor for USDC coin type.
+    public(package) fun usdc_factor(): u256 {
+        ramm_math::pow(10u256, usdc_dec_places())
     }
 
     /// ----------------
