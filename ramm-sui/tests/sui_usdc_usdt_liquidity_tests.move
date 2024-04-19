@@ -26,6 +26,10 @@ module ramm_sui::sui_usdc_usdt_liquidity_tests {
 
         {
             let mut ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
+            let sui_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, sui_ag_id);
+            let usdc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdc_ag_id);
+            let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
 
             let lp_sui = test_scenario::take_from_address<Coin<LP<SUI>>>(scenario, ADMIN);
             test_utils::assert_eq(coin::value(&lp_sui), (100 * test_util::sui_factor() as u64));
@@ -42,7 +46,7 @@ module ramm_sui::sui_usdc_usdt_liquidity_tests {
             interface3::liquidity_withdrawal_3<SUI, USDC, USDT, SUI>(
                 &mut ramm,
                 &clock,
-                lp_eth,
+                lp_sui,
                 &sui_aggr,
                 &usdc_aggr,
                 &usdt_aggr,
@@ -52,7 +56,7 @@ module ramm_sui::sui_usdc_usdt_liquidity_tests {
             interface3::liquidity_withdrawal_3<SUI, USDC, USDT, USDC>(
                 &mut ramm,
                 &clock,
-                lp_eth,
+                lp_usdc,
                 &sui_aggr,
                 &usdc_aggr,
                 &usdt_aggr,
@@ -62,17 +66,18 @@ module ramm_sui::sui_usdc_usdt_liquidity_tests {
             interface3::liquidity_withdrawal_3<SUI, USDC, USDT, USDT>(
                 &mut ramm,
                 &clock,
-                lp_eth,
+                lp_usdt,
                 &sui_aggr,
                 &usdc_aggr,
                 &usdt_aggr,
                 test_scenario::ctx(scenario)
             );
 
-            test_scenario::return_to_address<Coin<LP<SUI>>>(ADMIN, lp_sui);
-            test_scenario::return_to_address<Coin<LP<USDC>>>(ADMIN, lp_usdc);
-            test_scenario::return_to_address<Coin<LP<USDT>>>(ADMIN, lp_usdt);
             test_scenario::return_shared<RAMM>(ramm);
+            test_scenario::return_shared<Clock>(clock);
+            test_scenario::return_shared<Aggregator>(sui_aggr);
+            test_scenario::return_shared<Aggregator>(usdc_aggr);
+            test_scenario::return_shared<Aggregator>(usdt_aggr);
         };
 
         test_scenario::next_tx(scenario, ADMIN);
