@@ -31,10 +31,10 @@ module ramm_sui::sui_usdc_usdt_liquidity_tests {
             test_utils::assert_eq(coin::value(&lp_sui), (100 * test_util::sui_factor() as u64));
 
             let lp_usdc = test_scenario::take_from_address<Coin<LP<USDC>>>(scenario, ADMIN);
-            test_utils::assert_eq(coin::value(&lp_usdc), (150 * test_util::usdc_factor() as u64));
+            test_utils::assert_eq(coin::value(&lp_usdc), (145 * test_util::usdc_factor() as u64) * 1_000);
 
             let lp_usdt = test_scenario::take_from_address<Coin<LP<USDT>>>(scenario, ADMIN);
-            test_utils::assert_eq(coin::value(&lp_usdt), (150 * test_util::usdt_factor() as u64));
+            test_utils::assert_eq(coin::value(&lp_usdt), (148 * test_util::usdt_factor() as u64) * 1_000);
 
             test_scenario::return_to_address<Coin<LP<SUI>>>(ADMIN, lp_sui);
             test_scenario::return_to_address<Coin<LP<USDC>>>(ADMIN, lp_usdc);

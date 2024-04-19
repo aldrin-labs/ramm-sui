@@ -745,8 +745,8 @@ module ramm_sui::test_util {
     ///
     /// Initial liquidity was roughly:
     /// * `SUI` - 100
-    /// * `USDC` - 150
-    /// * `USDT` - 150
+    /// * `USDC` - 145
+    /// * `USDT` - 148
     public(package) fun create_ramm_test_scenario_sui_usdc_usdt(sender: address): (ID, ID, ID, ID, Scenario) {
         let mut asset_prices: VecMap<u8, u128> = vec_map::empty();
         vec_map::insert(&mut asset_prices, 0, 1_500000000);
@@ -766,8 +766,8 @@ module ramm_sui::test_util {
         vec_map::insert(&mut asset_decimal_places, 2, usdt_dec_places());
         let mut initial_asset_liquidity: VecMap<u8, u64> = vec_map::empty();
         vec_map::insert(&mut initial_asset_liquidity, 0, 100 * (sui_factor() as u64));
-        vec_map::insert(&mut initial_asset_liquidity, 1, 150 * (usdc_factor() as u64));
-        vec_map::insert(&mut initial_asset_liquidity, 2, 150 * (usdt_factor() as u64));
+        vec_map::insert(&mut initial_asset_liquidity, 1, 145 * (usdc_factor() as u64));
+        vec_map::insert(&mut initial_asset_liquidity, 2, 148 * (usdt_factor() as u64));
 
         create_populate_initialize_ramm_3_asset<SUI, USDC, USDT>(
             asset_prices,
