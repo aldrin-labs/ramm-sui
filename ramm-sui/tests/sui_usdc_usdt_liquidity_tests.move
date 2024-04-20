@@ -22,6 +22,41 @@ module ramm_sui::sui_usdc_usdt_liquidity_tests {
         let (ramm_id, sui_ag_id, usdc_ag_id, usdt_ag_id, mut scenario_val) = test_util::create_ramm_test_scenario_sui_usdc_usdt(ADMIN);
         let scenario = &mut scenario_val;
 
+        test_scenario::next_tx(scenario, ALICE);
+
+        {
+            let mut ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
+            let clock = test_scenario::take_shared<Clock>(scenario);
+            let sui_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, sui_ag_id);
+            let usdc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdc_ag_id);
+            let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
+
+            let sui = coin::mint_for_testing<SUI>(
+                500 * (test_util::sui_factor() as u64),
+                test_scenario::ctx(scenario)
+            );
+
+            interface3::liquidity_deposit_3<SUI, USDC, USDT>(
+                &mut ramm,
+                &clock,
+                sui,
+                &sui_aggr,
+                &usdc_aggr,
+                &usdt_aggr,
+                test_scenario::ctx(scenario)
+            );
+
+            test_utils::assert_eq(ramm::get_lptokens_issued<USDC>(&ramm), 145 * test_util::usdc_factor() * 1_000);
+            test_utils::assert_eq(ramm::get_lptokens_issued<SUI>(&ramm), 600 * test_util::sui_factor());
+            test_utils::assert_eq(ramm::get_lptokens_issued<USDT>(&ramm), 148 * test_util::usdt_factor() * 1_000);
+
+            test_scenario::return_shared<RAMM>(ramm);
+            test_scenario::return_shared<Clock>(clock);
+            test_scenario::return_shared<Aggregator>(sui_aggr);
+            test_scenario::return_shared<Aggregator>(usdc_aggr);
+            test_scenario::return_shared<Aggregator>(usdt_aggr);
+        };
+
         test_scenario::next_tx(scenario, ADMIN);
 
         {
