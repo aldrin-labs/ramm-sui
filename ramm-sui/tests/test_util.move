@@ -757,9 +757,9 @@ module ramm_sui::test_util {
         vec_map::insert(&mut asset_price_scales, 1, 9);
         vec_map::insert(&mut asset_price_scales, 2, 9);
         let mut asset_minimum_trade_amounts: VecMap<u8, u64> = vec_map::empty();
-        vec_map::insert(&mut asset_minimum_trade_amounts, 0, 1 * (sui_factor() as u64) / 100);
-        vec_map::insert(&mut asset_minimum_trade_amounts, 1, 1 * (usdc_factor() as u64) / 100);
-        vec_map::insert(&mut asset_minimum_trade_amounts, 2, 1 * (usdt_factor() as u64) / 100);
+        vec_map::insert(&mut asset_minimum_trade_amounts, 0, (1 * sui_factor() as u64) / 100);
+        vec_map::insert(&mut asset_minimum_trade_amounts, 1, (1 * usdc_factor() as u64) / 100);
+        vec_map::insert(&mut asset_minimum_trade_amounts, 2, (1 * usdt_factor() as u64) / 100);
         let mut asset_decimal_places: VecMap<u8, u8> = vec_map::empty();
         vec_map::insert(&mut asset_decimal_places, 0, sui_dec_places());
         vec_map::insert(&mut asset_decimal_places, 1, usdc_dec_places());
