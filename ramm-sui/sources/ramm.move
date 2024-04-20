@@ -49,8 +49,6 @@ module ramm_sui::ramm {
     /// Decimal places that LP tokens will be using; may yet change.
     //const LP_TOKENS_DECIMAL_PLACES: u8 = 9;
 
-    /// Factor to apply to LP token amounts during calculations.
-    const FACTOR_LPT: u256 = 1_000_000_000_000 / 1_000_000_000; // FACTOR_LPT = 10**(PRECISION_DECIMAL_PLACES-LP_TOKENS_DECIMAL_PLACES)
     /// Value of `1` using `PRECISION_DECIMAL_PLACES`; useful to scale other values to
     /// the baseline precision.
     ///
@@ -1538,7 +1536,6 @@ module ramm_sui::ramm {
             &self.lp_tokens_issued,
             prices,
             &self.factors_for_balances,
-            FACTOR_LPT,
             factors_for_prices,
             PRECISION_DECIMAL_PLACES,
             MAX_PRECISION_DECIMAL_PLACES,
@@ -1559,7 +1556,6 @@ module ramm_sui::ramm {
             &self.lp_tokens_issued,
             prices,
             &self.factors_for_balances,
-            FACTOR_LPT,
             factors_for_prices,
             PRECISION_DECIMAL_PLACES,
             MAX_PRECISION_DECIMAL_PLACES,
@@ -1588,7 +1584,6 @@ module ramm_sui::ramm {
             ao,
             pr_fee,
             &self.factors_for_balances,
-            FACTOR_LPT,
             factors_for_prices,
             PRECISION_DECIMAL_PLACES,
             MAX_PRECISION_DECIMAL_PLACES,
@@ -1623,7 +1618,6 @@ module ramm_sui::ramm {
             i,
             o,
             &self.factors_for_balances,
-            FACTOR_LPT,
             factors_for_prices,
             BASE_FEE,
             BASE_LEVERAGE,
@@ -1891,7 +1885,7 @@ module ramm_sui::ramm {
                 let lpt: u64 = ai;
                 return lpt
             } else {
-                let lpt: u256 = div(mul((ai as u256) * factor_i, _L), _B) / FACTOR_LPT;
+                let lpt: u256 = div(mul((ai as u256) * factor_i, _L), _B) / factor_i;
                 return (lpt as u64)
             }
         };
@@ -1906,10 +1900,10 @@ module ramm_sui::ramm {
                     mul3(
                         (ai as u256) * factor_i,
                         ri,
-                        get_typed_lptok_issued<AssetIn>(self, i) * FACTOR_LPT
+                        get_typed_lptok_issued<AssetIn>(self, i) * factor_i
                         ),
                     bi
-                ) / FACTOR_LPT;
+                ) / factor_i;
             return (lpt as u64)
         } else {
             return 0
@@ -1958,7 +1952,7 @@ module ramm_sui::ramm {
         // Recall that in this case, the "Case 1" step below is skipped, and the withdrawal
         // continues with different tokens - see below.
         if (get_bal(self, o) == 0) {
-            *ao = div(mul(lpt * FACTOR_LPT, _B), _L) / factor_o;
+            *ao = div(mul(lpt * factor_o, _B), _L) / factor_o;
             *a_remaining = *ao;
         };
 
@@ -1969,14 +1963,14 @@ module ramm_sui::ramm {
 
             // Case 1.1
             if (lpt < get_typed_lptok_issued<AssetOut>(self, o)) {
-                *ao = div(mul(lpt * FACTOR_LPT, bo), mul(_Lo, ro)) / factor_o;
+                *ao = div(mul(lpt * factor_o, bo), mul(_Lo, ro)) / factor_o;
                 let max_token_o: &mut u256 = &mut 0;
 
                 if (ONE - DELTA < ro) {
-                    let min_token_o: u256 = div(mul3(_B, (get_lptok_issued(self, o) - lpt) * FACTOR_LPT, ONE - DELTA), _L) / factor_o;
+                    let min_token_o: u256 = div(mul3(_B, (get_lptok_issued(self, o) - lpt) * factor_o, ONE - DELTA), _L) / factor_o;
                     *max_token_o = get_bal(self, o) - min_token_o;
                 } else {
-                    *max_token_o = div(mul(lpt * FACTOR_LPT, bo), _Lo) / factor_o;
+                    *max_token_o = div(mul(lpt * factor_o, bo), _Lo) / factor_o;
                 };
 
                 let amount_out_o: &mut u256 = vec_map::get_mut(&mut amounts_out, &o);
@@ -2052,7 +2046,7 @@ module ramm_sui::ramm {
                             ),
                             *vec_map::get(&prices, &k) * *vec_map::get(&factors_for_prices, &k)
                         ) / factor_k;
-                    let _Lk: u256 = get_lptok_issued(self, k) * FACTOR_LPT;
+                    let _Lk: u256 = get_lptok_issued(self, k) * factor_k;
                     // Mk = bk-(1.0-DELTA)*Lk*B/L
                     let min_token_k: u256 = div(mul3(_B, _Lk, ONE - DELTA), _L) / factor_k;
                     let max_token_k: u256 = get_bal(self, k) - min_token_k;
