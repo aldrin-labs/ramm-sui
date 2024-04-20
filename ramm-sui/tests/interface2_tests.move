@@ -75,14 +75,14 @@ module ramm_sui::interface2_tests {
             test_utils::assert_eq(ramm::get_balance<ETH>(&ramm), 480 * test_util::eth_factor());
             test_utils::assert_eq(ramm::get_typed_balance<ETH>(&ramm), 480 * test_util::eth_factor());
 
-            let total_usdt: u256 = 940044_93561689;
+            let total_usdt: u256 = 940044_935617;
             test_utils::assert_eq(ramm::get_balance<USDT>(&ramm), total_usdt);
             test_utils::assert_eq(ramm::get_typed_balance<USDT>(&ramm), total_usdt);
 
             // Later in the test, when accounting for all the USDT given to liquidity providers
             // and comparing it to the pool's USDT balance, liquidity withdrawal fees count toward
             // this tally, but protocol trading fees do not - they must be removed from the count.
-            let usdt_trade_fees = 1_201_708_581;
+            let usdt_trade_fees = 1_201_708_5;
 
             test_utils::assert_eq(ramm::get_collected_protocol_fees<ETH>(&ramm), 0);
             test_utils::assert_eq(ramm::get_collected_protocol_fees<USDT>(&ramm), usdt_trade_fees);
@@ -147,7 +147,7 @@ module ramm_sui::interface2_tests {
             test_utils::assert_eq(coin::value(&eth), (47808 * test_util::eth_factor() / 100 as u64));
 
             let usdt = test_scenario::take_from_address<Coin<USDT>>(scenario, ADMIN);
-            let first_usdt_wthdrwl: u256 = 39863_55571872;
+            let first_usdt_wthdrwl: u256 = 39863_555719;
             test_utils::assert_eq((coin::value(&usdt) as u256), first_usdt_wthdrwl);
 
             test_scenario::return_to_address(ADMIN, eth);
@@ -195,7 +195,7 @@ module ramm_sui::interface2_tests {
         let snd_udst_wthdrwl: u256 = {
             let usdt = test_scenario::take_from_address<Coin<USDT>>(scenario, ADMIN);
 
-            let snd_udst_wthdrwl: u256 = 896421_20015571;
+            let snd_udst_wthdrwl: u256 = 896421_200156;
             test_utils::assert_eq((coin::value(&usdt) as u256), snd_udst_wthdrwl);
             test_scenario::return_to_address(ADMIN, usdt);
 
@@ -245,7 +245,7 @@ module ramm_sui::interface2_tests {
             let initial_eth_balance: u256 = ramm::get_typed_balance<ETH>(&ramm);
             let initial_usdt_balance: u256 = ramm::get_typed_balance<USDT>(&ramm);
             test_utils::assert_eq(initial_eth_balance, 500 * test_util::eth_factor());
-            test_utils::assert_eq(initial_usdt_balance, 900_000 * test_util::eth_factor());
+            test_utils::assert_eq(initial_usdt_balance, 900_000 * test_util::usdc_factor());
 
             let amount_in = coin::mint_for_testing<ETH>(eth_trade_amount, test_scenario::ctx(scenario));
             interface2::trade_amount_in_2<ETH, USDT>(
