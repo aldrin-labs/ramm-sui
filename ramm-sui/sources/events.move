@@ -5,9 +5,9 @@ module ramm_sui::events {
     use sui::object::ID;
     use sui::vec_map::VecMap;
 
-    friend ramm_sui::ramm;
-    friend ramm_sui::interface2;
-    friend ramm_sui::interface3;
+    /* friend ramm_sui::ramm; */
+    /* friend ramm_sui::interface2; */
+    /* friend ramm_sui::interface3; */
 
     /// ---------
     /// IMPORTANT
@@ -26,7 +26,7 @@ module ramm_sui::events {
     As such, they are defined here.
     */
 
-    struct PoolStateEvent has copy, drop {
+    public struct PoolStateEvent has copy, drop {
         ramm_id: ID,
         sender: address,
         asset_types: vector<TypeName>,
@@ -34,7 +34,7 @@ module ramm_sui::events {
         asset_lpt_issued: vector<u256>,
     }
 
-    public(friend) fun pool_state_event(
+    public(package) fun pool_state_event(
         ramm_id: ID,
         sender: address,
         asset_types: vector<TypeName>,
@@ -53,16 +53,16 @@ module ramm_sui::events {
     }
 
     /// Phantom type to mark a `TradeEvent` as the result of `trade_amount_in`
-    struct TradeIn {}
+    public struct TradeIn {}
     /// Phantom type to mark a `TradeEvent` as the result of `trade_amount_out`
-    struct TradeOut {}
+    public struct TradeOut {}
 
     /// Datatype used to emit, to the Sui blockchain, information on a successful trade.
     ///
     /// A phantom type is used to mark whether it's the result of a call to `trade_amount_in`
     /// (selling an exact amount of an asset to the RAMM), or to `trade_amount_out` (buying
     /// an exact amount of an asset from the RAMM).
-    struct TradeEvent<phantom TradeType> has copy, drop {
+    public struct TradeEvent<phantom TradeType> has copy, drop {
         ramm_id: ID,
         trader: address,
         token_in: TypeName,
@@ -74,7 +74,7 @@ module ramm_sui::events {
 
     /// Given all the information necessary to identify a given RAMM's trade event,
     /// emit it.
-    public(friend) fun trade_event<TradeType>(
+    public(package) fun trade_event<TradeType>(
         ramm_id: ID,
         trader: address,
         token_in: TypeName,
@@ -96,7 +96,7 @@ module ramm_sui::events {
         )
     }
 
-    struct PriceEstimationEvent has copy, drop {
+    public struct PriceEstimationEvent has copy, drop {
         ramm_id: ID,
         trader: address,
         token_in: TypeName,
@@ -111,7 +111,7 @@ module ramm_sui::events {
     /// Note that no changes are made to the RAMM's state when estimating prices,
     /// and that the price is not guaranteed to be the same when the trade is
     /// executed.
-    public(friend) fun price_estimation_event(
+    public(package) fun price_estimation_event(
         ramm_id: ID,
         trader: address,
         token_in: TypeName,
@@ -134,7 +134,7 @@ module ramm_sui::events {
     }
 
     /// Datatype used to emit, to the Sui blockchain, information on a successful liquidity deposit.
-    struct LiquidityDepositEvent has copy, drop {
+    public struct LiquidityDepositEvent has copy, drop {
         ramm_id: ID,
         trader: address,
         token_in: TypeName,
@@ -144,7 +144,7 @@ module ramm_sui::events {
 
     /// Given all the information necessary to identify a given RAMM's liquidity deposit event,
     /// emit it.
-    public(friend) fun liquidity_deposit_event(
+    public(package) fun liquidity_deposit_event(
         ramm_id: ID,
         trader: address,
         token_in: TypeName,
@@ -163,7 +163,7 @@ module ramm_sui::events {
     }
 
     /// Datatype describing a Sui event for a given RAMM's liquidity withdrawal.
-    struct LiquidityWithdrawalEvent has copy, drop {
+    public struct LiquidityWithdrawalEvent has copy, drop {
         ramm_id: ID,
         trader: address,
         token_out: TypeName,
@@ -174,7 +174,7 @@ module ramm_sui::events {
 
     /// Given all the information necessary to identify a given RAMM's liquidity withdrawal event,
     /// emit it.
-    public(friend) fun liquidity_withdrawal_event(
+    public(package) fun liquidity_withdrawal_event(
         ramm_id: ID,
         trader: address,
         token_out: TypeName,
@@ -200,14 +200,14 @@ module ramm_sui::events {
     /// * its keys are each of the RAMM asset's `TypeName`s
     /// * its values are the imbalance ratios for each of the RAMM's assets, represented with
     ///   as `u64`s with `PRECISION_DECIMAL_PLACES`
-    struct ImbalanceRatioEvent has copy, drop {
+    public struct ImbalanceRatioEvent has copy, drop {
         ramm_id: ID,
         requester: address,
         imb_ratios: VecMap<TypeName, u64>,
     }
 
     /// Given the required data, emit an event with a RAMM's imbalance ratios.
-    public(friend) fun imbalance_ratios_event(
+    public(package) fun imbalance_ratios_event(
         ramm_id: ID,
         requester: address,
         imb_ratios: VecMap<TypeName, u64>,
@@ -222,7 +222,7 @@ module ramm_sui::events {
     }
 
     /// Datatype describing a Sui event for a given RAMM's fee collection.
-    struct FeeCollectionEvent has copy, drop {
+    public struct FeeCollectionEvent has copy, drop {
         ramm_id: ID,
         admin: address,
         fee_collector: address,
@@ -231,7 +231,7 @@ module ramm_sui::events {
 
     /// Given all the information necessary to identify a given RAMM's fee collection event,
     /// emit it.
-    public(friend) fun fee_collection_event(
+    public(package) fun fee_collection_event(
         ramm_id: ID,
         admin: address,
         fee_collector: address,

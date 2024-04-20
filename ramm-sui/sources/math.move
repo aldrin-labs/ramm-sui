@@ -2,8 +2,8 @@ module ramm_sui::math {
     //use std::debug;
     use sui::vec_map::{Self, VecMap};
 
-    friend ramm_sui::oracles;
-    friend ramm_sui::ramm;
+    /* friend ramm_sui::oracles; */
+    /* friend ramm_sui::ramm; */
 
     const EMulOverflow: u64 = 0;
     const EDividendTooLarge: u64 = 1;
@@ -17,12 +17,12 @@ module ramm_sui::math {
     /// Operators
     /// ---------
 
-    public(friend) fun abs_diff_u64(x: u64, y: u64): u64 {
+    public(package) fun abs_diff_u64(x: u64, y: u64): u64 {
         if (x >= y) { x - y } else { y - x }
     }
 
     /// Given a `u256` value, forecefully clamp it to the range `[0, max]`.
-    public(friend) fun clamp(val: u256, max: u256): u256 {
+    public(package) fun clamp(val: u256, max: u256): u256 {
         if (val >= max) { return max };
         val
     }
@@ -32,8 +32,8 @@ module ramm_sui::math {
     /// # Aborts
     ///
     /// If the calculation overflows.
-    public fun pow(base: u256, exp: u8): u256 {
-        let res = 1;
+    public fun pow(mut base: u256, mut exp: u8): u256 {
+        let mut res = 1;
         while (exp >= 1) {
             if (exp % 2 == 0) {
                 base = base * base;
@@ -79,7 +79,7 @@ module ramm_sui::math {
     /// # Aborts
     ///
     /// * If the dividend or the result overflow past `pow(10, max_prec)`.
-    public(friend) fun div(x: u256, y: u256, prec: u8, max_prec: u8): u256 {
+    public(package) fun div(x: u256, y: u256, prec: u8, max_prec: u8): u256 {
         let max = pow(10u256, max_prec);
         assert!(x <= max, EDividendTooLarge);
         let result = x * pow(10u256, prec) / y;
@@ -96,13 +96,13 @@ module ramm_sui::math {
     /// * If the exponent exceeds `127`
     /// * If the base exceeds `10^max_prec`
     /// * If during intermediate operations, any value exceeds `10^max_prec`
-    public(friend) fun pow_n(x: u256, n: u256, one: u256, prec: u8, max_prec:u8): u256 {
+    public(package) fun pow_n(x: u256, mut n: u256, one: u256, prec: u8, max_prec:u8): u256 {
         let max = pow(10u256, max_prec);
         assert!(n <= 127, EPowNExponentTooLarge);
         assert!(x <= max, EPowNBaseTooLarge);
 
-        let result: u256 = one;
-        let a: u256 = x;
+        let mut result: u256 = one;
+        let mut a: u256 = x;
 
         while (n != 0) {
             if (n % 2 == 1) {
@@ -125,20 +125,20 @@ module ramm_sui::math {
     ///
     /// * If it is not the case that `0.67 <= x <= 1.5`.
     /// * If the exponent is not in `[0, 1[` (with `prec` decimal places)
-    public(friend) fun pow_d(x: u256, a: u256, one: u256, prec: u8, max_prec: u8): u256 {
+    public(package) fun pow_d(x: u256, a: u256, one: u256, prec: u8, max_prec: u8): u256 {
         let pow = pow(10, prec - 2);
         assert!(67 * pow <= x && x <= 150 * pow, EPowDBaseOutOfBounds);
         assert!(a < one, EPowDExpTooLarge);
 
-        let result: u256 = one;
-        let n: u256 = 0;
-        let tn: u256 = one;
-        let sign: bool = true;
+        let mut result: u256 = one;
+        let mut n: u256 = 0;
+        let mut tn: u256 = one;
+        let mut sign: bool = true;
         let iters = 30;
 
         while (n < iters) {
-            let _factor1: u256 = 0;
-            let _factor2: u256 = 0;
+            let mut _factor1: u256 = 0;
+            let mut _factor2: u256 = 0;
 
             if (a >= n * one) {
                 _factor1 = a - n * one;
@@ -178,7 +178,7 @@ module ramm_sui::math {
     /// Both `a` and `x` have to be given with `prec` decimal places.
     ///
     /// The result is given in the same format.
-    public(friend) fun power(x: u256, a: u256, one: u256, prec: u8, max_prec: u8): u256 {
+    public(package) fun power(x: u256, a: u256, one: u256, prec: u8, max_prec: u8): u256 {
         let n = a / pow(10u256, prec);
         mul(
             pow_n(x, n, one, prec, max_prec),
@@ -188,7 +188,7 @@ module ramm_sui::math {
     }
 
     /// Base function that adjusts the leverage parameter and the base fee.
-    public(friend) fun adjust(x: u256, prec: u8, max_prec: u8): u256 {
+    public(package) fun adjust(x: u256, prec: u8, max_prec: u8): u256 {
         mul3(x, x, x, prec, max_prec)
     }
 
@@ -207,16 +207,16 @@ module ramm_sui::math {
         prec: u8,
         max_prec: u8,
     ): VecMap<u8, u256> {
-        let _W = vec_map::empty<u8, u256>();
-        let _B: u256 = 0;
-        let i: u8 = 0;
+        let mut _W = vec_map::empty<u8, u256>();
+        let mut _B: u256 = 0;
+        let mut i: u8 = 0;
         let _N = (vec_map::size(balances) as u8);
         while (i < _N) {
             vec_map::insert(&mut _W, i, 0u256);
             i = i + 1;
         };
 
-        let j: u8 = 0;
+        let mut j: u8 = 0;
         while (j < _N) {
             let w_j = vec_map::get_mut(&mut _W, &j);
             *w_j = mul(
@@ -228,7 +228,7 @@ module ramm_sui::math {
             j = j + 1;
         };
 
-        let k: u8 = 0;
+        let mut k: u8 = 0;
         while (k < _N) {
             let w_k = vec_map::get_mut(&mut _W, &k);
             *w_k = div(*w_k, _B, prec, max_prec);
@@ -241,7 +241,7 @@ module ramm_sui::math {
     /// Returns a tuple with the values of `B` and `L` (see whitepaper, page 5).
     ///
     /// The result is given in `u256` with `prec` decimal places.
-    public(friend) fun compute_B_and_L(
+    public(package) fun compute_B_and_L(
         balances: &VecMap<u8, u256>,
         lp_tokens_issued: &VecMap<u8, u256>,
         prices: &VecMap<u8, u256>,
@@ -251,11 +251,11 @@ module ramm_sui::math {
         prec: u8,
         max_prec: u8,
     ): (u256, u256) {
-        let _B: u256 = 0;
-        let _L: u256 = 0;
+        let mut _B: u256 = 0;
+        let mut _L: u256 = 0;
 
         let _N = (vec_map::size(balances) as u8);
-        let j: u8 = 0;
+        let mut j: u8 = 0;
         while (j < _N) {
             let price_j = *vec_map::get(prices, &j) * *vec_map::get(factors_for_prices, &j);
             _B = _B + mul(price_j, *vec_map::get(balances, &j) * *vec_map::get(factors_for_balances, &j), prec, max_prec);
@@ -291,10 +291,10 @@ module ramm_sui::math {
             max_prec,
         );
 
-        let imbs = vec_map::empty();
+        let mut imbs = vec_map::empty();
 
         let _N = (vec_map::size(balances) as u8);
-        let j: u8 = 0;
+        let mut j: u8 = 0;
         while (j < _N) {
             if (*vec_map::get(lp_tokens_issued, &j) != 0) {
                 let val = div(
@@ -340,10 +340,10 @@ module ramm_sui::math {
     ): bool {
         let _N = (vec_map::size(balances) as u8);
 
-        let balances_before = vec_map::empty<u8, u256>();
-        let balances_after = vec_map::empty<u8, u256>();
+        let mut balances_before = vec_map::empty<u8, u256>();
+        let mut balances_after = vec_map::empty<u8, u256>();
 
-        let k = 0;
+        let mut k = 0;
         while (k < _N) {
             let balance_current = *vec_map::get(balances, &k);
             vec_map::insert(&mut balances_before, k, balance_current);

@@ -4,7 +4,7 @@ module ramm_sui::oracles {
 
     use ramm_sui::math;
 
-    friend ramm_sui::ramm;
+    /* friend ramm_sui::ramm; */
 
     const ENegativeSbD: u64 = 0;
     const EStalePrice: u64 = 1;

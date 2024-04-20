@@ -42,7 +42,7 @@ module ramm_sui::volatility3_tests {
     /// The uninvolved asset's volatility should not affect the result, but should still lead
     /// to an update of that asset's volatility data.
     fun trade_amount_in_3_volatility_test() {
-        let (ramm_id, eth_ag_id, matic_ag_id, usdt_ag_id, scenario_val) = test_util::create_ramm_test_scenario_eth_matic_usdt(ADMIN);
+        let (ramm_id, eth_ag_id, matic_ag_id, usdt_ag_id, mut scenario_val) = test_util::create_ramm_test_scenario_eth_matic_usdt(ADMIN);
         let scenario = &mut scenario_val;
 
         // First part of the test: the RAMM's admin, who also happens to have administrative rights
@@ -52,9 +52,9 @@ module ramm_sui::volatility3_tests {
 
         {
             let clock = test_scenario::take_shared<Clock>(scenario);
-            let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
-            let matic_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, matic_ag_id);
-            let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
+            let mut eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
+            let mut matic_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, matic_ag_id);
+            let mut usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
 
             let current_timestamp: u64 = clock::timestamp_ms(&clock);
 
@@ -130,7 +130,7 @@ module ramm_sui::volatility3_tests {
         test_scenario::next_tx(scenario, ALICE);
 
         {
-            let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
+            let mut ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
             let clock = test_scenario::take_shared<Clock>(scenario);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let matic_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, matic_ag_id);
@@ -252,7 +252,7 @@ module ramm_sui::volatility3_tests {
     /// The uninvolved asset's volatility should not affect the result, but its pricing/volatility
     /// data should still be updated.
     fun trade_amount_out_3_volatility_test() {
-        let (ramm_id, eth_ag_id, matic_ag_id, usdt_ag_id, scenario_val) = test_util::create_ramm_test_scenario_eth_matic_usdt(ADMIN);
+        let (ramm_id, eth_ag_id, matic_ag_id, usdt_ag_id, mut scenario_val) = test_util::create_ramm_test_scenario_eth_matic_usdt(ADMIN);
         let scenario = &mut scenario_val;
 
         // First part of the test: the RAMM's admin, who also happens to have administrative rights
@@ -262,9 +262,9 @@ module ramm_sui::volatility3_tests {
 
         {
             let clock = test_scenario::take_shared<Clock>(scenario);
-            let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
-            let matic_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, matic_ag_id);
-            let usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
+            let mut eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
+            let mut matic_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, matic_ag_id);
+            let mut usdt_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, usdt_ag_id);
 
             let current_timestamp: u64 = clock::timestamp_ms(&clock);
 
@@ -343,7 +343,7 @@ module ramm_sui::volatility3_tests {
         // from the ETH/USDT RAMM, with the new price of 1960 USDT per ETH.
         test_scenario::next_tx(scenario, ALICE);
         {
-            let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
+            let mut ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
             let clock = test_scenario::take_shared<Clock>(scenario);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
             let matic_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, matic_ag_id);
@@ -469,16 +469,16 @@ module ramm_sui::volatility3_tests {
     ///
     /// The uninvolved assets' volatility/pricing should also be updated.
     fun liquidity_deposit_3_volatility_test() {
-        let (ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val) = test_util::create_ramm_test_scenario_btc_eth_sol_no_liq(ADMIN);
+        let (ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, mut scenario_val) = test_util::create_ramm_test_scenario_btc_eth_sol_no_liq(ADMIN);
         let scenario = &mut scenario_val;
 
         test_scenario::next_tx(scenario, ADMIN);
         {
-            let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
+            let mut ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
             let clock = test_scenario::take_shared<Clock>(scenario);
-            let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
-            let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
-            let sol_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, sol_ag_id);
+            let mut btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
+            let mut eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
+            let mut sol_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, sol_ag_id);
 
             let current_timestamp: u64 = clock::timestamp_ms(&clock);
 
@@ -690,7 +690,7 @@ module ramm_sui::volatility3_tests {
     /// - 5% volatility for outbound asset, plus
     /// - 0.4% base liquidity withdrawal fee
     fun liquidity_withdrawal_3_volatility_test() {
-        let (ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, scenario_val) = test_util::create_ramm_test_scenario_btc_eth_sol_with_liq(ADMIN);
+        let (ramm_id, btc_ag_id, eth_ag_id, sol_ag_id, mut scenario_val) = test_util::create_ramm_test_scenario_btc_eth_sol_with_liq(ADMIN);
         let scenario = &mut scenario_val;
 
         // First part of the test: the RAMM's admin, who also happens to have administrative rights
@@ -700,9 +700,9 @@ module ramm_sui::volatility3_tests {
 
         {
             let clock = test_scenario::take_shared<Clock>(scenario);
-            let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
-            let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
-            let sol_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, sol_ag_id);
+            let mut btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
+            let mut eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);
+            let mut sol_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, sol_ag_id);
 
             let current_timestamp: u64 = clock::timestamp_ms(&clock);
 
@@ -779,7 +779,7 @@ module ramm_sui::volatility3_tests {
         test_scenario::next_tx(scenario, ADMIN);
 
         {
-            let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
+            let mut ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
             let clock = test_scenario::take_shared<Clock>(scenario);
             let btc_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, btc_ag_id);
             let eth_aggr = test_scenario::take_shared_by_id<Aggregator>(scenario, eth_ag_id);

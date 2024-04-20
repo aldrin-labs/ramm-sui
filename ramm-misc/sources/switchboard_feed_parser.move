@@ -17,7 +17,7 @@ module ramm_misc::switchboard_feed_parser {
 
       where decimal = neg * value * 10^(-1 * dec) 
     */
-    struct AggregatorInfo has store, key {
+    public struct AggregatorInfo has store, key {
         id: UID,
         aggregator_addr: address,
         latest_result: u128,
