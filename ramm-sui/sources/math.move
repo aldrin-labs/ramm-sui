@@ -246,7 +246,6 @@ module ramm_sui::math {
         lp_tokens_issued: &VecMap<u8, u256>,
         prices: &VecMap<u8, u256>,
         factors_for_balances: &VecMap<u8, u256>,
-        factor_lpt: u256,
         factors_for_prices: &VecMap<u8, u256>,
         prec: u8,
         max_prec: u8,
@@ -257,9 +256,10 @@ module ramm_sui::math {
         let _N = (vec_map::size(balances) as u8);
         let mut j: u8 = 0;
         while (j < _N) {
+            let factor_j = *vec_map::get(factors_for_balances, &j);
             let price_j = *vec_map::get(prices, &j) * *vec_map::get(factors_for_prices, &j);
-            _B = _B + mul(price_j, *vec_map::get(balances, &j) * *vec_map::get(factors_for_balances, &j), prec, max_prec);
-            _L = _L + mul(price_j, *vec_map::get(lp_tokens_issued, &j) * factor_lpt, prec, max_prec);
+            _B = _B + mul(price_j, *vec_map::get(balances, &j) * factor_j, prec, max_prec);
+            _L = _L + mul(price_j, *vec_map::get(lp_tokens_issued, &j) * factor_j, prec, max_prec);
 
             j = j + 1;
         };
@@ -275,7 +275,6 @@ module ramm_sui::math {
         lp_tokens_issued: &VecMap<u8, u256>,
         prices: &VecMap<u8, u256>,
         factors_for_balances: &VecMap<u8, u256>,
-        factor_lpt: u256,
         factors_for_prices: &VecMap<u8, u256>,
         prec: u8,
         max_prec: u8,
@@ -285,7 +284,6 @@ module ramm_sui::math {
             lp_tokens_issued,
             prices,
             factors_for_balances,
-            factor_lpt,
             factors_for_prices,
             prec,
             max_prec,
@@ -297,9 +295,10 @@ module ramm_sui::math {
         let mut j: u8 = 0;
         while (j < _N) {
             if (*vec_map::get(lp_tokens_issued, &j) != 0) {
+                let factor_j = *vec_map::get(factors_for_balances, &j);
                 let val = div(
                     mul(*vec_map::get(balances, &j) * *vec_map::get(factors_for_balances, &j), _L, prec, max_prec),
-                    mul(_B, *vec_map::get(lp_tokens_issued, &j) * factor_lpt, prec, max_prec),
+                    mul(_B, *vec_map::get(lp_tokens_issued, &j) * factor_j, prec, max_prec),
                     prec, max_prec
                 );
                 vec_map::insert(&mut imbs, j, val);
@@ -317,7 +316,7 @@ module ramm_sui::math {
     /// or if they would be closer to the range than before the trade.
     ///
     /// As is the case with other functions in this module, the parameters
-    /// `factor_lpt, prec, max_prec, one, delta`
+    /// `prec, max_prec, one, delta`
     /// will be constants defined in the `ramm.move` module, and passed to this function.
     ///
     /// Sui Move does not permit sharing of constants between modules.
@@ -331,7 +330,6 @@ module ramm_sui::math {
         ao: u256,
         pr_fee: u256,
         factors_for_balances: &VecMap<u8, u256>,
-        factor_lpt: u256,
         factors_for_prices: &VecMap<u8, u256>,
         prec: u8,
         max_prec: u8,
@@ -361,7 +359,6 @@ module ramm_sui::math {
             lp_tokens_issued,
             prices,
             factors_for_balances,
-            factor_lpt,
             factors_for_prices,
             prec,
             max_prec
@@ -385,7 +382,6 @@ module ramm_sui::math {
         i: u8,
         o: u8,
         factors_for_balances: &VecMap<u8, u256>,
-        factor_lpt: u256,
         factors_for_prices: &VecMap<u8, u256>,
         base_fee: u256,
         base_leverage: u256,
@@ -397,7 +393,6 @@ module ramm_sui::math {
             lp_tokens_issued,
             prices,
             factors_for_balances,
-            factor_lpt,
             factors_for_prices,
             prec,
             max_prec,
