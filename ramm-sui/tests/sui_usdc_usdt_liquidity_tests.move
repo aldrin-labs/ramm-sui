@@ -41,6 +41,7 @@ module ramm_sui::sui_usdc_usdt_liquidity_tests {
 
         test_scenario::next_tx(scenario, ALICE);
 
+        // `ALICE`'s deposits
         {
             let mut ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
             let clock = test_scenario::take_shared<Clock>(scenario);
@@ -78,9 +79,9 @@ module ramm_sui::sui_usdc_usdt_liquidity_tests {
                 test_scenario::ctx(scenario)
             );
 
-            test_utils::assert_eq(ramm::get_lptokens_issued<USDC>(&ramm), 795 * test_util::usdc_factor() * 1_000);
+            test_utils::assert_eq(ramm::get_lptokens_issued<USDC>(&ramm), 795 * test_util::usdc_factor());
             test_utils::assert_eq(ramm::get_lptokens_issued<SUI>(&ramm), 600 * test_util::sui_factor());
-            test_utils::assert_eq(ramm::get_lptokens_issued<USDT>(&ramm), 148 * test_util::usdt_factor() * 1_000);
+            test_utils::assert_eq(ramm::get_lptokens_issued<USDT>(&ramm), 148 * test_util::usdt_factor());
 
             test_scenario::return_shared<RAMM>(ramm);
             test_scenario::return_shared<Clock>(clock);
@@ -91,6 +92,7 @@ module ramm_sui::sui_usdc_usdt_liquidity_tests {
 
         test_scenario::next_tx(scenario, ADMIN);
 
+        // `ADMIN`'s withdrawals
         {
             let mut ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
             let clock = test_scenario::take_shared<Clock>(scenario);
@@ -105,10 +107,10 @@ module ramm_sui::sui_usdc_usdt_liquidity_tests {
             // Observer how the lambda factor applied to USDT and USDC is incorrect - the whitepaper
             // advises a lambda of 1 as a reasonable default, and using the `FACTOR_LP` constant
             // when a pool's assets have different decimal places leads to this.
-            test_utils::assert_eq(coin::value(&lp_usdc), (145 * test_util::usdc_factor() as u64) * 1_000);
+            test_utils::assert_eq(coin::value(&lp_usdc), (145 * test_util::usdc_factor() as u64));
 
             let lp_usdt = test_scenario::take_from_address<Coin<LP<USDT>>>(scenario, ADMIN);
-            test_utils::assert_eq(coin::value(&lp_usdt), (148 * test_util::usdt_factor() as u64) * 1_000);
+            test_utils::assert_eq(coin::value(&lp_usdt), (148 * test_util::usdt_factor() as u64));
 
             interface3::liquidity_withdrawal_3<SUI, USDC, USDT, SUI>(
                 &mut ramm,
@@ -149,6 +151,7 @@ module ramm_sui::sui_usdc_usdt_liquidity_tests {
 
         test_scenario::next_tx(scenario, ADMIN);
 
+        // Admin verifies withdrawn amounts
         {
             let sui = test_scenario::take_from_address<Coin<SUI>>(scenario, ADMIN);
             //test_utils::assert_eq(coin::value(&sui), (996 * test_util::sui_factor() as u64) / 10);
