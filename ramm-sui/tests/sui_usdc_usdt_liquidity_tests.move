@@ -18,6 +18,23 @@ module ramm_sui::sui_usdc_usdt_liquidity_tests {
     const BOB: address = @0xBACE;
 
     #[test]
+    /// Test designed to correct issue with LP withdrawals being wildly incorrect in their
+    /// precision.
+    ///
+    /// Recall that this `SUI/USDC/USDT` pool begins with
+    /// * 100 SUI
+    /// * 145 USDC
+    /// * 148 USDT
+    ///
+    /// The test runs as follows:
+    /// 1. The pool is created, with the `ADMIN` holding all of the initial liquidity
+    /// 2. `ALICE` moves in to deposit 650 USDC
+    /// 3. Alice deposits 500 SUI
+    /// 4. The admin then withdraws from all of their positions
+    ///
+    /// The withdrawn amounts are then tallied, and their precision must be correct - the 145
+    /// USDC withdrawal must correspond to the 145 USDC deposited, and not 0.14 USDC, or 1000
+    /// times smaller than expected.
     fun sui_usdc_usdt_liquidity_test() {
         let (ramm_id, sui_ag_id, usdc_ag_id, usdt_ag_id, mut scenario_val) = test_util::create_ramm_test_scenario_sui_usdc_usdt(ADMIN);
         let scenario = &mut scenario_val;
