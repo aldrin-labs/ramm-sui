@@ -154,7 +154,7 @@ module ramm_sui::sui_usdc_usdt_liquidity_tests {
         // Admin verifies withdrawn amounts
         {
             let sui = test_scenario::take_from_address<Coin<SUI>>(scenario, ADMIN);
-            //test_utils::assert_eq(coin::value(&sui), (996 * test_util::sui_factor() as u64) / 10);
+            test_utils::assert_eq(coin::value(&sui), (996 * test_util::sui_factor() as u64) / 10);
 
             let usdc = test_scenario::take_from_address<Coin<USDC>>(scenario, ADMIN);
             test_utils::assert_eq(coin::value(&usdc), (14442 * test_util::usdc_factor() as u64) / 100);
