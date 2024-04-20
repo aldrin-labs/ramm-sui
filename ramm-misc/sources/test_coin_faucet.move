@@ -13,7 +13,7 @@ module ramm_misc::test_coin_faucet {
 
     const ENonexistentCoinType: u64 = 0;
 
-    struct Faucet has key {
+    public struct Faucet has key {
         id: UID,
         coins: Bag,
         creator: address,

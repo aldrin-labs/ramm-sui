@@ -21,7 +21,7 @@ module ramm_misc::coin_bag {
 
     #[test]
     fun test_bag() {
-        let new_scenario = test_scenario::begin(ADDRESS);
+        let mut new_scenario = test_scenario::begin(ADDRESS);
         let scenario = &mut new_scenario;
         let ctx = test_scenario::ctx(scenario);
 
@@ -31,7 +31,7 @@ module ramm_misc::coin_bag {
         let usdc = coin::mint_for_testing<USDC>(amount * 3, ctx);
         let eth = coin::mint_for_testing<ETH>(amount * 4, ctx);
 
-        let bag = bag::new(ctx);
+        let mut bag = bag::new(ctx);
         test_scenario::next_tx(scenario, ADDRESS);
 
         bag::add<u64, Coin<BTC>>(&mut bag, 0, btc);
@@ -39,7 +39,7 @@ module ramm_misc::coin_bag {
         bag::add<u64, Coin<ETH>>(&mut bag, 2, eth);
         bag::add<u64, Coin<USDC>>(&mut bag, 3, usdc);
 
-        let amnt: u64 = 0;
+        let mut amnt: u64 = 0;
 
         let btc = bag::remove<u64, Coin<BTC>>(&mut bag, 0);
         amnt = amnt + coin::burn_for_testing(btc);
