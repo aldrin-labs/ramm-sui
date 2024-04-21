@@ -763,12 +763,29 @@ module ramm_sui::ramm {
 
         typed_balances.destroy_empty();
         collected_protocol_fees.destroy_empty();
-        /*
-        */
 
         transfer::public_transfer(fst_coin, fee_collector);
         transfer::public_transfer(snd_coin, fee_collector);
         transfer::public_transfer(trd_coin, fee_collector);
+        /*
+        */
+
+        /*
+        Handle `typed_lp_tokens_issued`
+        */
+
+        let fst_supply: Supply<Asset1> = typed_lp_tokens_issued.remove(fst_ix);
+        let snd_supply: Supply<Asset2> = typed_lp_tokens_issued.remove(snd_ix);
+        let trd_supply: Supply<Asset3> = typed_lp_tokens_issued.remove(trd_ix);
+
+        transfer::public_transfer(fst_supply, fee_collector);
+        transfer::public_transfer(snd_supply, fee_collector);
+        transfer::public_transfer(trd_supply, fee_collector);
+
+        typed_lp_tokens_issued.destroy_empty();
+
+        /*
+        */
 
         ramm_uid.delete();
     }
