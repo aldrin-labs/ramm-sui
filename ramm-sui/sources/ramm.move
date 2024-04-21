@@ -688,14 +688,18 @@ module ramm_sui::ramm {
         ctx: &mut TxContext
     ) {
         // Only the RAMM's admin can delete it.
-        assert!(self.admin_cap_id == object::id(admin_cap), ENotAdmin);
+        assert!(self.admin_cap_id == object::id(&admin_cap), ENotAdmin);
 
         // This function must only be used on RAMMs with 3 assets.
-        assert!(get_asset_count(self) == THREE, EBrokenRAMMInvariants);
+        assert!(get_asset_count(&self) == THREE, EBrokenRAMMInvariants);
 
         // Delete the RAMM's admin cap
         let RAMMAdminCap { id: uid } = admin_cap;
         uid.delete();
+
+        let fst_ix = &self.get_asset_index<Asset1>();
+        let snd_ix = &self.get_asset_index<Asset2>();
+        let trd_ix = &self.get_asset_index<Asset3>();
 
         let RAMM {
             id: ramm_uid,
@@ -726,8 +730,33 @@ module ramm_sui::ramm {
             typed_lp_tokens_issued,
         } = self;
 
-        ramm_uid.delete();
+        // Three of the RAMM's field CANNOT and SHOULD NOT be dropped:
+        // * `typed_balances`
+        // * `typed_lp_tokens_issued`
+        // * `collected_protocol_fees`
 
+        // Handle `typed_balances` and `collected_protocol_fees`
+        let mut fst_balance: Balance<Asset1> = balance::zero();
+        fst_balance.join(typed_balances.remove(fst_ix));
+        fst_balance.join(collected_protocol_fees.remove(fst_ix));
+        let fst_coin = coin::from_balance(fst_balance, ctx);
+        public_transfer(fst_coin, fee_collector);
+
+        let mut snd_balance: Balance<Asset2> = balance::zero();
+        snd_balance.join(typed_balances.remove(snd_ix));
+        snd_balance.join(collected_protocol_fees.remove(snd_ix));
+        let snd_coin = coin::from_balance(snd_balance, ctx);
+        public_transfer(snd_coin, fee_collector);
+
+        let mut trd_balance: Balance<Asset3> = balance::zero();
+        trd_balance.join(typed_balances.remove(trd_ix));
+        trd_balance.join(collected_protocol_fees.remove(trd_ix));
+        let trd_coin = coin::from_balance(trd_balance, ctx);
+
+        typed_balances.destroy_empty();
+        collected_protocol_fees.destroy_empty();
+
+        ramm_uid.delete();
     }
 
     /// -------------------------
