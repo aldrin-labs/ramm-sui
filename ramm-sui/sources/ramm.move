@@ -678,6 +678,58 @@ module ramm_sui::ramm {
         self.is_initialized = true;
     }
 
+    /// ------------------
+    /// RAMM deletion code
+    /// ------------------
+
+    public fun delete_ramm_3<Asset1, Asset2, Asset3>(
+        self: RAMM,
+        admin_cap: RAMMAdminCap,
+        ctx: &mut TxContext
+    ) {
+        // Only the RAMM's admin can delete it.
+        assert!(self.admin_cap_id == object::id(admin_cap), ENotAdmin);
+
+        // This function must only be used on RAMMs with 3 assets.
+        assert!(get_asset_count(self) == THREE, EBrokenRAMMInvariants);
+
+        // Delete the RAMM's admin cap
+        let RAMMAdminCap { id: uid } = admin_cap;
+        uid.delete();
+
+        let RAMM {
+            id: ramm_uid,
+
+            admin_cap_id,
+            new_asset_cap_id,
+            is_initialized,
+
+            collected_protocol_fees,
+            fee_collector,
+
+            asset_count,
+            deposits_enabled,
+            factors_for_balances,
+            minimum_trade_amounts,
+            types_to_indexes,
+
+            aggregator_addrs,
+            previous_prices,
+            previous_price_timestamps,
+            volatility_indices,
+            volatility_timestamps,
+
+            balances,
+            typed_balances,
+
+            lp_tokens_issued,
+            typed_lp_tokens_issued,
+        } = self;
+
+        ramm_uid.delete();
+
+    }
+
     /// -------------------------
     /// RAMM structure invariants
     /// -------------------------
