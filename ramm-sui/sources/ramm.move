@@ -710,7 +710,7 @@ module ramm_sui::ramm {
             new_asset_cap_id,
             is_initialized,
 
-            collected_protocol_fees,
+            mut collected_protocol_fees,
             fee_collector,
 
             asset_count,
@@ -726,10 +726,10 @@ module ramm_sui::ramm {
             volatility_timestamps,
 
             balances,
-            typed_balances,
+            mut typed_balances,
 
             lp_tokens_issued,
-            typed_lp_tokens_issued,
+            mut typed_lp_tokens_issued,
         } = self;
 
         // Three of the RAMM's field CANNOT and SHOULD NOT be dropped:
@@ -737,26 +737,38 @@ module ramm_sui::ramm {
         // * `typed_lp_tokens_issued`
         // * `collected_protocol_fees`
 
-        // Handle `typed_balances` and `collected_protocol_fees`
+        /*
+        Handle `typed_balances` and `collected_protocol_fees`
+        */
         let mut fst_balance: Balance<Asset1> = balance::zero();
-        fst_balance.join(typed_balances.remove(fst_ix));
-        fst_balance.join(collected_protocol_fees.remove(fst_ix));
+        let fst_typed_bal: Balance<Asset1> = typed_balances.remove(fst_ix);
+        fst_balance.join(fst_typed_bal);
+        let fst_collected_fees: Balance<Asset1> = collected_protocol_fees.remove(fst_ix);
+        fst_balance.join(fst_collected_fees);
         let fst_coin = coin::from_balance(fst_balance, ctx);
-        public_transfer(fst_coin, fee_collector);
 
         let mut snd_balance: Balance<Asset2> = balance::zero();
-        snd_balance.join(typed_balances.remove(snd_ix));
-        snd_balance.join(collected_protocol_fees.remove(snd_ix));
+        let snd_typed_bal: Balance<Asset2> = typed_balances.remove(snd_ix);
+        snd_balance.join(snd_typed_bal);
+        let snd_collected_fees: Balance<Asset2> = collected_protocol_fees.remove(snd_ix);
+        snd_balance.join(snd_collected_fees);
         let snd_coin = coin::from_balance(snd_balance, ctx);
-        public_transfer(snd_coin, fee_collector);
 
         let mut trd_balance: Balance<Asset3> = balance::zero();
-        trd_balance.join(typed_balances.remove(trd_ix));
-        trd_balance.join(collected_protocol_fees.remove(trd_ix));
+        let trd_typed_bal: Balance<Asset3> = typed_balances.remove(trd_ix);
+        trd_balance.join(trd_typed_bal);
+        let trd_collected_fees: Balance<Asset3> = collected_protocol_fees.remove(trd_ix);
+        trd_balance.join(trd_collected_fees);
         let trd_coin = coin::from_balance(trd_balance, ctx);
 
         typed_balances.destroy_empty();
         collected_protocol_fees.destroy_empty();
+        /*
+        */
+
+        transfer::public_transfer(fst_coin, fee_collector);
+        transfer::public_transfer(snd_coin, fee_collector);
+        transfer::public_transfer(trd_coin, fee_collector);
 
         ramm_uid.delete();
     }
