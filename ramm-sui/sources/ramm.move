@@ -697,9 +697,11 @@ module ramm_sui::ramm {
         let RAMMAdminCap { id: uid } = admin_cap;
         uid.delete();
 
-        let fst_ix = &self.get_asset_index<Asset1>();
-        let snd_ix = &self.get_asset_index<Asset2>();
-        let trd_ix = &self.get_asset_index<Asset3>();
+        // No need to write `&self` - new method syntax in 2024 Sui Move
+        // https://github.com/MystenLabs/sui/issues/14063
+        let fst_ix = self.get_asset_index<Asset1>();
+        let snd_ix = self.get_asset_index<Asset2>();
+        let trd_ix = self.get_asset_index<Asset3>();
 
         let RAMM {
             id: ramm_uid,
