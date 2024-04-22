@@ -102,6 +102,44 @@ module ramm_sui::ramm {
     /// The parameter `Asset` is for the coin held in the pool.
     struct LP<phantom Asset> has drop, store {}
 
+    /// Structure to hold a RAMM's LP token supply management object after a pool's deletion.
+    ///
+    /// RAMM pools create `Supply<LP<Asset>>` objects for each of their assets. They are used
+    /// to mint/burn an asset's LP tokens as providers perform liquidity operations.
+    ///
+    /// Such `Supply<T>` objects do not have the `drop` ability, and `sui::{balance coin}` do not
+    /// offer a way to delete them (rightly so).
+    /// They also do not have the `store` ability, and thus cannot be transferred directly.
+    ///
+    /// As such, after a pool's deletion, they will be transferred to the administrator who
+    /// executed the deletion act, and this structure is what will be transferred instead.
+    struct LPTSupplyBag has key, store {
+        id: UID,
+
+        // How many `Supply<T>` objects an instance is holding.
+        supply_obj_count: u8,
+
+        // Association between an asset's `TypeName` as key, and the `Supply<T>` object
+        // required to mint/burn LP tokens for that asset.
+        supply_bag: Bag,
+    }
+
+    /// Return the number of `Supply<T>` objects held in a `LPTSupplyBag`.
+    public fun get_supply_obj_count(self: &LPTSupplyBag): u8 {
+        self.supply_obj_count
+    }
+
+    /// Given a mutable reference to an `LPTSupplyBag` and one if its assets, return a mutable
+    /// reference to its `Supply<LP<Asset>>` object.
+    ///
+    /// # Aborts
+    ///
+    /// * If the asset is not found in the `LPTSupplyBag`.
+    public fun get_supply<Asset>(self: &mut LPTSupplyBag): &mut Supply<LP<Asset>> {
+        let asset_name = type_name::get<Asset>();
+        bag::borrow_mut(&mut self.supply_bag, asset_name)
+    }
+
     /// Admin capability to circumvent restricted actions on the RAMM pool:
     /// * transfer RAMM protocol fees out of the pool,
     /// * enable/disable deposits for a certain asset
@@ -678,6 +716,142 @@ module ramm_sui::ramm {
         object::delete(uid);
 
         self.is_initialized = true;
+    }
+
+    /// Given a 3-asset RAMM and its admin cap, delete both.
+    ///
+    /// If successful, the transaction in which this Move call is included will cause, among other
+    /// effects:
+    /// 1. The deletion of the shared RAMM object
+    /// 2. The deletion of that RAMM's admin cap object
+    /// 3. The transfer of hitherto collected fees and balances, from all of the RAMM's assets,
+    ///    to the address speficied upon the RAMM's creation as its `fee_collector`
+    /// 4. The transfer of all of the `Supply` objects controlling minting and burning of LP tokens
+    ///    for each of the RAMM's assets to `fee_collector`, wrapped in an `LPTSupplyBag` object.
+    ///
+    /// # Aborts
+    ///
+    /// * If the wrong admin capability is provided.
+    /// * If the RAMM does not have *exactly* 3 assets.
+    public fun delete_ramm_3<Asset1, Asset2, Asset3>(
+        self: RAMM,
+        admin_cap: RAMMAdminCap,
+        ctx: &mut TxContext
+    ) {
+        // Only the RAMM's admin can delete it.
+        assert!(self.admin_cap_id == object::id(&admin_cap), ENotAdmin);
+
+        // This function must only be used on RAMMs with 3 assets.
+        assert!(get_asset_count(&self) == THREE, EBrokenRAMMInvariants);
+
+        // Delete the RAMM's admin cap
+        let RAMMAdminCap { id: uid } = admin_cap;
+        object::delete(uid);
+
+        // No need to write `&self` - new method syntax in 2024 Sui Move
+        // https://github.com/MystenLabs/sui/issues/14063
+        let fst_ix = get_asset_index<Asset1>(&self);
+        let snd_ix = get_asset_index<Asset2>(&self);
+        let trd_ix = get_asset_index<Asset3>(&self);
+
+        let RAMM {
+            id: ramm_uid,
+
+            admin_cap_id,
+            new_asset_cap_id,
+            is_initialized,
+
+            collected_protocol_fees,
+            fee_collector,
+
+            asset_count,
+            deposits_enabled,
+            factors_for_balances,
+            minimum_trade_amounts,
+            types_to_indexes,
+
+            aggregator_addrs,
+            previous_prices,
+            previous_price_timestamps,
+            volatility_indices,
+            volatility_timestamps,
+
+            balances,
+            typed_balances,
+
+            lp_tokens_issued,
+            typed_lp_tokens_issued,
+        } = self;
+
+        // Three of the RAMM's field CANNOT and SHOULD NOT be dropped:
+        // * `typed_balances`
+        // * `typed_lp_tokens_issued`
+        // * `collected_protocol_fees`
+
+        /*
+        Handle `typed_balances` and `collected_protocol_fees`
+        */
+        let fst_balance: Balance<Asset1> = balance::zero();
+        let fst_typed_bal: Balance<Asset1> = bag::remove(&mut typed_balances, fst_ix);
+        balance::join(&mut fst_balance, fst_typed_bal);
+        let fst_collected_fees: Balance<Asset1> = bag::remove(&mut collected_protocol_fees, fst_ix);
+        balance::join(&mut fst_balance, fst_collected_fees);
+        let fst_coin = coin::from_balance(fst_balance, ctx);
+
+        let snd_balance: Balance<Asset2> = balance::zero();
+        let snd_typed_bal: Balance<Asset2> = bag::remove(&mut typed_balances, snd_ix);
+        balance::join(&mut snd_balance, snd_typed_bal);
+        let snd_collected_fees: Balance<Asset2> = bag::remove(&mut collected_protocol_fees, snd_ix);
+        balance::join(&mut snd_balance, snd_collected_fees);
+        let snd_coin = coin::from_balance(snd_balance, ctx);
+
+        let trd_balance: Balance<Asset3> = balance::zero();
+        let trd_typed_bal: Balance<Asset3> = bag::remove(&mut typed_balances, trd_ix);
+        balance::join(&mut trd_balance, trd_typed_bal);
+        let trd_collected_fees: Balance<Asset3> = bag::remove(&mut collected_protocol_fees, trd_ix);
+        balance::join(&mut trd_balance, trd_collected_fees);
+        let trd_coin = coin::from_balance(trd_balance, ctx);
+
+        bag::destroy_empty(typed_balances);
+        bag::destroy_empty(collected_protocol_fees);
+
+        transfer::public_transfer(fst_coin, fee_collector);
+        transfer::public_transfer(snd_coin, fee_collector);
+        transfer::public_transfer(trd_coin, fee_collector);
+        /*
+        */
+
+        /*
+        Handle `typed_lp_tokens_issued`
+        */
+
+        let fst_supply: Supply<LP<Asset1>> = bag::remove(&mut typed_lp_tokens_issued, fst_ix);
+        let snd_supply: Supply<LP<Asset2>> = bag::remove(&mut typed_lp_tokens_issued, snd_ix);
+        let trd_supply: Supply<LP<Asset3>> = bag::remove(&mut typed_lp_tokens_issued, trd_ix);
+
+        let supply_bag: Bag = bag::new(ctx);
+
+        bag::add(&mut supply_bag, type_name::get<Asset1>(), fst_supply);
+        bag::add(&mut supply_bag, type_name::get<Asset2>(), snd_supply);
+        bag::add(&mut supply_bag, type_name::get<Asset3>(), trd_supply);
+
+        let lpt_supply_bag_uid = object::new(ctx);
+
+        let lpt_supply_bag = LPTSupplyBag {
+            id: lpt_supply_bag_uid,
+            supply_obj_count: asset_count,
+            supply_bag,
+        };
+
+        transfer::public_transfer(lpt_supply_bag, fee_collector);
+
+        bag::destroy_empty(typed_lp_tokens_issued);
+
+        /*
+        */
+
+        // With this, the RAMM is deleted.
+        object::delete(ramm_uid);
     }
 
     /// -------------------------

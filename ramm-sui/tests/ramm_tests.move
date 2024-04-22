@@ -1,14 +1,19 @@
 #[test_only]
 module ramm_sui::ramm_tests {
     use std::option;
+    use sui::balance::{Self, Supply};
+
+    use sui::coin::{Self, Coin};
     use sui::object::{Self, ID};
     use sui::test_scenario::{Self, TransactionEffects};
     use sui::test_utils;
 
-    use ramm_sui::ramm::{Self, RAMM, RAMMAdminCap, RAMMNewAssetCap};
-    use ramm_sui::test_util::{Self, BTC, btc_dec_places};
+    use ramm_sui::ramm::{Self, LP, LPTSupplyBag, RAMM, RAMMAdminCap, RAMMNewAssetCap};
+    use ramm_sui::test_util::{Self, BTC, ETH, MATIC, USDT, btc_dec_places};
 
     use switchboard::aggregator::{Self, Aggregator};
+
+    const THREE: u8 = 3;
 
     const ADMIN: address = @0xA1;
     const ALICE: address = @0xACE;
@@ -17,6 +22,7 @@ module ramm_sui::ramm_tests {
     const ERAMMCreation: u64 = 0;
     const ERAMMAssetAddition: u64 = 1;
     const ERAMMDepositStatus: u64 = 3;
+    const ERAMMFailedDeletion: u64 = 4;
 
     #[test]
     /// Basic flow test:
@@ -741,6 +747,67 @@ module ramm_sui::ramm_tests {
         // * due to an infinite loop in `get_pool_state`, the function never terminated, and
         // no event was ever emitted due to transaction execution failure over exhausted resources.
         test_utils::assert_eq(test_scenario::num_user_events(&tx_fx), 1);
+
+        test_scenario::end(scenario_val);
+    }
+
+    #[test]
+    /// Check that 3-asset RAMM deletion works as intended.
+    fun delete_ramm_3_test() {
+        let (ramm_id, _, _, _, scenario_val) = test_util::create_ramm_test_scenario_eth_matic_usdt(ADMIN);
+        let scenario = &mut scenario_val;
+
+        test_scenario::next_tx(scenario, ADMIN);
+
+        {
+            let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
+            let admin_cap = test_scenario::take_from_address<RAMMAdminCap>(scenario, ADMIN);
+
+            ramm::delete_ramm_3<ETH, MATIC, USDT>(ramm, admin_cap, test_scenario::ctx(scenario));
+        };
+
+        test_scenario::next_tx(scenario, ADMIN);
+
+        let eth_amnt: u64 = 200 * (test_util::eth_factor() as u64);
+        let matic_amnt: u64 = 200_000 * (test_util::matic_factor() as u64);
+        let usdt_amnt: u64 = 400_000 * (test_util::usdt_factor() as u64);
+
+        {
+            // First, check that the RAMM's funds have been returned to the admin, as it was
+            // the only liquidity depositor in this scenario.
+            let eth = test_scenario::take_from_address<Coin<ETH>>(scenario, ADMIN);
+            test_utils::assert_eq(coin::value(&eth), eth_amnt);
+
+            let matic = test_scenario::take_from_address<Coin<MATIC>>(scenario, ADMIN);
+            test_utils::assert_eq(coin::value(&matic), matic_amnt);
+
+            let usdt = test_scenario::take_from_address<Coin<USDT>>(scenario, ADMIN);
+            test_utils::assert_eq(coin::value(&usdt), usdt_amnt);
+
+            test_scenario::return_to_address(ADMIN, eth);
+            test_scenario::return_to_address(ADMIN, matic);
+            test_scenario::return_to_address(ADMIN, usdt);
+
+            // Next, verify that each of the asset's `Supply<LP<T>>` object was safely returned to
+            // the admin.
+            let supply_bag = test_scenario::take_from_address<LPTSupplyBag>(scenario, ADMIN);
+            assert!(ramm::get_supply_obj_count(&supply_bag) == THREE, ERAMMFailedDeletion);
+
+            let eth_supply: &mut Supply<LP<ETH>> = ramm::get_supply<ETH>(&mut supply_bag);
+            assert!(balance::supply_value(eth_supply) == eth_amnt, ERAMMFailedDeletion);
+
+            let matic_supply: &mut Supply<LP<MATIC>> = ramm::get_supply<MATIC>(&mut supply_bag);
+            assert!(balance::supply_value(matic_supply) == matic_amnt, ERAMMFailedDeletion);
+
+            let usdt_supply: &mut Supply<LP<USDT>> = ramm::get_supply<USDT>(&mut supply_bag);
+            assert!(balance::supply_value(usdt_supply) == usdt_amnt, ERAMMFailedDeletion);
+
+            test_scenario::return_to_address(ADMIN, supply_bag);
+
+            // Lastly, check that the RAMM and its admin cap have been deleted.
+            assert!(!test_scenario::has_most_recent_shared<RAMM>(), ERAMMFailedDeletion);
+            assert!(!test_scenario::has_most_recent_for_address<RAMMAdminCap>(ADMIN), ERAMMFailedDeletion);
+        };
 
         test_scenario::end(scenario_val);
     }

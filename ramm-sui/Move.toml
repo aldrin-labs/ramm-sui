@@ -4,7 +4,7 @@ version = "0.0.1"
 # First version on package published in mainnet with ID:
 #published-at = "0xd4e097d82d73dc5d152f277bd17ba7980cad4c0b238c3609517cbd0cf686ddd1"
 # Upgraded to ID:
-#published-at = "0xcb6640194b37023f6bed705f40ff22883eb6007d4c69e72c317c64671f9f6b29"
+published-at = "0xcb6640194b37023f6bed705f40ff22883eb6007d4c69e72c317c64671f9f6b29"
 
 [dependencies]
 Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "mainnet" }
