@@ -1,6 +1,7 @@
 #[test_only]
 module ramm_sui::ramm_tests {
     use std::option;
+    use sui::coin::{Self, Coin};
     use sui::object::{Self, ID};
     use sui::test_scenario::{Self, TransactionEffects};
     use sui::test_utils;
@@ -758,6 +759,23 @@ module ramm_sui::ramm_tests {
             let admin_cap = test_scenario::take_from_address<RAMMAdminCap>(scenario, ADMIN);
 
             ramm.delete_ramm_3<ETH, MATIC, USDT>(admin_cap, test_scenario::ctx(scenario));
+        };
+
+        test_scenario::next_tx(scenario, ADMIN);
+
+        {
+            let eth = test_scenario::take_from_address<Coin<ETH>>(scenario, ADMIN);
+            test_utils::assert_eq(coin::value(&eth), (200 * (test_util::eth_factor() as u64)));
+
+            let matic = test_scenario::take_from_address<Coin<MATIC>>(scenario, ADMIN);
+            test_utils::assert_eq(coin::value(&matic), (200_000 * (test_util::matic_factor() as u64)));
+
+            let usdt = test_scenario::take_from_address<Coin<USDT>>(scenario, ADMIN);
+            test_utils::assert_eq(coin::value(&usdt), (400_000 * (test_util::usdt_factor() as u64)));
+
+            test_scenario::return_to_address(ADMIN, eth);
+            test_scenario::return_to_address(ADMIN, matic);
+            test_scenario::return_to_address(ADMIN, usdt);
         };
 
         test_scenario::end(scenario_val);
