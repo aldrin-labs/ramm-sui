@@ -115,11 +115,11 @@ module ramm_sui::ramm {
         id: UID,
 
         // How many `Supply<T>` objects an instance is holding.
-        supply_count: u8,
+        supply_obj_count: u8,
 
         // Association between an asset's `TypeName` as key, and the `Supply<T>` object
         // required to mint/burn LP tokens for that asset.
-        bag: Bag,
+        supply_bag: Bag,
     }
 
     /// Admin capability to circumvent restricted actions on the RAMM pool:
