@@ -350,7 +350,7 @@ module ramm_sui::interface3_tests {
             let initial_usdt_balance: u256 = ramm::get_typed_balance<USDT>(&ramm);
             test_utils::assert_eq(initial_eth_balance, 200 * test_util::eth_factor());
             test_utils::assert_eq(initial_matic_balance, 200_000 * test_util::eth_factor());
-            test_utils::assert_eq(initial_usdt_balance, 400_000 * test_util::eth_factor());
+            test_utils::assert_eq(initial_usdt_balance, 400_000 * test_util::usdc_factor());
 
             let amount_in = coin::mint_for_testing<ETH>(eth_trade_amount, test_scenario::ctx(scenario));
             interface3::trade_amount_in_3<ETH, USDT, MATIC>(

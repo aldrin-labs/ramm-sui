@@ -157,7 +157,7 @@ module ramm_sui::volatility3_tests {
             test_utils::assert_eq(ramm::get_balance<MATIC>(&ramm), 200_000 * test_util::matic_factor());
             test_utils::assert_eq(ramm::get_typed_balance<MATIC>(&ramm), 200_000 * test_util::matic_factor());
 
-            let total_usdt: u256 = 400000_00000000;
+            let total_usdt: u256 = 400000_000000;
             test_utils::assert_eq(ramm::get_balance<USDT>(&ramm), total_usdt);
             test_utils::assert_eq(ramm::get_typed_balance<USDT>(&ramm), total_usdt);
 
@@ -207,9 +207,9 @@ module ramm_sui::volatility3_tests {
             test_utils::assert_eq(ramm::get_typed_balance<ETH>(&ramm), 195_00674016);
 
             // Recall that the RAMM uses 12 decimal places for internal calculations, and that
-            // test USDT has 8 decimal places of precision - hence, the correction below by 10^4,
-            // or 10_000.
-            let total_trade_fee: u256 = ramm::mul3(PROTOCOL_FEE, BASE_FEE + 10 * ONE / 100, 10_000 * ONE) / 10_000;
+            // test USDT has 6 decimal places of precision - hence, the correction below by 10^6,
+            // or 1_000_000.
+            let total_trade_fee: u256 = ramm::mul3(PROTOCOL_FEE, BASE_FEE + 10 * ONE / 100, 10_000 * ONE) / 1_000_000;
             test_utils::assert_eq(ramm::get_balance<USDT>(&ramm), total_usdt + (usdt_trade_amount - total_trade_fee));
             test_utils::assert_eq(ramm::get_typed_balance<USDT>(&ramm), total_usdt + (usdt_trade_amount - total_trade_fee));
 
@@ -338,7 +338,7 @@ module ramm_sui::volatility3_tests {
         // The trader sends 12k USDT to the RAMM
         let usdt_trade_amount: u256 = 12_000 * test_util::usdt_factor();
 
-        let total_usdt: u256 = 400000_00000000;
+        let total_usdt: u256 = 400000_000000;
         // Second part of the test: a trader, Alice, wishes to buy exactly 5 ETH
         // from the ETH/USDT RAMM, with the new price of 1960 USDT per ETH.
         test_scenario::next_tx(scenario, ALICE);

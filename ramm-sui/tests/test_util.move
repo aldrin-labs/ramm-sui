@@ -6,6 +6,7 @@ module ramm_sui::test_util {
     use sui::clock::{Self, Clock};
     use sui::coin;
     use sui::object::{Self, ID};
+    use sui::sui::SUI;
     use sui::test_scenario::{Self, Scenario};
     use sui::test_utils;
     use sui::tx_context::{Self, TxContext};
@@ -77,6 +78,16 @@ module ramm_sui::test_util {
     public struct USDC has drop {}
     public struct USDT has drop {}
 
+    /// Decimal places of the globally known SUI coin type.
+    public(package) fun sui_dec_places(): u8 {
+        9
+    }
+
+    /// Scaling factor for SUI coin type.
+    public(package) fun sui_factor(): u256 {
+        ramm_math::pow(10u256, sui_dec_places())
+    }
+
     /// Decimal places of this module's BTC coin type.
     public(package) fun btc_dec_places(): u8 {
         8
@@ -119,12 +130,22 @@ module ramm_sui::test_util {
 
     /// Decimal places of this module's USDT coin type.
     public(package) fun usdt_dec_places(): u8 {
-        8
+        6
     }
 
     /// Scaling factor for USDT coin type.
     public(package) fun usdt_factor(): u256 {
         ramm_math::pow(10u256, usdt_dec_places())
+    }
+
+    /// Decimal places of this module's USDC coin type.
+    public(package) fun usdc_dec_places(): u8 {
+        6
+    }
+
+    /// Scaling factor for USDC coin type.
+    public(package) fun usdc_factor(): u256 {
+        ramm_math::pow(10u256, usdc_dec_places())
     }
 
     /// ----------------
@@ -709,6 +730,46 @@ module ramm_sui::test_util {
         vec_map::insert(&mut initial_asset_liquidity, 2, 400_000 * (usdt_factor() as u64));
 
         create_populate_initialize_ramm_3_asset<ETH, MATIC, USDT>(
+            asset_prices,
+            asset_price_scales,
+            asset_minimum_trade_amounts,
+            asset_decimal_places,
+            initial_asset_liquidity,
+            sender
+        )
+    }
+
+    #[test_only]
+    /// Create an SUI/USDT/USDC pool with the parameters from the first RAMM deployed to the Sui
+    /// mainnet.
+    ///
+    /// Initial liquidity was roughly:
+    /// * `SUI` - 100
+    /// * `USDC` - 145
+    /// * `USDT` - 148
+    public(package) fun create_ramm_test_scenario_sui_usdc_usdt(sender: address): (ID, ID, ID, ID, Scenario) {
+        let mut asset_prices: VecMap<u8, u128> = vec_map::empty();
+        vec_map::insert(&mut asset_prices, 0, 1_500000000);
+        vec_map::insert(&mut asset_prices, 1, 1_000000000);
+        vec_map::insert(&mut asset_prices, 2, 1_000000000);
+        let mut asset_price_scales: VecMap<u8, u8> = vec_map::empty();
+        vec_map::insert(&mut asset_price_scales, 0, 9);
+        vec_map::insert(&mut asset_price_scales, 1, 9);
+        vec_map::insert(&mut asset_price_scales, 2, 9);
+        let mut asset_minimum_trade_amounts: VecMap<u8, u64> = vec_map::empty();
+        vec_map::insert(&mut asset_minimum_trade_amounts, 0, (1 * sui_factor() as u64) / 100);
+        vec_map::insert(&mut asset_minimum_trade_amounts, 1, (1 * usdc_factor() as u64) / 100);
+        vec_map::insert(&mut asset_minimum_trade_amounts, 2, (1 * usdt_factor() as u64) / 100);
+        let mut asset_decimal_places: VecMap<u8, u8> = vec_map::empty();
+        vec_map::insert(&mut asset_decimal_places, 0, sui_dec_places());
+        vec_map::insert(&mut asset_decimal_places, 1, usdc_dec_places());
+        vec_map::insert(&mut asset_decimal_places, 2, usdt_dec_places());
+        let mut initial_asset_liquidity: VecMap<u8, u64> = vec_map::empty();
+        vec_map::insert(&mut initial_asset_liquidity, 0, 100 * (sui_factor() as u64));
+        vec_map::insert(&mut initial_asset_liquidity, 1, 145 * (usdc_factor() as u64));
+        vec_map::insert(&mut initial_asset_liquidity, 2, 148 * (usdt_factor() as u64));
+
+        create_populate_initialize_ramm_3_asset<SUI, USDC, USDT>(
             asset_prices,
             asset_price_scales,
             asset_minimum_trade_amounts,
