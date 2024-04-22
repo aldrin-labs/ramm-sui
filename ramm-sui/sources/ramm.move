@@ -111,7 +111,7 @@ module ramm_sui::ramm {
     ///
     /// As such, after a pool's deletion, they will be transferred to the administrator who
     /// executed the deletion act, and this structure is what will be transferred instead.
-    public struct LPTSupplyBag has key {
+    public struct LPTSupplyBag has key, store {
         id: UID,
 
         // How many `Supply<T>` objects an instance is holding.
