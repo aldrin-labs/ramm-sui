@@ -704,6 +704,34 @@ module ramm_sui::ramm {
     /// RAMM deletion code
     /// ------------------
 
+    /*
+
+    IMPORTANT NOTE
+
+    Regarding RAMM deletion functions
+
+    Under normal circumstances, this module should NOT expose deletion functions.
+
+    After https://github.com/aldrin-labs/ramm-sui/issues/24 was found, pools that had been created
+    before the issue was found/corrected needed to be destroyed.
+
+    For this kind of situation, a possible resolution could be:
+    1. To upgrade the package P, with which the faulty RAMMs were published, into P', making
+       deletion functions temporarily available as `publiic`
+    2. Delete the affected RAMM pools
+       - After the public launch, recovered funds/fees can be used to reimburse traders
+       - The `LPTSupplyBag` object can also be used to make liquidity providers whole by allowing
+         redemptions of LP tokens belonging to defunct pools
+    3. Re-publish (*not* upgrade) the package as P'', with the deletion functions made `public(package)`
+
+    Development can then continue in both separate strands:
+    * P' can be used for reimbursement and redemption purposes - note that `LPTSupplyBag` does not
+      have an API for that reason: as required, it can be written
+    * P'' serves as the new development and deployment basis, with the above workflow reapplied if
+      necessary
+
+    */
+
     /// Given a 3-asset RAMM and its admin cap, delete both.
     ///
     /// If successful, the transaction in which this Move call is included will cause, among other
