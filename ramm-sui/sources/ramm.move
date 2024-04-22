@@ -704,6 +704,16 @@ module ramm_sui::ramm {
     /// RAMM deletion code
     /// ------------------
 
+    /// Given a 3-asset RAMM and its admin cap, delete both.
+    ///
+    /// If successful, the transaction in which this Move call is included will cause, among other
+    /// effects:
+    /// 1. The deletion of the shared RAMM object
+    /// 2. The deletion of that RAMM's admin cap object
+    /// 3. The transfer of hitherto collected fees and balances, from all of the RAMM's assets,
+    ///    to the address speficied upon the RAMM's creation as its `fee_collector`
+    /// 4. The transfer of all of the `Supply` objects controlling minting and burning of LP tokens
+    ///    for each of the RAMM's assets to `fee_collector`, wrapped in an `LPTSupplyBag` object.
     public fun delete_ramm_3<Asset1, Asset2, Asset3>(
         self: RAMM,
         admin_cap: RAMMAdminCap,
@@ -821,6 +831,7 @@ module ramm_sui::ramm {
         /*
         */
 
+        // With this, the RAMM is deleted.
         ramm_uid.delete();
     }
 
