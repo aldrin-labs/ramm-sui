@@ -839,9 +839,9 @@ module ramm_sui::ramm {
         Handle `typed_lp_tokens_issued`
         */
 
-        let fst_supply: Supply<Asset1> = typed_lp_tokens_issued.remove(fst_ix);
-        let snd_supply: Supply<Asset2> = typed_lp_tokens_issued.remove(snd_ix);
-        let trd_supply: Supply<Asset3> = typed_lp_tokens_issued.remove(trd_ix);
+        let fst_supply: Supply<LP<Asset1>> = typed_lp_tokens_issued.remove(fst_ix);
+        let snd_supply: Supply<LP<Asset2>> = typed_lp_tokens_issued.remove(snd_ix);
+        let trd_supply: Supply<LP<Asset3>> = typed_lp_tokens_issued.remove(trd_ix);
 
         let mut supply_bag: Bag = bag::new(ctx);
 
