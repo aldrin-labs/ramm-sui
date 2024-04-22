@@ -100,6 +100,17 @@ module ramm_sui::ramm {
     /// The parameter `Asset` is for the coin held in the pool.
     public struct LP<phantom Asset> has drop, store {}
 
+    public struct LPTSupplyBag has key {
+        id: UID,
+
+        // How many `Supply<T>` objects an instance is holding.
+        supply_count: u8,
+
+        // Association between an asset's `TypeName` as key, and the `Supply<T>` object
+        // required to mint/burn LP tokens for that asset.
+        bag: Bag,
+    }
+
     /// Admin capability to circumvent restricted actions on the RAMM pool:
     /// * transfer RAMM protocol fees out of the pool,
     /// * enable/disable deposits for a certain asset
