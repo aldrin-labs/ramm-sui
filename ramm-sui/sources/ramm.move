@@ -100,6 +100,17 @@ module ramm_sui::ramm {
     /// The parameter `Asset` is for the coin held in the pool.
     public struct LP<phantom Asset> has drop, store {}
 
+    /// Structure to hold a RAMM's LP token supply management object after a pool's deletion.
+    ///
+    /// RAMM pools create `Supply<LP<Asset>>` objects for each of their assets. They are used
+    /// to mint/burn an asset's LP tokens as providers perform liquidity operations.
+    ///
+    /// Such `Supply<T>` objects do not have the `drop` ability, and `sui::{balance coin}` do not
+    /// offer a way to delete them (rightly so).
+    /// They also do not have the `store` ability, and thus cannot be transferred directly.
+    ///
+    /// As such, after a pool's deletion, they will be transferred to the administrator who
+    /// executed the deletion act, and this structure is what will be transferred instead.
     public struct LPTSupplyBag has key {
         id: UID,
 
