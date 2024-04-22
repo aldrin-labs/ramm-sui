@@ -6,7 +6,7 @@ module ramm_sui::ramm_tests {
     use sui::test_utils;
 
     use ramm_sui::ramm::{Self, RAMM, RAMMAdminCap, RAMMNewAssetCap};
-    use ramm_sui::test_util::{Self, BTC, btc_dec_places};
+    use ramm_sui::test_util::{Self, BTC, ETH, MATIC, USDT, btc_dec_places};
 
     use switchboard::aggregator::{Self, Aggregator};
 
@@ -741,6 +741,24 @@ module ramm_sui::ramm_tests {
         // * due to an infinite loop in `get_pool_state`, the function never terminated, and
         // no event was ever emitted due to transaction execution failure over exhausted resources.
         test_utils::assert_eq(test_scenario::num_user_events(&tx_fx), 1);
+
+        test_scenario::end(scenario_val);
+    }
+
+    #[test]
+    /// Check that 3-asset RAMM deletion works as intended.
+    fun delete_ramm_3_test() {
+        let (ramm_id, _, _, _, mut scenario_val) = test_util::create_ramm_test_scenario_eth_matic_usdt(ADMIN);
+        let scenario = &mut scenario_val;
+
+        test_scenario::next_tx(scenario, ADMIN);
+
+        {
+            let ramm = test_scenario::take_shared_by_id<RAMM>(scenario, ramm_id);
+            let admin_cap = test_scenario::take_from_address<RAMMAdminCap>(scenario, ADMIN);
+
+            ramm.delete_ramm_3<ETH, MATIC, USDT>(admin_cap, test_scenario::ctx(scenario));
+        };
 
         test_scenario::end(scenario_val);
     }
