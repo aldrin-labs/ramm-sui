@@ -1,15 +1,19 @@
 #[test_only]
 module ramm_sui::ramm_tests {
     use std::option;
+    use sui::balance::Supply;
+
     use sui::coin::{Self, Coin};
     use sui::object::{Self, ID};
     use sui::test_scenario::{Self, TransactionEffects};
     use sui::test_utils;
 
-    use ramm_sui::ramm::{Self, RAMM, RAMMAdminCap, RAMMNewAssetCap};
+    use ramm_sui::ramm::{Self, LP, LPTSupplyBag, RAMM, RAMMAdminCap, RAMMNewAssetCap};
     use ramm_sui::test_util::{Self, BTC, ETH, MATIC, USDT, btc_dec_places};
 
     use switchboard::aggregator::{Self, Aggregator};
+
+    const THREE: u8 = 3;
 
     const ADMIN: address = @0xA1;
     const ALICE: address = @0xACE;
@@ -765,6 +769,8 @@ module ramm_sui::ramm_tests {
         test_scenario::next_tx(scenario, ADMIN);
 
         {
+            // First, check that the RAMM's funds have been returned to the admin, as it was
+            // the only liquidity depositor in this scenario.
             let eth = test_scenario::take_from_address<Coin<ETH>>(scenario, ADMIN);
             test_utils::assert_eq(coin::value(&eth), (200 * (test_util::eth_factor() as u64)));
 
@@ -774,12 +780,23 @@ module ramm_sui::ramm_tests {
             let usdt = test_scenario::take_from_address<Coin<USDT>>(scenario, ADMIN);
             test_utils::assert_eq(coin::value(&usdt), (400_000 * (test_util::usdt_factor() as u64)));
 
-            assert!(!test_scenario::has_most_recent_shared<RAMM>(), ERAMMFailedDeletion);
-            assert!(!test_scenario::has_most_recent_for_address<RAMMAdminCap>(ADMIN), ERAMMFailedDeletion);
-
             test_scenario::return_to_address(ADMIN, eth);
             test_scenario::return_to_address(ADMIN, matic);
             test_scenario::return_to_address(ADMIN, usdt);
+
+            // Next, verify that each of the asset's `Supply<LP<T>>` object was safely returned to
+            // the admin.
+            let mut supply_bag = test_scenario::take_from_address<LPTSupplyBag>(scenario, ADMIN);
+
+            assert!(ramm::get_supply_obj_count(&supply_bag) == THREE, ERAMMFailedDeletion);
+            let eth_supply: &mut Supply<LP<ETH>> = supply_bag.get_supply<ETH>();
+            assert!(eth_supply.supply_value() == 200 * (test_util::eth_factor() as u64), ERAMMFailedDeletion);
+
+            test_scenario::return_to_address(ADMIN, supply_bag);
+
+            // Lastly, check that the RAMM and its admin cap have been deleted.
+            assert!(!test_scenario::has_most_recent_shared<RAMM>(), ERAMMFailedDeletion);
+            assert!(!test_scenario::has_most_recent_for_address<RAMMAdminCap>(ADMIN), ERAMMFailedDeletion);
         };
 
         test_scenario::end(scenario_val);
