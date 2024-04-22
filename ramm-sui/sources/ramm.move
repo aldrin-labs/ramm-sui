@@ -714,6 +714,11 @@ module ramm_sui::ramm {
     ///    to the address speficied upon the RAMM's creation as its `fee_collector`
     /// 4. The transfer of all of the `Supply` objects controlling minting and burning of LP tokens
     ///    for each of the RAMM's assets to `fee_collector`, wrapped in an `LPTSupplyBag` object.
+    ///
+    /// # Aborts
+    ///
+    /// * If the wrong admin capability is provided.
+    /// * If the RAMM does not have *exactly* 3 assets.
     public fun delete_ramm_3<Asset1, Asset2, Asset3>(
         self: RAMM,
         admin_cap: RAMMAdminCap,
