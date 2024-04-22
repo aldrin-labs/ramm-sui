@@ -18,6 +18,7 @@ module ramm_sui::ramm_tests {
     const ERAMMCreation: u64 = 0;
     const ERAMMAssetAddition: u64 = 1;
     const ERAMMDepositStatus: u64 = 3;
+    const ERAMMFailedDeletion: u64 = 4;
 
     #[test]
     /// Basic flow test:
@@ -772,6 +773,9 @@ module ramm_sui::ramm_tests {
 
             let usdt = test_scenario::take_from_address<Coin<USDT>>(scenario, ADMIN);
             test_utils::assert_eq(coin::value(&usdt), (400_000 * (test_util::usdt_factor() as u64)));
+
+            assert!(!test_scenario::has_most_recent_shared<RAMM>(), ERAMMFailedDeletion);
+            assert!(!test_scenario::has_most_recent_for_address<RAMMAdminCap>(ADMIN), ERAMMFailedDeletion);
 
             test_scenario::return_to_address(ADMIN, eth);
             test_scenario::return_to_address(ADMIN, matic);
