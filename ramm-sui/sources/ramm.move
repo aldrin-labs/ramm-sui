@@ -122,10 +122,17 @@ module ramm_sui::ramm {
         supply_bag: Bag,
     }
 
+    /// Return the number of `Supply<T>` objects held in a `LPTSupplyBag`.
     public fun get_supply_obj_count(self: &LPTSupplyBag): u8 {
         self.supply_obj_count
     }
 
+    /// Given a mutable reference to an `LPTSupplyBag` and one if its assets, return a mutable
+    /// reference to its `Supply<LP<Asset>>` object.
+    ///
+    /// # Aborts
+    ///
+    /// * If the asset is not found in the `LPTSupplyBag`.
     public fun get_supply<Asset>(self: &mut LPTSupplyBag): &mut Supply<LP<Asset>> {
         let asset_name = type_name::get<Asset>();
         self.supply_bag.borrow_mut(asset_name)
