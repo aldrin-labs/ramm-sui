@@ -800,9 +800,21 @@ module ramm_sui::ramm {
         let snd_supply: Supply<Asset2> = typed_lp_tokens_issued.remove(snd_ix);
         let trd_supply: Supply<Asset3> = typed_lp_tokens_issued.remove(trd_ix);
 
-        transfer::public_transfer(fst_supply, fee_collector);
-        transfer::public_transfer(snd_supply, fee_collector);
-        transfer::public_transfer(trd_supply, fee_collector);
+        let mut supply_bag: Bag = bag::new(ctx);
+
+        supply_bag.add(type_name::get<Asset1>(), fst_supply);
+        supply_bag.add(type_name::get<Asset2>(), snd_supply);
+        supply_bag.add(type_name::get<Asset3>(), trd_supply);
+
+        let lpt_supply_bag_uid = object::new(ctx);
+
+        let lpt_supply_bag = LPTSupplyBag {
+            id: lpt_supply_bag_uid,
+            supply_obj_count: asset_count,
+            supply_bag,
+        };
+
+        transfer::public_transfer(lpt_supply_bag, fee_collector);
 
         typed_lp_tokens_issued.destroy_empty();
 
