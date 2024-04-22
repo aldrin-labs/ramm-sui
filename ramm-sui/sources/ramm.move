@@ -122,6 +122,15 @@ module ramm_sui::ramm {
         supply_bag: Bag,
     }
 
+    public fun get_supply_obj_count(self: &LPTSupplyBag): u8 {
+        self.supply_obj_count
+    }
+
+    public fun get_supply<Asset>(self: &mut LPTSupplyBag): &mut Supply<LP<Asset>> {
+        let asset_name = type_name::get<Asset>();
+        self.supply_bag.borrow_mut(asset_name)
+    }
+
     /// Admin capability to circumvent restricted actions on the RAMM pool:
     /// * transfer RAMM protocol fees out of the pool,
     /// * enable/disable deposits for a certain asset
