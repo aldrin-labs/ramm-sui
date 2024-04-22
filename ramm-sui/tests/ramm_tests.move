@@ -768,17 +768,21 @@ module ramm_sui::ramm_tests {
 
         test_scenario::next_tx(scenario, ADMIN);
 
+        let eth_amnt: u64 = 200 * (test_util::eth_factor() as u64);
+        let matic_amnt: u64 = 200_000 * (test_util::matic_factor() as u64);
+        let usdt_amnt: u64 = 400_000 * (test_util::usdt_factor() as u64);
+
         {
             // First, check that the RAMM's funds have been returned to the admin, as it was
             // the only liquidity depositor in this scenario.
             let eth = test_scenario::take_from_address<Coin<ETH>>(scenario, ADMIN);
-            test_utils::assert_eq(coin::value(&eth), (200 * (test_util::eth_factor() as u64)));
+            test_utils::assert_eq(coin::value(&eth), eth_amnt);
 
             let matic = test_scenario::take_from_address<Coin<MATIC>>(scenario, ADMIN);
-            test_utils::assert_eq(coin::value(&matic), (200_000 * (test_util::matic_factor() as u64)));
+            test_utils::assert_eq(coin::value(&matic), matic_amnt);
 
             let usdt = test_scenario::take_from_address<Coin<USDT>>(scenario, ADMIN);
-            test_utils::assert_eq(coin::value(&usdt), (400_000 * (test_util::usdt_factor() as u64)));
+            test_utils::assert_eq(coin::value(&usdt), usdt_amnt);
 
             test_scenario::return_to_address(ADMIN, eth);
             test_scenario::return_to_address(ADMIN, matic);
@@ -787,10 +791,16 @@ module ramm_sui::ramm_tests {
             // Next, verify that each of the asset's `Supply<LP<T>>` object was safely returned to
             // the admin.
             let mut supply_bag = test_scenario::take_from_address<LPTSupplyBag>(scenario, ADMIN);
-
             assert!(ramm::get_supply_obj_count(&supply_bag) == THREE, ERAMMFailedDeletion);
+
             let eth_supply: &mut Supply<LP<ETH>> = supply_bag.get_supply<ETH>();
-            assert!(eth_supply.supply_value() == 200 * (test_util::eth_factor() as u64), ERAMMFailedDeletion);
+            assert!(eth_supply.supply_value() == eth_amnt, ERAMMFailedDeletion);
+
+            let matic_supply: &mut Supply<LP<MATIC>> = supply_bag.get_supply<MATIC>();
+            assert!(matic_supply.supply_value() == matic_amnt, ERAMMFailedDeletion);
+
+            let usdt_supply: &mut Supply<LP<USDT>> = supply_bag.get_supply<USDT>();
+            assert!(usdt_supply.supply_value() == usdt_amnt, ERAMMFailedDeletion);
 
             test_scenario::return_to_address(ADMIN, supply_bag);
 
