@@ -763,7 +763,7 @@ module ramm_sui::ramm {
     ///
     /// * If the wrong admin capability is provided.
     /// * If the RAMM does not have *exactly* 3 assets.
-    public fun delete_ramm_3<Asset1, Asset2, Asset3>(
+    public(package) fun delete_ramm_3<Asset1, Asset2, Asset3>(
         self: RAMM,
         admin_cap: RAMMAdminCap,
         ctx: &mut TxContext
