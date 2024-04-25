@@ -5,7 +5,7 @@ module ramm_sui::math_tests {
     use sui::test_utils;
     use sui::vec_map::{Self, VecMap};
 
-    use switchboard::math as sb_math;
+    use switchboard_std::math as sb_math;
 
     use ramm_sui::oracles;
     use ramm_sui::ramm;

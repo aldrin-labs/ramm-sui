@@ -5,24 +5,14 @@ module ramm_sui::interface2 {
     use sui::balance::{Self, Balance};
     use sui::clock::{Self, Clock};
     use sui::coin::{Self, Coin};
-    use sui::object;
-    use sui::transfer;
-    use sui::tx_context::{Self, TxContext};
     use sui::vec_map::{Self, VecMap};
 
-    use switchboard::aggregator::Aggregator;
+    use switchboard_std::aggregator::Aggregator;
 
     use ramm_sui::events::{Self, TradeIn, TradeOut};
     use ramm_sui::ramm::{Self, LP, RAMM, RAMMAdminCap, TradeOutput, WithdrawalOutput};
 
     const TWO: u8 = 2;
-
-    /// Amounts of LP tokens are considered to have 9 decimal places.
-    ///
-    /// Sui Move does not allow the export of `const`s, so this is a redefinition from `ramm.move`.
-    ///
-    /// This `const` factor is used when performing calculations with LP tokens.
-    const FACTOR_LPT: u256 = 1_000_000_000_000 / 1_000_000_000; // FACTOR_LPT = 10**(PRECISION_DECIMAL_PLACES-LP_TOKENS_DECIMAL_PLACES)
 
     const ERAMMInvalidSize: u64 = 0;
     const EDepositsDisabled: u64 = 1;
@@ -602,11 +592,11 @@ module ramm_sui::interface2 {
             *lpt_amount =
                 ramm::div(
                     ramm::mul(
-                        lpt_u256 * FACTOR_LPT,
+                        lpt_u256 * factor_o,
                         (ramm::value(&withdrawal_output) - ramm::remaining(&withdrawal_output)) * factor_o
                     ),
                     ramm::value(&withdrawal_output) * factor_o
-                ) / FACTOR_LPT;
+                ) / factor_o;
         };
 
         let burn_amount: u64 = (*lpt_amount as u64);

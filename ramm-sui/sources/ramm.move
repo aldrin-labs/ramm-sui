@@ -1,16 +1,12 @@
 module ramm_sui::ramm {
     use std::type_name::{Self, TypeName};
-    use std::vector;
 
     use sui::bag::{Self, Bag};
     use sui::balance::{Self, Balance, Supply};
     use sui::coin::{Self, Coin};
-    use sui::object::{Self, ID, UID};
-    use sui::transfer;
-    use sui::tx_context::{Self, TxContext};
     use sui::vec_map::{Self, VecMap};
 
-    use switchboard::aggregator::{Self, Aggregator};
+    use switchboard_std::aggregator::{Self, Aggregator};
 
     use ramm_sui::events;
     use ramm_sui::oracles;
@@ -763,7 +759,7 @@ module ramm_sui::ramm {
     ///
     /// * If the wrong admin capability is provided.
     /// * If the RAMM does not have *exactly* 3 assets.
-    public fun delete_ramm_3<Asset1, Asset2, Asset3>(
+    public(package) fun delete_ramm_3<Asset1, Asset2, Asset3>(
         self: RAMM,
         admin_cap: RAMMAdminCap,
         ctx: &mut TxContext
@@ -787,29 +783,29 @@ module ramm_sui::ramm {
         let RAMM {
             id: ramm_uid,
 
-            admin_cap_id,
-            new_asset_cap_id,
-            is_initialized,
+            admin_cap_id: _,
+            new_asset_cap_id: _,
+            is_initialized: _,
 
             mut collected_protocol_fees,
             fee_collector,
 
             asset_count,
-            deposits_enabled,
-            factors_for_balances,
-            minimum_trade_amounts,
-            types_to_indexes,
+            deposits_enabled: _,
+            factors_for_balances: _,
+            minimum_trade_amounts: _,
+            types_to_indexes: _,
 
-            aggregator_addrs,
-            previous_prices,
-            previous_price_timestamps,
-            volatility_indices,
-            volatility_timestamps,
+            aggregator_addrs: _,
+            previous_prices: _,
+            previous_price_timestamps: _,
+            volatility_indices: _,
+            volatility_timestamps: _,
 
-            balances,
+            balances: _,
             mut typed_balances,
 
-            lp_tokens_issued,
+            lp_tokens_issued: _,
             mut typed_lp_tokens_issued,
         } = self;
 

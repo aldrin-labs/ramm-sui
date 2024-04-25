@@ -11,12 +11,10 @@ module ramm_sui::liquidity_provision_fees_tests {
     use ramm_sui::ramm::{Self, LP, RAMM, RAMMAdminCap};
     use ramm_sui::test_util::{Self, ETH, USDT};
 
-    use switchboard::aggregator::Aggregator;
+    use switchboard_std::aggregator::Aggregator;
 
     const ADMIN: address = @0xFACE;
     const ALICE: address = @0xACE;
-
-    const ETraderShouldHaveAsset: u64 = 0;
 
     /// Returns true iff `\exists n: u64: x = 2^n`, false otherwise.
     fun is_power_of_two(x: u64): bool {

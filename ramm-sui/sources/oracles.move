@@ -1,6 +1,6 @@
 module ramm_sui::oracles {
-    use switchboard::aggregator::{Self, Aggregator};
-    use switchboard::math as sb_math;
+    use switchboard_std::aggregator::{Self, Aggregator};
+    use switchboard_std::math as sb_math;
 
     use ramm_sui::math;
 
