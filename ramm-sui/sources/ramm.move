@@ -1,13 +1,9 @@
 module ramm_sui::ramm {
     use std::type_name::{Self, TypeName};
-    use std::vector;
 
     use sui::bag::{Self, Bag};
     use sui::balance::{Self, Balance, Supply};
     use sui::coin::{Self, Coin};
-    use sui::object::{Self, ID, UID};
-    use sui::transfer;
-    use sui::tx_context::{Self, TxContext};
     use sui::vec_map::{Self, VecMap};
 
     use switchboard::aggregator::{Self, Aggregator};

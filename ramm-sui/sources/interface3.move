@@ -5,9 +5,6 @@ module ramm_sui::interface3 {
     use sui::balance::{Self, Balance};
     use sui::clock::{Self, Clock};
     use sui::coin::{Self, Coin};
-    use sui::object;
-    use sui::transfer;
-    use sui::tx_context::{Self, TxContext};
     use sui::vec_map::{Self, VecMap};
 
     use switchboard::aggregator::Aggregator;
