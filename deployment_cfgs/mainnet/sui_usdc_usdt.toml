@@ -8,22 +8,22 @@ fee_collection_address = "0x0ddc7eb2a5559eefbdf1ca734a289d9b7b838ec6705a4d0efabe
 [[assets]]
 asset_type = "0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI"
 aggregator_address = "0xbca474133638352ba83ccf7b5c931d50f764b09550e16612c9f70f1e21f3f594"
-# This is a minimum trade size of 0.5 `SUI`
-minimum_trade_amount = 500_000_000
+# This is a minimum trade size of 0.01`SUI`
+minimum_trade_amount = 10_000_000
 decimal_places = 9
 
 # This is USDC
 [[assets]]
 asset_type = "0x5d4b302506645c37ff133b98c4b50a5ae14841659738d6d733d59d0d217a93bf::coin::COIN"
-aggregator_address = "0x456efc067f5b4d7fe4a4c561f6937e14b95969d3b4cecd7ee94eedd01499f94a"
-# This is a minimum trade size of 0.5 `USDC`
-minimum_trade_amount = 500_000
+aggregator_address = "0xfa4e1ec7867c4654c3f1a9980178bac51555751d9343f34dedeb60d294f7ec8a"
+# This is a minimum trade size of 0.01 `USDC`
+minimum_trade_amount = 10_000
 decimal_places = 6
 
 # This is USDT
 [[assets]]
 asset_type = "0xc060006111016b8a020ad5b33834984a437aaa7d3c74c18e09a95d48aceab08c::coin::COIN"
 aggregator_address = "0xbe4fcb111eaeb7abb698063c47566447f921e3cc76b33b48265f4c91cf1c645a"
-# This is a minimum trade size of 0.5 `USDT`
-minimum_trade_amount = 500_000
+# This is a minimum trade size of 0.01 `USDT`
+minimum_trade_amount = 10_000
 decimal_places = 6
