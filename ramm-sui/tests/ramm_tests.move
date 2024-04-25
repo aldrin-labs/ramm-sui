@@ -1,10 +1,8 @@
 #[test_only]
 module ramm_sui::ramm_tests {
-    use std::option;
     use sui::balance::Supply;
 
     use sui::coin::{Self, Coin};
-    use sui::object::{Self, ID};
     use sui::test_scenario::{Self, TransactionEffects};
     use sui::test_utils;
 
@@ -303,8 +301,8 @@ module ramm_sui::ramm_tests {
     ///
     /// This *must* fail.
     fun add_asset_mismatched_admin_cap() {
-        let (_, bob_ramm_id, mut scenario_val) = double_create();
-        let scenario = &mut scenario_val;
+        let (_, bob_ramm_id, scenario_val) = double_create();
+        let scenario = &scenario_val;
 
         {
             let mut bob_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, bob_ramm_id);
@@ -330,8 +328,8 @@ module ramm_sui::ramm_tests {
     ///
     /// This *must* fail.
     fun add_asset_mismatched_new_asset_cap() {
-        let (_, bob_ramm_id, mut scenario_val) = double_create();
-        let scenario = &mut scenario_val;
+        let (_, bob_ramm_id, scenario_val) = double_create();
+        let scenario = &scenario_val;
 
         {
             let mut bob_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, bob_ramm_id);
@@ -391,8 +389,8 @@ module ramm_sui::ramm_tests {
     ///
     /// This *must* fail.
     fun initialize_mismatch_admin_cap() {
-        let (_alice_ramm_id, bob_ramm_id, mut scenario_val) = double_add_asset<BTC>();
-        let scenario = &mut scenario_val;
+        let (_alice_ramm_id, bob_ramm_id, scenario_val) = double_add_asset<BTC>();
+        let scenario = &scenario_val;
 
         {
             let mut bob_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, bob_ramm_id);
@@ -415,8 +413,8 @@ module ramm_sui::ramm_tests {
     ///
     /// This *must* fail.
     fun initialize_mismatch_new_asset_cap() {
-        let (_alice_ramm_id, bob_ramm_id, mut scenario_val) = double_add_asset<BTC>();
-        let scenario = &mut scenario_val;
+        let (_alice_ramm_id, bob_ramm_id, scenario_val) = double_add_asset<BTC>();
+        let scenario = &scenario_val;
 
         {
             let mut bob_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, bob_ramm_id);
@@ -465,8 +463,8 @@ module ramm_sui::ramm_tests {
     #[expected_failure(abort_code = ramm::ENotAdmin)]
     /// Check that setting a new fee collecting address with the wrong `RAMMAdminCap` will fail.
     fun set_fee_collector_admin_cap_mismatch() {
-        let (_alice_ramm_id, bob_ramm_id, mut scenario_val) = double_initialize<BTC>();
-        let scenario = &mut scenario_val;
+        let (_alice_ramm_id, bob_ramm_id, scenario_val) = double_initialize<BTC>();
+        let scenario = &scenario_val;
         {
             let mut bob_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, bob_ramm_id);
             let alice_admin_cap = test_scenario::take_from_address<RAMMAdminCap>(scenario, ALICE);
@@ -484,8 +482,8 @@ module ramm_sui::ramm_tests {
     #[expected_failure(abort_code = ramm::ENotAdmin)]
     /// Check that setting minimum trade amounts with the wrong `RAMMAdminCap` will fail.
     fun set_minimum_trade_amount_admin_cap_mismatch() {
-        let (_alice_ramm_id, bob_ramm_id, mut scenario_val) = double_initialize<BTC>();
-        let scenario = &mut scenario_val;
+        let (_alice_ramm_id, bob_ramm_id, scenario_val) = double_initialize<BTC>();
+        let scenario = &scenario_val;
         {
             let mut bob_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, bob_ramm_id);
             let alice_admin_cap = test_scenario::take_from_address<RAMMAdminCap>(scenario, ALICE);
@@ -582,8 +580,8 @@ module ramm_sui::ramm_tests {
     #[expected_failure(abort_code = ramm::ENotAdmin)]
     /// Check that enabling deposits for an asset with the wrong `RAMMAdminCap` will fail.
     fun enable_deposits_admin_cap_mismatch() {
-        let (_alice_ramm_id, bob_ramm_id, mut scenario_val) = double_initialize<BTC>();
-        let scenario = &mut scenario_val;
+        let (_alice_ramm_id, bob_ramm_id, scenario_val) = double_initialize<BTC>();
+        let scenario = &scenario_val;
         {
             let mut bob_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, bob_ramm_id);
             let alice_admin_cap = test_scenario::take_from_address<RAMMAdminCap>(scenario, ALICE);
@@ -601,8 +599,8 @@ module ramm_sui::ramm_tests {
     #[expected_failure(abort_code = ramm::ENotAdmin)]
     /// Check that disabling deposits for an asset with the wrong `RAMMAdminCap` will fail.
     fun disable_deposits_admin_cap_mismatch() {
-        let (_alice_ramm_id, bob_ramm_id, mut scenario_val) = double_initialize<BTC>();
-        let scenario = &mut scenario_val;
+        let (_alice_ramm_id, bob_ramm_id, scenario_val) = double_initialize<BTC>();
+        let scenario = &scenario_val;
         {
             let mut bob_ramm = test_scenario::take_shared_by_id<RAMM>(scenario, bob_ramm_id);
             let alice_admin_cap = test_scenario::take_from_address<RAMMAdminCap>(scenario, ALICE);

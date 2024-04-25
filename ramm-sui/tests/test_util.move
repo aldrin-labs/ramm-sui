@@ -2,14 +2,11 @@
 /// Name change from `test_utils` -> `test_util` to avoid clashing
 /// with `sui::test_utils`.
 module ramm_sui::test_util {
-    use std::vector;
     use sui::clock::{Self, Clock};
     use sui::coin;
-    use sui::object::{Self, ID};
     use sui::sui::SUI;
     use sui::test_scenario::{Self, Scenario};
     use sui::test_utils;
-    use sui::tx_context::{Self, TxContext};
     use sui::vec_map::{Self, VecMap};
 
     use switchboard::aggregator::{Self, Aggregator};
@@ -188,7 +185,7 @@ module ramm_sui::test_util {
         negative: bool,     // example -10 would be true
         aggregator: &mut Aggregator, // aggregator
         now: u64,           // timestamp (in seconds)
-        ctx: &mut TxContext
+        ctx: &TxContext
     ) {
 
         // set the value of a test aggregator
