@@ -8,14 +8,7 @@ edition = "2024.beta"
 #published-at = "0xb93c139768a9dfdb6898475052be3ac1d93b92dccf2288c96a8e227f3e511ef6"
 
 # First version of package published in mainnet with ID:
-#published-at = "0xd4e097d82d73dc5d152f277bd17ba7980cad4c0b238c3609517cbd0cf686ddd1"
-# Upgraded to ID:
-#published-at = "0xcb6640194b37023f6bed705f40ff22883eb6007d4c69e72c317c64671f9f6b29"
-# Upgraded to ID:
-# published-at = "0xce6fe657125970687c9065815974a351fe7c0389589308816740bd5197c220a4"
-# The above ID was done in the `imbr-ratio-event` branch, as otherwise it would not be possible
-# to upgrade the package - a public function's signature was altered since that branch's PR was
-# merged to `main`: `ramm_sui::math::{check_imbalance_ratios, imbalance_ratios}`
+published-at = "0x5b05e2c12f617b33b64ea2b004d89cc18c46b270bc0c214ddd32654fa9a8c84c"
 
 [dependencies]
 Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "mainnet" }
