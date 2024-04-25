@@ -9,7 +9,7 @@ module ramm_sui::interface2_safety_tests {
     use ramm_sui::ramm::{Self, LP, RAMM, RAMMAdminCap};
     use ramm_sui::test_util::{Self, BTC, ETH, USDC};
 
-    use switchboard::aggregator::Aggregator;
+    use switchboard_std::aggregator::Aggregator;
 
     /// ------------------------
     /// Structure of this module

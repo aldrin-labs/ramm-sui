@@ -9,7 +9,7 @@ module ramm_sui::interface3_oracle_safety_tests {
     use ramm_sui::ramm::{LP, RAMM};
     use ramm_sui::test_util::{Self, BTC, ETH, SOL};
 
-    use switchboard::aggregator::Aggregator;
+    use switchboard_std::aggregator::Aggregator;
 
     /// ------------------------
     /// Structure of this module

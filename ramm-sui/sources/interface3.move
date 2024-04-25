@@ -7,7 +7,7 @@ module ramm_sui::interface3 {
     use sui::coin::{Self, Coin};
     use sui::vec_map::{Self, VecMap};
 
-    use switchboard::aggregator::Aggregator;
+    use switchboard_std::aggregator::Aggregator;
 
     use ramm_sui::events::{Self, TradeIn, TradeOut};
     use ramm_sui::ramm::{Self, LP, RAMM, RAMMAdminCap, TradeOutput};

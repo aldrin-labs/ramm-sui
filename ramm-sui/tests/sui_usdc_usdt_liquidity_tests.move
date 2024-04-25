@@ -10,7 +10,7 @@ module ramm_sui::sui_usdc_usdt_liquidity_tests {
     use ramm_sui::ramm::{Self, LP,  RAMM};
     use ramm_sui::test_util::{Self, USDC, USDT};
 
-    use switchboard::aggregator::Aggregator;
+    use switchboard_std::aggregator::Aggregator;
 
     const ADMIN: address = @0xFACE;
     const ALICE: address = @0xACE;

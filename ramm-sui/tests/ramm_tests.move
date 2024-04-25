@@ -9,7 +9,7 @@ module ramm_sui::ramm_tests {
     use ramm_sui::ramm::{Self, LP, LPTSupplyBag, RAMM, RAMMAdminCap, RAMMNewAssetCap};
     use ramm_sui::test_util::{Self, BTC, ETH, MATIC, USDT, btc_dec_places};
 
-    use switchboard::aggregator::{Self, Aggregator};
+    use switchboard_std::aggregator::{Self, Aggregator};
 
     const THREE: u8 = 3;
 

@@ -10,7 +10,7 @@ module ramm_sui::volatility3_tests {
     use ramm_sui::ramm::{Self, LP, RAMM};
     use ramm_sui::test_util::{Self, BTC, ETH, MATIC, USDT, SOL};
 
-    use switchboard::aggregator::Aggregator;
+    use switchboard_std::aggregator::Aggregator;
 
     const PRECISION_DECIMAL_PLACES: u8 = 12;
     const PRICE_TIMESTAMP_STALENESS_THRESHOLD: u64 = 60 * 60 * 1000;

@@ -9,8 +9,8 @@ module ramm_sui::test_util {
     use sui::test_utils;
     use sui::vec_map::{Self, VecMap};
 
-    use switchboard::aggregator::{Self, Aggregator};
-    use switchboard::math as sb_math;
+    use switchboard_std::aggregator::{Self, Aggregator};
+    use switchboard_std::math as sb_math;
 
     use ramm_sui::interface2;
     use ramm_sui::interface3;

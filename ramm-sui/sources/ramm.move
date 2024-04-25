@@ -6,7 +6,7 @@ module ramm_sui::ramm {
     use sui::coin::{Self, Coin};
     use sui::vec_map::{Self, VecMap};
 
-    use switchboard::aggregator::{Self, Aggregator};
+    use switchboard_std::aggregator::{Self, Aggregator};
 
     use ramm_sui::events;
     use ramm_sui::oracles;

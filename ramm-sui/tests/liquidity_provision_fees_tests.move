@@ -11,7 +11,7 @@ module ramm_sui::liquidity_provision_fees_tests {
     use ramm_sui::ramm::{Self, LP, RAMM, RAMMAdminCap};
     use ramm_sui::test_util::{Self, ETH, USDT};
 
-    use switchboard::aggregator::Aggregator;
+    use switchboard_std::aggregator::Aggregator;
 
     const ADMIN: address = @0xFACE;
     const ALICE: address = @0xACE;
