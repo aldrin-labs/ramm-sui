@@ -783,29 +783,29 @@ module ramm_sui::ramm {
         let RAMM {
             id: ramm_uid,
 
-            admin_cap_id,
-            new_asset_cap_id,
-            is_initialized,
+            admin_cap_id: _,
+            new_asset_cap_id: _,
+            is_initialized: _,
 
             mut collected_protocol_fees,
             fee_collector,
 
             asset_count,
-            deposits_enabled,
-            factors_for_balances,
-            minimum_trade_amounts,
-            types_to_indexes,
+            deposits_enabled: _,
+            factors_for_balances: _,
+            minimum_trade_amounts: _,
+            types_to_indexes: _,
 
-            aggregator_addrs,
-            previous_prices,
-            previous_price_timestamps,
-            volatility_indices,
-            volatility_timestamps,
+            aggregator_addrs: _,
+            previous_prices: _,
+            previous_price_timestamps: _,
+            volatility_indices: _,
+            volatility_timestamps: _,
 
-            balances,
+            balances: _,
             mut typed_balances,
 
-            lp_tokens_issued,
+            lp_tokens_issued: _,
             mut typed_lp_tokens_issued,
         } = self;
 
