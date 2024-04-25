@@ -17,13 +17,6 @@ module ramm_sui::interface3 {
 
     const THREE: u8 = 3;
 
-    /// Amounts of LP tokens are considered to have 9 decimal places.
-    ///
-    /// Sui Move does not allow the export of `const`s, so this is a redefinition from `ramm.move`.
-    ///
-    /// This `const` factor is used when performing calculations with LP tokens.
-    const FACTOR_LPT: u256 = 1_000_000_000_000 / 1_000_000_000; // FACTOR_LPT = 10**(PRECISION_DECIMAL_PLACES-LP_TOKENS_DECIMAL_PLACES)
-
     const ERAMMInvalidSize: u64 = 0;
     const EDepositsDisabled: u64 = 1;
     const EInvalidDeposit: u64 = 2;
@@ -826,11 +819,11 @@ module ramm_sui::interface3 {
             *lpt_amount =
                 ramm::div(
                     ramm::mul(
-                        lpt_u256 * FACTOR_LPT,
+                        lpt_u256 * factor_o,
                         (ramm::value(&withdrawal_output) - ramm::remaining(&withdrawal_output)) * factor_o
                     ),
                     ramm::value(&withdrawal_output) * factor_o
-                ) / FACTOR_LPT;
+                ) / factor_o;
         };
 
         let burn_amount: u64 = (*lpt_amount as u64);
