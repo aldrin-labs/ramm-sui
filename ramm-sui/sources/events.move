@@ -2,7 +2,6 @@ module ramm_sui::events {
     use std::type_name::TypeName;
 
     use sui::event;
-    use sui::object::ID;
     use sui::vec_map::VecMap;
 
     /* friend ramm_sui::ramm; */
